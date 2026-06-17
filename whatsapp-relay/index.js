@@ -39,7 +39,11 @@ function initializeClient() {
         "--disable-accelerated-2d-canvas",
         "--no-first-run",
         "--no-zygote",
-        "--disable-gpu"
+        "--disable-gpu",
+        "--js-flags=--max-old-space-size=150",
+        "--disable-extensions",
+        "--disable-default-apps",
+        "--mute-audio"
       ]
     }
   });
