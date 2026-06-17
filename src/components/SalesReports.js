@@ -565,116 +565,97 @@ const SalesReports = () => {
             </div>
             
             <div className="modal-content">
-              <div className="bill-preview" style={{ fontFamily: "monospace", padding: "10px", background: "#fff", color: "#000", maxWidth: "400px", margin: "0 auto", border: "1px solid #eee", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
-                {/* Professional Bill Header */}
-                <div className="bill-header" style={{ textAlign: "center", marginBottom: "15px" }}>
-                  <h2 style={{ margin: "0 0 8px 0", fontSize: "1.4rem", textTransform: "uppercase" }}>{selectedBill.barSettings?.bar_name || 'CounterFlow POS'}</h2>
-                  {selectedBill.barSettings?.address && (
-                    <p style={{ margin: "2px 0", fontSize: "0.9rem", color: "#333" }}>{selectedBill.barSettings.address}</p>
-                  )}
-                  {selectedBill.barSettings?.contact_number && (
-                    <p style={{ margin: "2px 0", fontSize: "0.9rem", color: "#333" }}>Ph: {selectedBill.barSettings.contact_number}</p>
-                  )}
-                  {selectedBill.barSettings?.gst_number && (
-                    <p style={{ margin: "2px 0", fontSize: "0.9rem", color: "#333" }}>GSTIN: {selectedBill.barSettings.gst_number}</p>
-                  )}
-                  <h3 style={{ margin: "15px 0 5px 0", fontSize: "1.1rem", textDecoration: "underline" }}>TAX INVOICE</h3>
-                </div>
+              <div className="bill-preview" style={{ padding: "10px 20px", background: "#fff", color: "#333", width: "100%", boxSizing: "border-box" }}>
                 
-                <hr style={{ borderTop: "1px dashed #000", margin: "10px 0" }} />
-                
-                {/* Bill Details */}
-                <div className="bill-details">
-                  <div className="bill-info-row">
-                    <div>
-                      <strong>Bill No:</strong> {selectedBill.saleNumber}
-                    </div>
-                    <div>
-                      <strong>Date:</strong> {formatDate(selectedBill.saleDate)}
+                {/* Bill Details Grid */}
+                <div className="bill-details" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "25px", padding: "15px", background: "#f8f9fa", borderRadius: "10px", border: "1px solid #e9ecef" }}>
+                  <div>
+                    <div style={{ color: "#6c757d", fontSize: "0.85rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Bill No</div>
+                    <div style={{ fontWeight: "600", fontSize: "1.1rem", color: "#111" }}>{selectedBill.saleNumber}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: "#6c757d", fontSize: "0.85rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Date</div>
+                    <div style={{ fontWeight: "600", fontSize: "1.1rem", color: "#111" }}>{formatDate(selectedBill.saleDate)}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: "#6c757d", fontSize: "0.85rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Type</div>
+                    <div style={{ fontWeight: "600", fontSize: "1.1rem", color: "#111" }}>
+                      {selectedBill.saleType === 'table' ? 'Table' : 'Parcel'}
+                      {selectedBill.tableNumber && ` - T${selectedBill.tableNumber}`}
                     </div>
                   </div>
-                  
-                  <div className="bill-info-row">
-                    <div>
-                      <strong>Type:</strong> {selectedBill.saleType === 'table' ? 'Table' : 'Parcel'}
-                      {selectedBill.tableNumber && ` - Table ${selectedBill.tableNumber}`}
-                    </div>
-                    <div>
-                      <strong>Payment:</strong> {selectedBill.paymentMethod?.toUpperCase()}
-                    </div>
+                  <div>
+                    <div style={{ color: "#6c757d", fontSize: "0.85rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Payment</div>
+                    <div style={{ fontWeight: "600", fontSize: "1.1rem", color: "#111" }}>{selectedBill.paymentMethod?.toUpperCase()}</div>
                   </div>
                   
                   {selectedBill.customerName && selectedBill.customerName !== 'Walk-in Customer' && (
-                    <div className="bill-info-row">
+                    <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "5px", paddingTop: "15px", borderTop: "1px dashed #dee2e6" }}>
                       <div>
-                        <strong>Customer:</strong> {selectedBill.customerName}
+                        <div style={{ color: "#6c757d", fontSize: "0.85rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Customer</div>
+                        <div style={{ fontWeight: "600", color: "#111" }}>{selectedBill.customerName}</div>
                       </div>
                       {selectedBill.customerPhone && (
                         <div>
-                          <strong>Phone:</strong> {selectedBill.customerPhone}
+                          <div style={{ color: "#6c757d", fontSize: "0.85rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Phone</div>
+                          <div style={{ fontWeight: "600", color: "#111" }}>{selectedBill.customerPhone}</div>
                         </div>
                       )}
                     </div>
                   )}
                 </div>
-                
                 <hr style={{ borderTop: "1px dashed #000", margin: "10px 0" }} />
                 
                 {/* Items Table */}
-                <div className="bill-items" style={{ margin: "15px 0" }}>
-                  <table className="bill-items-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.95rem" }}>
+                <div className="bill-items" style={{ margin: "20px 0" }}>
+                  <table className="bill-items-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "1rem" }}>
                     <thead>
-                      <tr style={{ borderBottom: "1px dashed #000" }}>
-                        <th style={{ textAlign: "left", padding: "5px 0" }}>Item</th>
-                        <th style={{ textAlign: "center", padding: "5px 0" }}>Qty</th>
-                        <th style={{ textAlign: "right", padding: "5px 0" }}>Rate</th>
-                        <th style={{ textAlign: "right", padding: "5px 0" }}>Amount</th>
+                      <tr style={{ borderBottom: "2px solid #e9ecef", color: "#6c757d" }}>
+                        <th style={{ textAlign: "left", padding: "10px 5px", fontWeight: "600" }}>Item</th>
+                        <th style={{ textAlign: "center", padding: "10px 5px", fontWeight: "600" }}>Qty</th>
+                        <th style={{ textAlign: "right", padding: "10px 5px", fontWeight: "600" }}>Rate</th>
+                        <th style={{ textAlign: "right", padding: "10px 5px", fontWeight: "600" }}>Amount</th>
                       </tr>
                     </thead>
                     <tbody>
                       {selectedBill.items?.map((item, index) => (
-                        <tr key={index}>
-                          <td style={{ textAlign: "left", padding: "3px 0" }}>{item.name}</td>
-                          <td style={{ textAlign: "center", padding: "3px 0" }}>{item.quantity}</td>
-                          <td style={{ textAlign: "right", padding: "3px 0" }}>{item.unitPrice?.toFixed(2)}</td>
-                          <td style={{ textAlign: "right", padding: "3px 0" }}>{(item.totalPrice || (item.price * item.quantity))?.toFixed(2)}</td>
+                        <tr key={index} style={{ borderBottom: "1px solid #f8f9fa" }}>
+                          <td style={{ textAlign: "left", padding: "10px 5px" }}>{item.name}</td>
+                          <td style={{ textAlign: "center", padding: "10px 5px" }}>{item.quantity}</td>
+                          <td style={{ textAlign: "right", padding: "10px 5px" }}>{item.unitPrice?.toFixed(2)}</td>
+                          <td style={{ textAlign: "right", padding: "10px 5px", fontWeight: "500" }}>{(item.totalPrice || (item.price * item.quantity))?.toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
                 
-                <hr style={{ borderTop: "1px dashed #000", margin: "10px 0" }} />
-                
                 {/* Bill Summary */}
-                <div className="bill-summary" style={{ fontSize: "1rem" }}>
-                  <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "3px 0" }}>
-                    <span>Subtotal:</span>
-                    <span>{selectedBill.subtotal?.toFixed(2)}</span>
+                <div className="bill-summary" style={{ fontSize: "1.05rem", padding: "15px", background: "#f8f9fa", borderRadius: "10px", marginTop: "15px" }}>
+                  <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "5px 0", color: "#495057" }}>
+                    <span>Subtotal</span>
+                    <span style={{ fontWeight: "500" }}>₹{selectedBill.subtotal?.toFixed(2)}</span>
                   </div>
                   
                   {selectedBill.discountAmount > 0 && (
-                    <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "3px 0" }}>
-                      <span>Discount:</span>
-                      <span>-{selectedBill.discountAmount?.toFixed(2)}</span>
+                    <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "5px 0", color: "#e53e3e" }}>
+                      <span>Discount</span>
+                      <span style={{ fontWeight: "500" }}>-₹{selectedBill.discountAmount?.toFixed(2)}</span>
                     </div>
                   )}
                   
                   {selectedBill.taxAmount > 0 && (
-                    <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "3px 0" }}>
-                      <span>Tax:</span>
-                      <span>{selectedBill.taxAmount?.toFixed(2)}</span>
+                    <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "5px 0", color: "#495057" }}>
+                      <span>Tax</span>
+                      <span style={{ fontWeight: "500" }}>₹{selectedBill.taxAmount?.toFixed(2)}</span>
                     </div>
                   )}
                   
-                  <div className="summary-row total" style={{ display: "flex", justifyContent: "space-between", margin: "10px 0 0 0", fontSize: "1.2rem", fontWeight: "bold" }}>
-                    <span>Total:</span>
-                    <span>{selectedBill.totalAmount?.toFixed(2)}</span>
+                  <div className="summary-row total" style={{ display: "flex", justifyContent: "space-between", margin: "15px 0 0 0", paddingTop: "15px", borderTop: "2px solid #e9ecef", fontSize: "1.3rem", fontWeight: "bold", color: "#111" }}>
+                    <span>Total</span>
+                    <span>₹{selectedBill.totalAmount?.toFixed(2)}</span>
                   </div>
                 </div>
-                
-                <hr style={{ borderTop: "1px dashed #000", margin: "10px 0" }} />
-                
               </div>
             </div>
             
