@@ -402,6 +402,7 @@ const SalesReports = () => {
               <th>Customer</th>
               <th>Items</th>
               <th>Amount</th>
+              <th>Payment</th>
               <th>Date</th>
               <th>Bill</th>
             </tr>
@@ -440,6 +441,22 @@ const SalesReports = () => {
                   <td>{sale.customer_name || "Walk-in Customer"}</td>
                   <td>{sale.item_count}</td>
                   <td>₹{(sale.total_sale_price || sale.total_amount).toFixed(2)}</td>
+                  <td>
+                    <span
+                      style={{
+                        textTransform: "uppercase",
+                        fontWeight: "600",
+                        letterSpacing: "0.5px",
+                        background: (sale.payment_method || sale.paymentMethod) === "upi" ? "rgba(102, 126, 234, 0.15)" : "rgba(39, 174, 96, 0.15)",
+                        color: (sale.payment_method || sale.paymentMethod) === "upi" ? "#667eea" : "#27ae60",
+                        padding: "4px 10px",
+                        borderRadius: "20px",
+                        fontSize: "0.75rem",
+                      }}
+                    >
+                      {sale.payment_method || sale.paymentMethod || "cash"}
+                    </span>
+                  </td>
                   <td>{formatDate(sale.sale_date)}</td>
                   <td>
 <button onClick={() => handleViewBill(sale)} className="btn btn-secondary" aria-label="View Bill">

@@ -237,11 +237,14 @@ const Dashboard = () => {
                   <td>
                     <span
                       style={{
-                        textTransform: "capitalize",
-                        background: "#e9ecef",
-                        padding: "2px 8px",
-                        borderRadius: "4px",
-                        fontSize: "0.8rem",
+                        textTransform: "uppercase",
+                        fontWeight: "600",
+                        letterSpacing: "0.5px",
+                        background: (sale.paymentMethod || sale.payment_method) === "upi" ? "rgba(102, 126, 234, 0.15)" : "rgba(39, 174, 96, 0.15)",
+                        color: (sale.paymentMethod || sale.payment_method) === "upi" ? "#667eea" : "#27ae60",
+                        padding: "4px 10px",
+                        borderRadius: "20px",
+                        fontSize: "0.75rem",
                       }}
                     >
                       {sale.paymentMethod || sale.payment_method}
