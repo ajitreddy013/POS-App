@@ -83,7 +83,8 @@ function initializeClient() {
         "--disable-features=Translate",
         "--disk-cache-size=0",
         "--disable-background-networking",
-        "--disable-sync"
+        "--disable-sync",
+        "--disable-blink-features=AutomationControlled"
       ]
     }
   });
@@ -425,6 +426,8 @@ app.post("/payment/create-link", async (req, res) => {
       error: "Missing required fields: amount, orderId, and Razorpay credentials must be configured."
     });
   }
+
+  console.log(`Razorpay Debug - Key ID Length: ${rzpKeyId ? rzpKeyId.length : 0}, Key Secret Length: ${rzpKeySecret ? rzpKeySecret.length : 0}`);
 
   try {
     const amountInPaise = Math.round(parseFloat(amount) * 100);
