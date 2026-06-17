@@ -764,6 +764,10 @@ const Settings = () => {
                         <span style={{ display: 'flex', alignItems: 'center', color: '#2e7d32', fontWeight: 'bold' }}>
                           <Wifi size={18} style={{ marginRight: '5px' }} /> Linked / Active
                         </span>
+                      ) : whatsappStatus === 'AUTHENTICATING' ? (
+                        <span style={{ display: 'flex', alignItems: 'center', color: '#0288d1', fontWeight: 'bold' }}>
+                          <RotateCcw size={18} className="spin" style={{ marginRight: '5px' }} /> Authenticating / Syncing...
+                        </span>
                       ) : whatsappStatus === 'QR_READY' ? (
                         <span style={{ display: 'flex', alignItems: 'center', color: '#f57c00', fontWeight: 'bold' }}>
                           <MessageCircle size={18} style={{ marginRight: '5px' }} /> Scan QR Code to Link
@@ -808,6 +812,14 @@ const Settings = () => {
                             <p style={{ margin: 0, fontWeight: 'bold' }}>Device Linked!</p>
                             <p style={{ margin: '5px 0 0 0', fontSize: '0.85rem', color: '#666' }}>
                               POS receipts will be sent automatically from your scanned number.
+                            </p>
+                          </div>
+                        ) : whatsappStatus === 'AUTHENTICATING' ? (
+                          <div style={{ textAlign: 'center', color: '#0288d1' }}>
+                            <RotateCcw size={48} className="spin" style={{ margin: '0 auto 10px auto' }} />
+                            <p style={{ margin: 0, fontWeight: 'bold' }}>Authenticated!</p>
+                            <p style={{ margin: '5px 0 0 0', fontSize: '0.85rem', color: '#666' }}>
+                              Syncing chats and data. Please wait...
                             </p>
                           </div>
                         ) : whatsappStatus === 'INITIALIZING' ? (
@@ -864,29 +876,7 @@ const Settings = () => {
                       onChange={(e) => handleBarSettingsChange('razorpay_enabled', e.target.checked ? 1 : 0)}
                       style={{ marginRight: '10px' }}
                     />
-                    Enable Automated UPI Checkout (Uses Render environment variables if Key/Secret are left blank)
-                  </label>
-                </div>
-                <div className="form-row">
-                  <label>
-                    Razorpay Key ID:
-                    <input
-                      type="text"
-                      value={barSettings.razorpay_key_id || ''}
-                      onChange={(e) => handleBarSettingsChange('razorpay_key_id', e.target.value)}
-                      className="form-input"
-                      placeholder="rzp_test_xxxxxx or rzp_live_xxxxxx"
-                    />
-                  </label>
-                  <label>
-                    Razorpay Key Secret:
-                    <input
-                      type="password"
-                      value={barSettings.razorpay_key_secret || ''}
-                      onChange={(e) => handleBarSettingsChange('razorpay_key_secret', e.target.value)}
-                      className="form-input"
-                      placeholder="Enter Key Secret"
-                    />
+                    Enable Automated UPI Checkout (Uses Render environment variables)
                   </label>
                 </div>
                 
@@ -903,23 +893,16 @@ const Settings = () => {
               </div>
             ) : (
               <div className="razorpay-settings-display">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
                   <div>
                     <h4>Integration Status</h4>
                     <p style={{ margin: 0 }}>
-                      {barSettings.razorpay_enabled === 1 || (barSettings.razorpay_key_id && barSettings.razorpay_key_secret) ? (
-                        <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✓ Enabled (Automated UPI Checkout active)</span>
+                      {barSettings.razorpay_enabled === 1 ? (
+                        <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✓ Enabled (Automated UPI Checkout active using Render credentials)</span>
                       ) : (
                         <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>✗ Disabled (UPI Payments will be manual)</span>
                       )}
                     </p>
-                    
-                    <h4 style={{ marginTop: '15px' }}>Razorpay Key ID</h4>
-                    <p style={{ margin: 0 }}>{barSettings.razorpay_key_id || 'Not configured'}</p>
-                  </div>
-                  <div>
-                    <h4>Razorpay Key Secret</h4>
-                    <p style={{ margin: 0 }}>{barSettings.razorpay_key_secret ? '••••••••••••••••' : 'Not configured'}</p>
                   </div>
                 </div>
               </div>

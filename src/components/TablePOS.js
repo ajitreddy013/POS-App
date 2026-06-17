@@ -416,10 +416,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     }
 
     // Check if payment method is UPI and automated Razorpay checkout is enabled
-    const isRazorpayEnabled = barSettings && (
-      barSettings.razorpay_enabled === 1 || 
-      (barSettings.razorpay_key_id && barSettings.razorpay_key_secret)
-    );
+    const isRazorpayEnabled = barSettings && barSettings.razorpay_enabled === 1;
     if (paymentMethod === "upi" && isRazorpayEnabled) {
       startRazorpayPayment();
       return;
@@ -439,15 +436,13 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       const amount = calculateTotal();
       const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
 
-      // Call relay to create QR code
+      // Call relay to create QR code (relies on server-side Render environment variables)
       const response = await fetch(`${relayUrl}/payment/create-qr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount,
-          orderId,
-          keyId: barSettings.razorpay_key_id || undefined,
-          keySecret: barSettings.razorpay_key_secret || undefined
+          orderId
         })
       });
 
@@ -478,9 +473,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            qrCodeId,
-            keyId: barSettings.razorpay_key_id || undefined,
-            keySecret: barSettings.razorpay_key_secret || undefined
+            qrCodeId
           })
         });
 

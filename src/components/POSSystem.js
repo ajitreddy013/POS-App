@@ -210,10 +210,7 @@ const POSSystem = () => {
     }
 
     // Check if payment method is UPI and automated Razorpay checkout is enabled
-    const isRazorpayEnabled = barSettings && (
-      barSettings.razorpay_enabled === 1 || 
-      (barSettings.razorpay_key_id && barSettings.razorpay_key_secret)
-    );
+    const isRazorpayEnabled = barSettings && barSettings.razorpay_enabled === 1;
     if (paymentMethod === "upi" && isRazorpayEnabled) {
       startRazorpayPayment();
       return;
@@ -234,7 +231,7 @@ const POSSystem = () => {
       const orderId = await generateSaleNumber();
       const amount = calculateTotal();
 
-      // Call relay to create Payment Link
+      // Call relay to create Payment Link (relies on server-side Render environment variables)
       const response = await fetch(`${relayUrl}/payment/create-link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -242,9 +239,7 @@ const POSSystem = () => {
           amount,
           orderId,
           customerName: customerName.trim() || "Walk-in Customer",
-          customerPhone: customerPhone.trim() || undefined,
-          keyId: barSettings.razorpay_key_id || undefined,
-          keySecret: barSettings.razorpay_key_secret || undefined
+          customerPhone: customerPhone.trim() || undefined
         })
       });
 
@@ -279,9 +274,7 @@ const POSSystem = () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            paymentLinkId,
-            keyId: barSettings.razorpay_key_id || undefined,
-            keySecret: barSettings.razorpay_key_secret || undefined
+            paymentLinkId
           })
         });
 

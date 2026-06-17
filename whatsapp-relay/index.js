@@ -96,7 +96,9 @@ function initializeClient() {
   });
 
   client.on("authenticated", () => {
-    console.log("WhatsApp Client authenticated successfully.");
+    console.log("WhatsApp Client authenticated successfully. Syncing chats...");
+    connectionStatus = "AUTHENTICATING";
+    activeQrCode = null;
   });
 
   client.on("auth_failure", (msg) => {
@@ -106,7 +108,7 @@ function initializeClient() {
 
   client.on("disconnected", (reason) => {
     console.log("WhatsApp Client disconnected:", reason);
-    cleanupSession();
+    handleDisconnect(reason);
   });
 
   client.initialize().catch((err) => {
@@ -122,6 +124,7 @@ function cleanupSession() {
 
   if (client) {
     try {
+      client.removeAllListeners();
       client.destroy();
     } catch (err) {
       console.error("Error destroying client:", err);
@@ -145,6 +148,27 @@ function cleanupSession() {
   }, 3000);
 }
 
+// Helper to handle unexpected disconnect without deleting the session files
+function handleDisconnect(reason) {
+  console.log(`Handling unexpected disconnect. Reason: ${reason}`);
+  connectionStatus = "DISCONNECTED";
+  activeQrCode = null;
+
+  if (client) {
+    try {
+      client.removeAllListeners();
+      client.destroy();
+    } catch (err) {
+      console.error("Error destroying client on disconnect:", err);
+    }
+  }
+
+  console.log("Re-initializing client to attempt automatic reconnection...");
+  setTimeout(() => {
+    initializeClient();
+  }, 5000);
+}
+
 // Gracefully restart client without logging out (preserving session files)
 async function restartClient() {
   console.log("Gracefully restarting WhatsApp client to reclaim memory...");
@@ -153,6 +177,7 @@ async function restartClient() {
   
   if (client) {
     try {
+      client.removeAllListeners();
       await client.destroy();
     } catch (err) {
       console.error("Error destroying client during restart:", err);
