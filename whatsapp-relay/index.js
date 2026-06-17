@@ -40,13 +40,16 @@ function initializeClient() {
         "--no-first-run",
         "--no-zygote",
         "--disable-gpu",
-        "--js-flags=--max-old-space-size=100",
+        "--js-flags=--max-old-space-size=80",
         "--disable-extensions",
         "--disable-default-apps",
         "--mute-audio",
         "--single-process",
         "--disable-features=site-per-process",
-        "--disable-features=Translate"
+        "--disable-features=Translate",
+        "--disk-cache-size=0",
+        "--disable-background-networking",
+        "--disable-sync"
       ]
     }
   });
@@ -113,6 +116,25 @@ function cleanupSession() {
   }
 
   // Re-initialize client to generate a new QR code
+  setTimeout(() => {
+    initializeClient();
+  }, 3000);
+}
+
+// Gracefully restart client without logging out (preserving session files)
+async function restartClient() {
+  console.log("Gracefully restarting WhatsApp client to reclaim memory...");
+  connectionStatus = "INITIALIZING";
+  activeQrCode = null;
+  
+  if (client) {
+    try {
+      await client.destroy();
+    } catch (err) {
+      console.error("Error destroying client during restart:", err);
+    }
+  }
+  
   setTimeout(() => {
     initializeClient();
   }, 3000);
@@ -407,4 +429,26 @@ app.post("/payment/link-status", async (req, res) => {
 app.listen(port, () => {
   console.log(`WhatsApp Cloud-Relay Server running on port ${port}`);
   initializeClient();
+  startMemoryMonitor();
 });
+
+// Monitor memory usage and restart if exceeding threshold to fit 512MB Render free tier
+function startMemoryMonitor() {
+  // Check memory every 3 minutes
+  setInterval(() => {
+    try {
+      const mem = process.memoryUsage();
+      const rssMB = Math.round(mem.rss / 1024 / 1024);
+      const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
+      console.log(`[Memory Monitor] Node Process RSS: ${rssMB}MB, Heap Used: ${heapUsedMB}MB`);
+      
+      // If RSS exceeds 200MB, trigger a restart to free memory
+      if (rssMB > 200) {
+        console.warn(`[Memory Monitor] RSS memory usage (${rssMB}MB) exceeded 200MB. Restarting client to release Chromium...`);
+        restartClient();
+      }
+    } catch (err) {
+      console.error("Failed to run memory monitor:", err);
+    }
+  }, 3 * 60 * 1000);
+}
