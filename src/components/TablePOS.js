@@ -82,7 +82,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const loadProducts = async () => {
     try {
       const productList = await dbService.getProducts();
-      setProducts(productList.filter((p) => p.counter_stock > 0));
+      setProducts(productList); // Show all products
     } catch (error) {
       // Failed to load products
       setProducts([]);
@@ -102,17 +102,12 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     let newCart;
 
     if (existingItem) {
-      if (existingItem.quantity < product.counter_stock) {
-        newCart = cart.map((item) =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-        setCart(newCart);
-      } else {
-        alert("Insufficient stock!");
-        return;
-      }
+      newCart = cart.map((item) =>
+        item.id === product.id
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
+      );
+      setCart(newCart);
     } else {
       newCart = [
         ...cart,
@@ -177,12 +172,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const updateQuantity = async (productId, newQuantity) => {
     if (newQuantity <= 0) {
       removeFromCart(productId);
-      return;
-    }
-
-    const product = cart.find((item) => item.id === productId);
-    if (newQuantity > product.maxStock) {
-      alert("Insufficient stock!");
       return;
     }
 

@@ -67,7 +67,7 @@ const POSSystem = () => {
   const loadProducts = async () => {
     try {
       const productList = await dbService.getProducts();
-      setProducts(productList.filter((p) => p.counter_stock > 0)); // Only show products with counter stock
+      setProducts(productList); // Show all products
     } catch (error) {
       // Failed to load products
       setProducts([]);
@@ -85,17 +85,13 @@ const POSSystem = () => {
     const existingItem = cart.find((item) => item.id === product.id);
 
     if (existingItem) {
-      if (existingItem.quantity < product.counter_stock) {
-        setCart(
-          cart.map((item) =>
-            item.id === product.id
-              ? { ...item, quantity: item.quantity + 1 }
-              : item
-          )
-        );
-      } else {
-        alert("Insufficient stock!");
-      }
+      setCart(
+        cart.map((item) =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        )
+      );
     } else {
       setCart([
         ...cart,
@@ -119,12 +115,6 @@ const POSSystem = () => {
   const updateQuantity = (productId, newQuantity) => {
     if (newQuantity <= 0) {
       removeFromCart(productId);
-      return;
-    }
-
-    const product = cart.find((item) => item.id === productId);
-    if (newQuantity > product.maxStock) {
-      alert("Insufficient stock!");
       return;
     }
 
