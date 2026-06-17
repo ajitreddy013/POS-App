@@ -36,9 +36,6 @@ class PDFService {
       const shopAddress = barSettings?.address || "Address not set";
       const shopPhone = barSettings?.contact_number || "Phone not set";
       const gstNumber = barSettings?.gst_number || "";
-      const thankYouMessage =
-        barSettings?.thank_you_message || "Thank you for visiting!";
-      
 
       // Calculate dynamic height based on items count
       const baseHeight = 120; // Base height for header, footer, and summary
@@ -254,8 +251,6 @@ class PDFService {
       this.doc.setFontSize(10);
       this.doc.setTextColor(0, 0, 0);
       this.doc.setFont("helvetica", "bold");
-      this.doc.text(thankYouMessage, 40, yPosition, { align: "center" });
-
       yPosition += 6;
       this.doc.setFontSize(8);
       this.doc.setFont("helvetica", "normal");

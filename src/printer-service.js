@@ -109,8 +109,6 @@ class PrinterService {
     const shopAddress = barSettings?.address || "Address not set";
     const shopPhone = barSettings?.contact_number || "Phone not set";
     const gstNumber = barSettings?.gst_number || "";
-    const thankYouMessage =
-      barSettings?.thank_you_message || "Thank you for visiting!";
 
     // Format date as DD/MM/YYYY
     const date = new Date(saleDate);
@@ -208,12 +206,6 @@ class PrinterService {
               .text(`Payment: ${paymentMethod.toUpperCase()}`)
               .text('================================')
               .text('')
-              .align('ct')
-              .style('b')
-              .text(thankYouMessage)
-              .style('normal')
-              .text('Visit us again!')
-              .text('================================')
               .text('')
               .cut()
               .close(() => {
@@ -258,8 +250,6 @@ class PrinterService {
     const shopAddress = barSettings?.address || "Address not set";
     const shopPhone = barSettings?.contact_number || "Phone not set";
     const gstNumber = barSettings?.gst_number || "";
-    const thankYouMessage =
-      barSettings?.thank_you_message || "Thank you for visiting!";
 
     // Format date as DD/MM/YYYY
     const date = new Date(saleDate);
@@ -323,10 +313,6 @@ ${
 ${"=".repeat(32)}
 TOTAL:                       ${totalAmount.toFixed(2).padStart(8)}
 PAYMENT: ${paymentMethod.toUpperCase().padEnd(25)}
-${"=".repeat(32)}
-
-${thankYouMessage.padEnd(32)}
-Visit us again!
 ${"=".repeat(32)}
     `;
 

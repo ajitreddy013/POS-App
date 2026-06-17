@@ -223,28 +223,42 @@ const SalesReports = () => {
       
       // Get bar settings for formatting the bill
       const barSettings = await dbService.getBarSettings();
+
+      // Normalize fields — DB stores camelCase on web, snake_case via Electron
+      const saleNumber   = saleWithItems.saleNumber   || saleWithItems.sale_number   || sale.saleNumber   || sale.sale_number || '';
+      const saleType     = saleWithItems.saleType     || saleWithItems.sale_type     || sale.saleType     || sale.sale_type || 'parcel';
+      const tableNumber  = saleWithItems.tableNumber  || saleWithItems.table_number  || sale.tableNumber  || sale.table_number || null;
+      const customerName = saleWithItems.customerName || saleWithItems.customer_name || sale.customerName || sale.customer_name || 'Walk-in Customer';
+      const customerPhone= saleWithItems.customerPhone|| saleWithItems.customer_phone|| sale.customerPhone|| sale.customer_phone|| '';
+      const saleDate     = saleWithItems.saleDate     || saleWithItems.sale_date     || sale.saleDate     || sale.sale_date || '';
+      const paymentMethod= saleWithItems.paymentMethod|| saleWithItems.payment_method|| sale.paymentMethod|| sale.payment_method|| 'cash';
       
-      // Format the sale data for bill generation and preview
+      const totalAmount  = saleWithItems.totalAmount  !== undefined ? saleWithItems.totalAmount  : (saleWithItems.total_amount !== undefined ? saleWithItems.total_amount : (saleWithItems.total_sale_price !== undefined ? saleWithItems.total_sale_price : (sale.totalAmount !== undefined ? sale.totalAmount : (sale.total_amount !== undefined ? sale.total_amount : (sale.total_sale_price || 0)))));
+      const discountAmount= saleWithItems.discountAmount!== undefined ? saleWithItems.discountAmount: (saleWithItems.discount_amount !== undefined ? saleWithItems.discount_amount : (sale.discountAmount !== undefined ? sale.discountAmount : (sale.discount_amount || 0)));
+      const taxAmount    = saleWithItems.taxAmount    !== undefined ? saleWithItems.taxAmount    : (saleWithItems.tax_amount !== undefined ? saleWithItems.tax_amount : (sale.taxAmount !== undefined ? sale.taxAmount : (sale.tax_amount || 0)));
+      
+      const subtotal     = saleWithItems.subtotal     !== undefined ? saleWithItems.subtotal     : (sale.subtotal !== undefined ? sale.subtotal : (totalAmount - taxAmount + discountAmount));
+      const items        = saleWithItems.items || sale.items || [];
+      
       const billData = {
-        saleNumber: saleWithItems.sale_number,
-        saleType: saleWithItems.sale_type || 'parcel',
-        tableNumber: saleWithItems.table_number || null,
-        customerName: saleWithItems.customer_name || 'Walk-in Customer',
-        customerPhone: saleWithItems.customer_phone || '',
-        items: saleWithItems.items || [],
-        subtotal: saleWithItems.total_amount - (saleWithItems.tax_amount || 0) + (saleWithItems.discount_amount || 0),
-        taxAmount: saleWithItems.tax_amount || 0,
-        discountAmount: saleWithItems.discount_amount || 0,
-        totalAmount: saleWithItems.total_amount,
-        paymentMethod: saleWithItems.payment_method || 'Cash',
-        saleDate: saleWithItems.sale_date,
-        barSettings: barSettings,
+        saleNumber,
+        saleType,
+        tableNumber,
+        customerName,
+        customerPhone,
+        items,
+        subtotal,
+        taxAmount,
+        discountAmount,
+        totalAmount,
+        paymentMethod,
+        saleDate,
+        barSettings,
       };
       
       setSelectedBill(billData);
       setShowBillModal(true);
     } catch (error) {
-      // Failed to load bill data
       alert('Failed to load bill data');
     }
   };
@@ -660,9 +674,6 @@ const SalesReports = () => {
                 </div>
                 
                 <hr style={{ borderTop: "1px dashed #000", margin: "10px 0" }} />
-                <div style={{ textAlign: "center", margin: "15px 0 5px 0", fontSize: "1rem", fontWeight: "bold" }}>
-                  {selectedBill.barSettings?.thank_you_message || "Thank you for visiting!"}
-                </div>
                 
               </div>
             </div>
