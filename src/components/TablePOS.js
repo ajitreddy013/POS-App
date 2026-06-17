@@ -377,7 +377,8 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       // Auto-send WhatsApp receipt if enabled and number exists
       if (sendWhatsapp && customerPhone && barSettings && barSettings.whatsapp_enabled === 1) {
         try {
-          const waResult = await whatsappService.sendBill(APP_CONFIG.whatsappRelayUrl, barSettings, saleData);
+          const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+          const waResult = await whatsappService.sendBill(relayUrl, barSettings, saleData);
           if (waResult.success) {
             console.log("WhatsApp receipt sent!");
           } else {
@@ -414,8 +415,12 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       return;
     }
 
-    // Check if payment method is UPI and Razorpay is configured
-    if (paymentMethod === "upi" && barSettings && barSettings.razorpay_key_id && barSettings.razorpay_key_secret) {
+    // Check if payment method is UPI and automated Razorpay checkout is enabled
+    const isRazorpayEnabled = barSettings && (
+      barSettings.razorpay_enabled === 1 || 
+      (barSettings.razorpay_key_id && barSettings.razorpay_key_secret)
+    );
+    if (paymentMethod === "upi" && isRazorpayEnabled) {
       startRazorpayPayment();
       return;
     }
@@ -432,7 +437,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     try {
       const orderId = await generateSaleNumber();
       const amount = calculateTotal();
-      const relayUrl = APP_CONFIG.whatsappRelayUrl;
+      const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
 
       // Call relay to create QR code
       const response = await fetch(`${relayUrl}/payment/create-qr`, {
@@ -441,8 +446,8 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         body: JSON.stringify({
           amount,
           orderId,
-          keyId: barSettings.razorpay_key_id,
-          keySecret: barSettings.razorpay_key_secret
+          keyId: barSettings.razorpay_key_id || undefined,
+          keySecret: barSettings.razorpay_key_secret || undefined
         })
       });
 
@@ -474,8 +479,8 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             qrCodeId,
-            keyId: barSettings.razorpay_key_id,
-            keySecret: barSettings.razorpay_key_secret
+            keyId: barSettings.razorpay_key_id || undefined,
+            keySecret: barSettings.razorpay_key_secret || undefined
           })
         });
 

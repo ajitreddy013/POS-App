@@ -48,10 +48,15 @@ const Settings = () => {
     loadEmailSettings();
   }, []);
 
+  const getActiveRelayUrl = () => {
+    return barSettings.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+  };
+
   useEffect(() => {
     let intervalId = null;
+    const activeUrl = getActiveRelayUrl();
     
-    if (barSettings.whatsapp_enabled && APP_CONFIG.whatsappRelayUrl) {
+    if (barSettings.whatsapp_enabled && activeUrl) {
       checkRelayStatus();
       intervalId = setInterval(checkRelayStatus, 5000); // Poll every 5 seconds
     } else {
@@ -62,12 +67,13 @@ const Settings = () => {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [barSettings.whatsapp_enabled]);
+  }, [barSettings.whatsapp_enabled, barSettings.whatsapp_relay_url]);
 
   const checkRelayStatus = async () => {
-    if (!APP_CONFIG.whatsappRelayUrl) return;
+    const activeUrl = getActiveRelayUrl();
+    if (!activeUrl) return;
     try {
-      const data = await whatsappService.getStatus(APP_CONFIG.whatsappRelayUrl);
+      const data = await whatsappService.getStatus(activeUrl);
       setWhatsappStatus(data.status);
       setWhatsappQr(data.qrCode);
       setWhatsappError(data.error || null);
@@ -79,10 +85,11 @@ const Settings = () => {
   };
 
   const handleWhatsappLogout = async () => {
-    if (!APP_CONFIG.whatsappRelayUrl) return;
+    const activeUrl = getActiveRelayUrl();
+    if (!activeUrl) return;
     try {
       setWhatsappLoading(true);
-      const res = await whatsappService.logout(APP_CONFIG.whatsappRelayUrl);
+      const res = await whatsappService.logout(activeUrl);
       if (res.success) {
         alert('WhatsApp unlinked successfully!');
         setWhatsappStatus('DISCONNECTED');
@@ -691,7 +698,20 @@ const Settings = () => {
                       style={{ marginLeft: '10px' }}
                     />
                   </label>
-                  
+                </div>
+
+                <div className="form-row">
+                  <label style={{ width: '100%' }}>
+                    WhatsApp Relay URL:
+                    <input
+                      type="text"
+                      value={barSettings.whatsapp_relay_url || ''}
+                      onChange={(e) => handleBarSettingsChange('whatsapp_relay_url', e.target.value)}
+                      className="form-input"
+                      placeholder="e.g. https://pos-app-nqsm.onrender.com"
+                      style={{ width: '100%', marginTop: '5px' }}
+                    />
+                  </label>
                 </div>
 
                 <div className="form-row">
@@ -735,6 +755,9 @@ const Settings = () => {
                     <h4>WhatsApp Automation</h4>
                     <p>{barSettings.whatsapp_enabled ? '✓ Enabled' : '✗ Disabled'}</p>
                     
+                    <h4>Relay URL</h4>
+                    <p style={{ wordBreak: 'break-all' }}>{barSettings.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl || 'Not configured'}</p>
+                    
                     <h4>Relay Status</h4>
                     <div style={{ display: 'flex', alignItems: 'center', marginTop: '10px' }}>
                       {whatsappStatus === 'CONNECTED' ? (
@@ -770,7 +793,7 @@ const Settings = () => {
                   </div>
 
                   <div>
-                    {barSettings.whatsapp_enabled && APP_CONFIG.whatsappRelayUrl && (
+                    {barSettings.whatsapp_enabled && getActiveRelayUrl() && (
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid #ddd', borderRadius: '8px', padding: '15px', background: '#fafafa', minHeight: '200px' }}>
                         {whatsappStatus === 'QR_READY' && whatsappQr ? (
                           <>
@@ -833,6 +856,17 @@ const Settings = () => {
           <div style={{ padding: '20px' }}>
             {isEditingRazorpayInfo ? (
               <div className="razorpay-settings-form">
+                <div className="form-row" style={{ width: '100%', marginBottom: '15px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!barSettings.razorpay_enabled}
+                      onChange={(e) => handleBarSettingsChange('razorpay_enabled', e.target.checked ? 1 : 0)}
+                      style={{ marginRight: '10px' }}
+                    />
+                    Enable Automated UPI Checkout (Uses Render environment variables if Key/Secret are left blank)
+                  </label>
+                </div>
                 <div className="form-row">
                   <label>
                     Razorpay Key ID:
@@ -873,10 +907,10 @@ const Settings = () => {
                   <div>
                     <h4>Integration Status</h4>
                     <p style={{ margin: 0 }}>
-                      {barSettings.razorpay_key_id && barSettings.razorpay_key_secret ? (
-                        <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✓ Configured</span>
+                      {barSettings.razorpay_enabled === 1 || (barSettings.razorpay_key_id && barSettings.razorpay_key_secret) ? (
+                        <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✓ Enabled (Automated UPI Checkout active)</span>
                       ) : (
-                        <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>✗ Not Configured (UPI Payments will be manual)</span>
+                        <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>✗ Disabled (UPI Payments will be manual)</span>
                       )}
                     </p>
                     

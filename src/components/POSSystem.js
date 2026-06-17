@@ -168,7 +168,7 @@ const POSSystem = () => {
       // Auto-send WhatsApp receipt silently if customer phone is available
       if (customerPhone && customerPhone.trim() !== "") {
         try {
-          const relayUrl = APP_CONFIG.whatsappRelayUrl;
+          const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
           await whatsappService.sendBill(relayUrl, barSettings || {}, saleData);
         } catch (waErr) {
           // Silent fail — WhatsApp is optional
@@ -209,8 +209,12 @@ const POSSystem = () => {
       }
     }
 
-    // Check if payment method is UPI and Razorpay is configured
-    if (paymentMethod === "upi" && barSettings && barSettings.razorpay_key_id && barSettings.razorpay_key_secret) {
+    // Check if payment method is UPI and automated Razorpay checkout is enabled
+    const isRazorpayEnabled = barSettings && (
+      barSettings.razorpay_enabled === 1 || 
+      (barSettings.razorpay_key_id && barSettings.razorpay_key_secret)
+    );
+    if (paymentMethod === "upi" && isRazorpayEnabled) {
       startRazorpayPayment();
       return;
     }
@@ -224,7 +228,7 @@ const POSSystem = () => {
     setPaymentLinkUrl("");
     setActiveLinkId("");
     
-    const relayUrl = APP_CONFIG.whatsappRelayUrl;
+    const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
 
     try {
       const orderId = await generateSaleNumber();
@@ -239,8 +243,8 @@ const POSSystem = () => {
           orderId,
           customerName: customerName.trim() || "Walk-in Customer",
           customerPhone: customerPhone.trim() || undefined,
-          keyId: barSettings.razorpay_key_id,
-          keySecret: barSettings.razorpay_key_secret
+          keyId: barSettings.razorpay_key_id || undefined,
+          keySecret: barSettings.razorpay_key_secret || undefined
         })
       });
 
@@ -276,8 +280,8 @@ const POSSystem = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             paymentLinkId,
-            keyId: barSettings.razorpay_key_id,
-            keySecret: barSettings.razorpay_key_secret
+            keyId: barSettings.razorpay_key_id || undefined,
+            keySecret: barSettings.razorpay_key_secret || undefined
           })
         });
 
