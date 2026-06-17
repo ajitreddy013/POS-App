@@ -276,26 +276,25 @@ const POSSystem = () => {
 
   return (
     <div className="pos-system">
-      <div className="pos-header">
-        <h1>
-          <ShoppingCart size={24} /> POS System
-        </h1>
-        <div className="search-input-container" style={{ flex: 1, maxWidth: '480px', margin: '0 20px' }}>
-          <Search size={20} />
-          <input
-            ref={searchInputRef}
-            type="text"
-            placeholder="Search products by name, SKU, or barcode..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="search-input"
-          />
-        </div>
-      </div>
-
       <div className="pos-layout">
         <div className="product-panel">
+          <div className="pos-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 20px', background: 'white', borderRadius: '12px', marginBottom: '20px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', flexWrap: 'nowrap', gap: '20px' }}>
+            <h1 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.5rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              <ShoppingCart size={24} /> POS System
+            </h1>
+            <div className="search-input-container" style={{ flex: 1, maxWidth: '480px', margin: 0 }}>
+              <Search size={20} />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search products by name, SKU, or barcode..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyPress={handleKeyPress}
+                className="search-input"
+              />
+            </div>
+          </div>
           <div className="products-grid">
             {filteredProducts.slice(0, 12).map((product) => (
               <div
