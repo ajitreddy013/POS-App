@@ -26,9 +26,11 @@ const POSSystem = () => {
   const [barSettings, setBarSettings] = useState(null);
   const searchInputRef = useRef(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState("idle");
+  const [paymentType, setPaymentType] = useState("payment_link");
+  const [nativeQrImageUrl, setNativeQrImageUrl] = useState("");
   const [paymentLinkUrl, setPaymentLinkUrl] = useState("");
   const [activeLinkId, setActiveLinkId] = useState("");
-  const [paymentStatus, setPaymentStatus] = useState("creating");
   const pollingIntervalRef = useRef(null);
 
   useEffect(() => {
@@ -245,9 +247,11 @@ const POSSystem = () => {
 
       const data = await response.json();
       if (data.success) {
-        setPaymentLinkUrl(data.shortUrl);
+        setPaymentLinkUrl(data.shortUrl || "");
         setActiveLinkId(data.paymentLinkId);
         setPaymentStatus("pending");
+        setPaymentType(data.type || "payment_link");
+        setNativeQrImageUrl(data.qrImageUrl || "");
         
         // Start polling for payment link status
         startPollingPaymentLink(data.paymentLinkId, relayUrl);
@@ -594,38 +598,50 @@ const POSSystem = () => {
               </div>
             )}
 
-            {paymentStatus === "pending" && paymentLinkUrl && (
+            {paymentStatus === "pending" && (
               <div>
                 <p style={{ fontSize: "0.95rem", color: "#444", margin: "0 0 10px 0", lineHeight: "1.4" }}>
                   Scan the QR code below or click the button to complete the payment:
                 </p>
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(paymentLinkUrl)}`} 
-                  alt="Razorpay Payment QR Code" 
-                  style={{ width: "200px", height: "200px", margin: "0 auto 15px auto", display: "block", border: "1px solid #ddd", borderRadius: "8px", padding: "5px", backgroundColor: "#fff" }} 
-                />
-                <button 
-                  onClick={() => window.open(paymentLinkUrl, "_blank")} 
-                  className="btn btn-primary"
-                  style={{ 
-                    display: "inline-flex", 
-                    alignItems: "center", 
-                    justifyContent: "center", 
-                    gap: "8px", 
-                    padding: "12px 24px", 
-                    fontSize: "1rem", 
-                    fontWeight: "bold",
-                    backgroundColor: "#3399cc",
-                    borderColor: "#3399cc",
-                    color: "#fff",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    margin: "0 auto 20px auto",
-                    boxShadow: "0 2px 8px rgba(51,153,204,0.3)"
-                  }}
-                >
-                  Open Razorpay Payment Page
-                </button>
+                
+                {paymentType === "qr_code" && nativeQrImageUrl ? (
+                  <img 
+                    src={nativeQrImageUrl} 
+                    alt="Native UPI QR Code" 
+                    style={{ width: "200px", height: "200px", margin: "0 auto 15px auto", display: "block", border: "1px solid #ddd", borderRadius: "8px", padding: "5px", backgroundColor: "#fff" }} 
+                  />
+                ) : paymentLinkUrl ? (
+                  <>
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(paymentLinkUrl)}`} 
+                      alt="Razorpay Payment QR Code" 
+                      style={{ width: "200px", height: "200px", margin: "0 auto 15px auto", display: "block", border: "1px solid #ddd", borderRadius: "8px", padding: "5px", backgroundColor: "#fff" }} 
+                    />
+                    <button 
+                      onClick={() => window.open(paymentLinkUrl, "_blank")} 
+                      className="btn btn-primary"
+                      style={{ 
+                        display: "inline-flex", 
+                        alignItems: "center", 
+                        justifyContent: "center", 
+                        gap: "8px", 
+                        padding: "12px 24px", 
+                        fontSize: "1rem", 
+                        fontWeight: "bold",
+                        backgroundColor: "#3399cc",
+                        borderColor: "#3399cc",
+                        color: "#fff",
+                        borderRadius: "8px",
+                        cursor: "pointer",
+                        margin: "0 auto 20px auto",
+                        boxShadow: "0 2px 8px rgba(51,153,204,0.3)"
+                      }}
+                    >
+                      Open Razorpay Payment Page
+                    </button>
+                  </>
+                ) : null}
+
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "#f57c00", fontWeight: "bold", marginTop: "10px" }}>
                   <div className="spinning" style={{ border: "2px solid #f3f3f3", borderTop: "2px solid #f57c00", borderRadius: "50%", width: "16px", height: "16px" }}></div>
                   Waiting for payment confirmation...
