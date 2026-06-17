@@ -26,6 +26,13 @@ console.warn = (...args) => {
   originalWarn.apply(console, args);
 };
 
+process.on('uncaughtException', (err) => {
+  console.error('There was an uncaught error', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 const express = require("express");
 const cors = require("cors");
 const { Client, LocalAuth } = require("whatsapp-web.js");
@@ -121,17 +128,18 @@ function initializeClient() {
 }
 
 // Helper to destroy client and delete local auth files
-function cleanupSession() {
+async function cleanupSession() {
   connectionStatus = "DISCONNECTED";
   activeQrCode = null;
 
   if (client) {
     try {
       client.removeAllListeners();
-      client.destroy();
+      await client.destroy();
     } catch (err) {
       console.error("Error destroying client:", err);
     }
+    client = null;
   }
 
   // Delete auth folder to ensure a fresh scan next time
@@ -152,18 +160,25 @@ function cleanupSession() {
 }
 
 // Helper to handle unexpected disconnect without deleting the session files
-function handleDisconnect(reason) {
+async function handleDisconnect(reason) {
   console.log(`Handling unexpected disconnect. Reason: ${reason}`);
+  
+  if (reason === 'LOGOUT') {
+    console.log("User logged out. Cleaning up session entirely...");
+    return cleanupSession();
+  }
+
   connectionStatus = "DISCONNECTED";
   activeQrCode = null;
 
   if (client) {
     try {
       client.removeAllListeners();
-      client.destroy();
+      await client.destroy();
     } catch (err) {
       console.error("Error destroying client on disconnect:", err);
     }
+    client = null;
   }
 
   console.log("Re-initializing client to attempt automatic reconnection...");
@@ -177,6 +192,7 @@ async function restartClient() {
   console.log("Gracefully restarting WhatsApp client to reclaim memory...");
   connectionStatus = "INITIALIZING";
   activeQrCode = null;
+
   
   if (client) {
     try {
