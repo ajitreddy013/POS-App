@@ -249,10 +249,6 @@ const POSSystem = () => {
         setActiveLinkId(data.paymentLinkId);
         setPaymentStatus("pending");
         
-        // Open the link in a new tab/system browser
-        const target = (typeof window !== "undefined" && window.Capacitor) ? "_system" : "_blank";
-        window.open(data.shortUrl, target);
-        
         // Start polling for payment link status
         startPollingPaymentLink(data.paymentLinkId, relayUrl);
       } else {
