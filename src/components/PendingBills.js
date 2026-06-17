@@ -1,3 +1,4 @@
+import { dbService } from "../services/dbService";
 import React, { useEffect, useState } from "react";
 import {
   getPendingBills,
@@ -134,7 +135,7 @@ const PendingBills = () => {
     setGeneratingBillId(bill.id);
     try {
       // Get bar settings for the PDF
-      const barSettings = await window.electronAPI.getBarSettings();
+      const barSettings = await dbService.getBarSettings();
       
       // Format the bill data for PDF generation
       const billData = {
@@ -187,7 +188,7 @@ const PendingBills = () => {
     // setBulkGenerating(true);
 
     try {
-      const response = await window.electronAPI.exportPendingBillsReport(filteredBills);
+      const response = await dbService.exportPendingBillsReport(filteredBills);
       if (response.success) {
         alert(`Pending bills report generated successfully! Saved to: ${response.filePath}`);
       } else {

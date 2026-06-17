@@ -1,3 +1,4 @@
+import { dbService } from "../services/dbService";
 import React, { useEffect, useState, useCallback } from 'react';
 import { 
   History, 
@@ -21,7 +22,7 @@ const StockHistory = () => {
   const fetchHistory = useCallback(async () => {
     try {
       setLoading(true);
-      const result = await window.electronAPI.getStockMovements(limit);
+      const result = await dbService.getStockMovements(limit);
       setHistory(result);
     } catch (error) {
       // Failed to fetch stock movements
@@ -49,7 +50,7 @@ const StockHistory = () => {
           transfer_time: item.created_at
         }))
       };
-      const result = await window.electronAPI.exportTransferReport(exportData);
+      const result = await dbService.exportTransferReport(exportData);
       if (result.success) {
         alert(`PDF exported successfully to ${result.filePath}`);
       } else {

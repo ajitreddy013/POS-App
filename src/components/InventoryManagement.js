@@ -1,3 +1,4 @@
+import { dbService } from "../services/dbService";
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { 
@@ -30,7 +31,7 @@ const InventoryManagement = () => {
 
   const loadBarSettings = async () => {
     try {
-      const settings = await window.electronAPI.getBarSettings();
+      const settings = await dbService.getBarSettings();
       setBarSettings(settings);
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -40,7 +41,7 @@ const InventoryManagement = () => {
 
   const loadInventory = async () => {
     try {
-      const inventoryData = await window.electronAPI.getInventory();
+      const inventoryData = await dbService.getInventory();
       setInventory(inventoryData);
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -56,7 +57,7 @@ const InventoryManagement = () => {
   const updateStock = async (productId, godownStock, counterStock) => {
     try {
       setLoading(true);
-      await window.electronAPI.updateStock(productId, godownStock, counterStock);
+      await dbService.updateStock(productId, godownStock, counterStock);
       await loadInventory();
       setEditingStock({ isOpen: false, product: null });
     } catch (error) {
@@ -71,7 +72,7 @@ const InventoryManagement = () => {
   const transferStock = async (productId, quantity, fromLocation, toLocation) => {
     try {
       setLoading(true);
-      await window.electronAPI.transferStock(productId, quantity, fromLocation, toLocation);
+      await dbService.transferStock(productId, quantity, fromLocation, toLocation);
       await loadInventory();
       setTransferModal({ open: false, product: null });
     } catch (error) {
@@ -193,7 +194,7 @@ const InventoryManagement = () => {
         barSettings
       };
       
-      const result = await window.electronAPI.exportStockReport(reportData, reportType);
+      const result = await dbService.exportStockReport(reportData, reportType);
       if (result.success) {
         alert(`${reportType} stock report exported successfully to ${result.filePath}`);
       } else {

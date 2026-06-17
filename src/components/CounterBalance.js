@@ -1,3 +1,4 @@
+import { dbService } from "../services/dbService";
 import React, { useState, useEffect } from "react";
 import { DollarSign, Plus, Edit, Sun } from "lucide-react";
 
@@ -30,7 +31,7 @@ const CounterBalance = () => {
 
   const loadCounterBalances = async () => {
     try {
-      const data = await window.electronAPI.getCounterBalances({
+      const data = await dbService.getCounterBalances({
         start: getLocalDateString(),
         end: getLocalDateString(),
       });
@@ -87,7 +88,7 @@ const CounterBalance = () => {
     try {
       if (editingBalance) {
         // Update existing balance
-        await window.electronAPI.updateCounterBalance(formData.balanceDate, {
+        await dbService.updateCounterBalance(formData.balanceDate, {
           balanceDate: formData.balanceDate,
           openingBalance: formData.openingBalance,
           closingBalance: editingBalance.closing_balance.toString(),
@@ -95,7 +96,7 @@ const CounterBalance = () => {
         });
       } else {
         // Create new balance entry
-        await window.electronAPI.addCounterBalance({
+        await dbService.addCounterBalance({
           balanceDate: formData.balanceDate,
           openingBalance: formData.openingBalance,
           closingBalance: "0",

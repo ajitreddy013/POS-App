@@ -1,3 +1,4 @@
+import { dbService } from "../services/dbService";
 import React, { useState, useEffect } from "react";
 import {
   ArrowRight,
@@ -36,7 +37,7 @@ const DailyTransfer = () => {
       const endDate = getLocalDateString();
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-      const history = await window.electronAPI.getDailyTransfers({
+      const history = await dbService.getDailyTransfers({
         start: getLocalDateString(thirtyDaysAgo),
         end: endDate,
       });
@@ -57,7 +58,7 @@ const DailyTransfer = () => {
 
   const exportTransferReport = async (transferData) => {
     try {
-      const result = await window.electronAPI.exportTransferReport(
+      const result = await dbService.exportTransferReport(
         transferData
       );
       if (result.success) {
@@ -74,7 +75,7 @@ const DailyTransfer = () => {
 
   const loadProducts = async () => {
     try {
-      const inventoryData = await window.electronAPI.getInventory();
+      const inventoryData = await dbService.getInventory();
       // Only show products with godown stock
       setProducts(inventoryData.filter((item) => item.godown_stock > 0));
     } catch (error) {
@@ -148,7 +149,7 @@ const DailyTransfer = () => {
     try {
       // Process each transfer
       for (const transfer of transfers) {
-        await window.electronAPI.transferStock(
+        await dbService.transferStock(
           transfer.id,
           transfer.quantity,
           "godown",
@@ -170,7 +171,7 @@ const DailyTransfer = () => {
         })),
       };
 
-      await window.electronAPI.saveDailyTransfer(transferRecord);
+      await dbService.saveDailyTransfer(transferRecord);
 
       alert(
         `Successfully transferred ${transfers.length} items from godown to counter!`
@@ -414,7 +415,7 @@ const DailyTransfer = () => {
                     total_quantity: transferHistory.reduce((acc, transfer) => acc + transfer.total_quantity, 0),
                     items_transferred: transferHistory.flatMap((transfer) => transfer.items_transferred),
                   };
-                  const result = await window.electronAPI.exportTransferReport(exportData);
+                  const result = await dbService.exportTransferReport(exportData);
                   if (result.success) {
                     alert(`Complete transfer history exported successfully to ${result.filePath}`);
                   } else {

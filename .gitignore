@@ -94,3 +94,7 @@ secrets.json
 *email*.json
 *mail*.json
 *smtp*.json
+
+# Compiled APKs
+app-debug.apk
+*.apk

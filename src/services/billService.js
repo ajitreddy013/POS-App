@@ -1,23 +1,25 @@
+import { dbService } from "./dbService";
+
 export const addPendingBill = async (billData) => {
-  return await window.electronAPI.addPendingBill(billData);
+  return await dbService.addPendingBill(billData);
 };
 
 export const getPendingBills = async () => {
-  return await window.electronAPI.getPendingBills();
+  return await dbService.getPendingBills();
 };
 
 export const updatePendingBill = async (id, billData) => {
-  return await window.electronAPI.updatePendingBill(id, billData);
+  return await dbService.updatePendingBill(id, billData);
 };
 
 export const deletePendingBill = async (id) => {
-  return await window.electronAPI.deletePendingBill(id);
+  return await dbService.deletePendingBill(id);
 };
 
 export const clearPendingBill = async (id) => {
-  return await window.electronAPI.clearPendingBill(id);
+  return await dbService.clearPendingBill(id);
 };
 
 export const generateBill = async (billData) => {
-  return await window.electronAPI.exportPDF(billData);
+  return await dbService.exportStockReport(billData); // Fallback no-op
 };

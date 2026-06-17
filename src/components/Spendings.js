@@ -1,3 +1,4 @@
+import { dbService } from "../services/dbService";
 import React, { useState, useEffect, useCallback } from "react";
 import {
   DollarSign,
@@ -33,7 +34,7 @@ const Spendings = () => {
   const loadSpendings = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await window.electronAPI.getSpendings(dateRange);
+      const data = await dbService.getSpendings(dateRange);
       setSpendings(data);
     } catch (error) {
       // Failed to load spendings
@@ -50,7 +51,7 @@ const Spendings = () => {
 
   const loadCategories = async () => {
     try {
-      const data = await window.electronAPI.getSpendingCategories();
+      const data = await dbService.getSpendingCategories();
       setCategories(data);
     } catch (error) {
       // Failed to load categories
@@ -61,9 +62,9 @@ const Spendings = () => {
     e.preventDefault();
     try {
       if (editingSpending) {
-        await window.electronAPI.updateSpending(editingSpending.id, formData);
+        await dbService.updateSpending(editingSpending.id, formData);
       } else {
-        await window.electronAPI.addSpending(formData);
+        await dbService.addSpending(formData);
       }
 
       resetForm();
@@ -89,7 +90,7 @@ const Spendings = () => {
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this spending?")) {
       try {
-        await window.electronAPI.deleteSpending(id);
+        await dbService.deleteSpending(id);
         loadSpendings();
       } catch (error) {
         // Failed to delete spending

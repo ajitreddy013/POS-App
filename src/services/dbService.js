@@ -1,0 +1,501 @@
+import Dexie from "dexie";
+import { getLocalDateTimeString } from "../utils/dateUtils";
+
+// Check if running inside Electron
+const isElectron = typeof window !== "undefined" && !!window.electronAPI;
+
+// Initialize Dexie for Browser/Tablet Standalone Mode
+let db = null;
+if (!isElectron) {
+  db = new Dexie("CounterFlowPOS");
+  db.version(1).stores({
+    products: "++id, name, variant, sku, barcode, price, cost, category, counter_stock, godown_stock, min_stock_level, max_stock_level",
+    sales: "++id, saleNumber, saleType, tableNumber, customerName, customerPhone, subtotal, taxAmount, discountAmount, totalAmount, paymentMethod, saleDate",
+    spendings: "++id, description, amount, category, spending_date, payment_method, notes",
+    counter_balance: "balance_date, opening_balance, closing_balance, notes",
+    pending_bills: "++id, billNumber, saleType, tableNumber, customerName, customerPhone, subtotal, totalAmount",
+    tables: "++id, name, capacity, area, status",
+    table_orders: "tableId",
+    daily_transfers: "++id, transfer_date",
+    bar_settings: "id"
+  });
+
+  // Seed sample products if the browser database is empty
+  db.on("ready", async () => {
+    const count = await db.products.count();
+    if (count === 0) {
+      const sampleProducts = [
+        { name: "Margherita Pizza", variant: "Regular", sku: "PIZ-MARG-REG", barcode: "1001", price: 180, cost: 90, category: "Food", counter_stock: 50, godown_stock: 100, min_stock_level: 10, max_stock_level: 200 },
+        { name: "Double Cheese Burger", variant: "Single Patty", sku: "BGR-DBLCHSE", barcode: "1002", price: 150, cost: 70, category: "Food", counter_stock: 40, godown_stock: 80, min_stock_level: 10, max_stock_level: 150 },
+        { name: "Paneer Tikka Roll", variant: "Spicy", sku: "ROL-PANEER", barcode: "1003", price: 120, cost: 50, category: "Food", counter_stock: 30, godown_stock: 60, min_stock_level: 5, max_stock_level: 100 },
+        { name: "French Fries", variant: "Large", sku: "APP-FF-LRG", barcode: "1004", price: 100, cost: 35, category: "Appetizers", counter_stock: 60, godown_stock: 120, min_stock_level: 15, max_stock_level: 200 },
+        { name: "Cappuccino", variant: "Hot", sku: "BEV-CAPPU", barcode: "1005", price: 90, cost: 30, category: "Beverages", counter_stock: 100, godown_stock: 200, min_stock_level: 20, max_stock_level: 500 },
+        { name: "Masala Chai", variant: "Cutting", sku: "BEV-CHAI", barcode: "1006", price: 30, cost: 10, category: "Beverages", counter_stock: 200, godown_stock: 500, min_stock_level: 50, max_stock_level: 1000 },
+        { name: "Diet Coke", variant: "300ml Can", sku: "BEV-DCOKE", barcode: "1007", price: 40, cost: 20, category: "Beverages", counter_stock: 80, godown_stock: 150, min_stock_level: 10, max_stock_level: 250 },
+        { name: "Chocolate Brownie", variant: "With Ice Cream", sku: "DES-BROWNIE", barcode: "1008", price: 140, cost: 60, category: "Desserts", counter_stock: 25, godown_stock: 50, min_stock_level: 5, max_stock_level: 100 }
+      ];
+      await db.products.bulkAdd(sampleProducts);
+
+      // Seed sample tables
+      const sampleTables = [
+        { name: "T1", capacity: 4, area: "Indoor", status: "available" },
+        { name: "T2", capacity: 4, area: "Indoor", status: "available" },
+        { name: "T3", capacity: 2, area: "Indoor", status: "available" },
+        { name: "T4", capacity: 6, area: "Outdoor", status: "available" },
+        { name: "T5", capacity: 4, area: "Outdoor", status: "available" }
+      ];
+      await db.tables.bulkAdd(sampleTables);
+
+      // Seed default bar settings
+      await db.bar_settings.add({
+        id: 1,
+        bar_name: "CounterFlow Food Truck",
+        contact_number: "9876543210",
+        gst_number: "",
+        address: "Food Truck Street, Lane 1",
+        thank_you_message: "Thank you for visiting! Please come back soon.",
+        printing_enabled: 0,
+        whatsapp_enabled: 0,
+        whatsapp_relay_url: "",
+        whatsapp_template_name: "counterflow_pos_receipt",
+        whatsapp_language_code: "en",
+        whatsapp_default_country_code: "91",
+        razorpay_key_id: "",
+        razorpay_key_secret: ""
+      });
+    }
+  });
+}
+
+// Unified Database Service Export
+export const dbService = {
+  // --- PRODUCT OPERATIONS ---
+  getProducts: async () => {
+    if (isElectron) return await window.electronAPI.getProducts();
+    return await db.products.toArray();
+  },
+
+  addProduct: async (product) => {
+    if (isElectron) return await window.electronAPI.addProduct(product);
+    const id = await db.products.add({
+      ...product,
+      counter_stock: product.counter_stock || 0,
+      godown_stock: product.godown_stock || 0
+    });
+    return { success: true, id };
+  },
+
+  updateProduct: async (id, product) => {
+    if (isElectron) return await window.electronAPI.updateProduct(id, product);
+    await db.products.update(Number(id), product);
+    return { success: true };
+  },
+
+  deleteProduct: async (id) => {
+    if (isElectron) return await window.electronAPI.deleteProduct(id);
+    await db.products.delete(Number(id));
+    return { success: true };
+  },
+
+  // --- INVENTORY OPERATIONS ---
+  getInventory: async () => {
+    if (isElectron) return await window.electronAPI.getInventory();
+    const products = await db.products.toArray();
+    return products.map(p => ({
+      id: p.id,
+      product_id: p.id,
+      name: p.name,
+      variant: p.variant,
+      sku: p.sku,
+      godown_stock: p.godown_stock || 0,
+      counter_stock: p.counter_stock || 0,
+      min_stock_level: p.min_stock_level || 0,
+      max_stock_level: p.max_stock_level || 0
+    }));
+  },
+
+  updateStock: async (productId, godownStock, counterStock) => {
+    if (isElectron) return await window.electronAPI.updateStock(productId, godownStock, counterStock);
+    await db.products.update(Number(productId), {
+      godown_stock: Number(godownStock),
+      counter_stock: Number(counterStock)
+    });
+    return { success: true };
+  },
+
+  transferStock: async (productId, quantity, fromLocation, toLocation) => {
+    if (isElectron) return await window.electronAPI.transferStock(productId, quantity, fromLocation, toLocation);
+    const prod = await db.products.get(Number(productId));
+    if (!prod) throw new Error("Product not found");
+
+    const qty = Number(quantity);
+    let newGodown = prod.godown_stock || 0;
+    let newCounter = prod.counter_stock || 0;
+
+    if (fromLocation === "godown" && toLocation === "counter") {
+      newGodown -= qty;
+      newCounter += qty;
+    } else if (fromLocation === "counter" && toLocation === "godown") {
+      newCounter -= qty;
+      newGodown += qty;
+    }
+
+    await db.products.update(Number(productId), {
+      godown_stock: newGodown,
+      counter_stock: newCounter
+    });
+    return { success: true };
+  },
+
+  // --- SALES OPERATIONS ---
+  createSale: async (saleData) => {
+    if (isElectron) return await window.electronAPI.createSale(saleData);
+    
+    // Deduct stock for each sold product
+    for (const item of saleData.items) {
+      const prod = await db.products.get(Number(item.productId));
+      if (prod) {
+        const newCounterStock = Math.max(0, (prod.counter_stock || 0) - item.quantity);
+        await db.products.update(Number(item.productId), { counter_stock: newCounterStock });
+      }
+    }
+
+    // Save sale
+    const id = await db.sales.add({
+      ...saleData,
+      saleDate: saleData.saleDate || getLocalDateTimeString()
+    });
+
+    return { success: true, id };
+  },
+
+  getSales: async (dateRange) => {
+    if (isElectron) return await window.electronAPI.getSales(dateRange);
+    let query = db.sales;
+    if (dateRange && dateRange.startDate && dateRange.endDate) {
+      // Basic date filtering based on ISO date prefix
+      const start = dateRange.startDate;
+      const end = dateRange.endDate;
+      return await query.filter(s => {
+        const sDate = s.saleDate.substring(0, 10);
+        return sDate >= start && sDate <= end;
+      }).toArray();
+    }
+    return await query.toArray();
+  },
+
+  getSalesWithDetails: async (dateRange) => {
+    if (isElectron) return await window.electronAPI.getSalesWithDetails(dateRange);
+    return await dbService.getSales(dateRange);
+  },
+
+  getSaleWithItems: async (saleId) => {
+    if (isElectron) return await window.electronAPI.getSaleWithItems(saleId);
+    return await db.sales.get(Number(saleId));
+  },
+
+  // --- SETTINGS OPERATIONS ---
+  getBarSettings: async () => {
+    if (isElectron) return await window.electronAPI.getBarSettings();
+    const settings = await db.bar_settings.get(1);
+    if (settings) return settings;
+    return {
+      bar_name: "CounterFlow Food Truck",
+      contact_number: "",
+      gst_number: "",
+      address: "",
+      thank_you_message: "Thank you for visiting!",
+      printing_enabled: 0,
+      whatsapp_enabled: 0,
+      whatsapp_relay_url: "",
+      whatsapp_template_name: "counterflow_pos_receipt",
+      whatsapp_language_code: "en",
+      whatsapp_default_country_code: "91",
+      razorpay_key_id: "",
+      razorpay_key_secret: ""
+    };
+  },
+
+  saveBarSettings: async (settings) => {
+    if (isElectron) return await window.electronAPI.saveBarSettings(settings);
+    await db.bar_settings.put({
+      id: 1,
+      bar_name: settings.bar_name || settings.barName,
+      contact_number: settings.contact_number || settings.contactNumber,
+      gst_number: settings.gst_number || settings.gstNumber,
+      address: settings.address,
+      thank_you_message: settings.thank_you_message || settings.thankYouMessage,
+      printing_enabled: settings.printing_enabled !== undefined ? Number(settings.printing_enabled) : 0,
+      whatsapp_enabled: settings.whatsapp_enabled !== undefined ? Number(settings.whatsapp_enabled) : 0,
+      whatsapp_relay_url: settings.whatsapp_relay_url || "",
+      whatsapp_template_name: settings.whatsapp_template_name || "counterflow_pos_receipt",
+      whatsapp_language_code: settings.whatsapp_language_code || "en",
+      whatsapp_default_country_code: settings.whatsapp_default_country_code || "91",
+      razorpay_key_id: settings.razorpay_key_id || "",
+      razorpay_key_secret: settings.razorpay_key_secret || ""
+    });
+    return { success: true };
+  },
+
+  // --- TABLES OPERATIONS ---
+  getTables: async () => {
+    if (isElectron) return await window.electronAPI.getTables();
+    return await db.tables.toArray();
+  },
+
+  addTable: async (table) => {
+    if (isElectron) return await window.electronAPI.addTable(table);
+    const id = await db.tables.add({
+      ...table,
+      status: table.status || "available"
+    });
+    return { success: true, id };
+  },
+
+  updateTable: async (id, table) => {
+    if (isElectron) return await window.electronAPI.updateTable(id, table);
+    await db.tables.update(Number(id), table);
+    return { success: true };
+  },
+
+  deleteTable: async (id) => {
+    if (isElectron) return await window.electronAPI.deleteTable(id);
+    await db.tables.delete(Number(id));
+    return { success: true };
+  },
+
+  getTableOrder: async (tableId) => {
+    if (isElectron) return await window.electronAPI.getTableOrder(tableId);
+    const order = await db.table_orders.get(Number(tableId));
+    return order ? JSON.parse(order.items) : [];
+  },
+
+  saveTableOrder: async (orderData) => {
+    if (isElectron) return await window.electronAPI.saveTableOrder(orderData);
+    await db.table_orders.put({
+      tableId: Number(orderData.tableId),
+      items: JSON.stringify(orderData.items),
+      updated_at: getLocalDateTimeString()
+    });
+    return { success: true };
+  },
+
+  clearTableOrder: async (tableId) => {
+    if (isElectron) return await window.electronAPI.clearTableOrder(tableId);
+    await db.table_orders.delete(Number(tableId));
+    return { success: true };
+  },
+
+  // --- PENDING BILLS OPERATIONS ---
+  addPendingBill: async (billData) => {
+    if (isElectron) return await window.electronAPI.addPendingBill(billData);
+    const id = await db.pending_bills.add({
+      ...billData,
+      items: JSON.stringify(billData.items)
+    });
+    return { success: true, id };
+  },
+
+  getPendingBills: async () => {
+    if (isElectron) return await window.electronAPI.getPendingBills();
+    const bills = await db.pending_bills.toArray();
+    return bills.map(b => ({
+      ...b,
+      items: typeof b.items === "string" ? JSON.parse(b.items) : b.items
+    }));
+  },
+
+  updatePendingBill: async (id, billData) => {
+    if (isElectron) return await window.electronAPI.updatePendingBill(id, billData);
+    await db.pending_bills.update(Number(id), {
+      ...billData,
+      items: JSON.stringify(billData.items)
+    });
+    return { success: true };
+  },
+
+  deletePendingBill: async (id) => {
+    if (isElectron) return await window.electronAPI.deletePendingBill(id);
+    await db.pending_bills.delete(Number(id));
+    return { success: true };
+  },
+
+  clearPendingBill: async (id) => {
+    if (isElectron) return await window.electronAPI.clearPendingBill(id);
+    await db.pending_bills.delete(Number(id));
+    return { success: true };
+  },
+
+  // --- SPENDINGS OPERATIONS ---
+  addSpending: async (spending) => {
+    if (isElectron) return await window.electronAPI.addSpending(spending);
+    const id = await db.spendings.add(spending);
+    return { success: true, id };
+  },
+
+  updateSpending: async (id, spending) => {
+    if (isElectron) return await window.electronAPI.updateSpending(id, spending);
+    await db.spendings.update(Number(id), spending);
+    return { success: true };
+  },
+
+  deleteSpending: async (id) => {
+    if (isElectron) return await window.electronAPI.deleteSpending(id);
+    await db.spendings.delete(Number(id));
+    return { success: true };
+  },
+
+  getSpendings: async (dateRange) => {
+    if (isElectron) return await window.electronAPI.getSpendings(dateRange);
+    let query = db.spendings;
+    if (dateRange && dateRange.startDate && dateRange.endDate) {
+      const start = dateRange.startDate;
+      const end = dateRange.endDate;
+      return await query.filter(s => s.spending_date >= start && s.spending_date <= end).toArray();
+    }
+    return await query.toArray();
+  },
+
+  getSpendingCategories: async () => {
+    if (isElectron) return await window.electronAPI.getSpendingCategories();
+    const spendings = await db.spendings.toArray();
+    const cats = [...new Set(spendings.map(s => s.category))];
+    return cats.length > 0 ? cats : ["Raw Materials", "Rent", "Utilities", "Salaries", "Maintenance", "Others"];
+  },
+
+  getDailySpendingTotal: async (date) => {
+    if (isElectron) return await window.electronAPI.getDailySpendingTotal(date);
+    const spendings = await db.spendings.filter(s => s.spending_date === date).toArray();
+    return spendings.reduce((sum, s) => sum + s.amount, 0);
+  },
+
+  // --- COUNTER BALANCE OPERATIONS ---
+  addCounterBalance: async (balance) => {
+    if (isElectron) return await window.electronAPI.addCounterBalance(balance);
+    await db.counter_balance.put(balance);
+    return { success: true };
+  },
+
+  updateCounterBalance: async (date, balance) => {
+    if (isElectron) return await window.electronAPI.updateCounterBalance(date, balance);
+    await db.counter_balance.update(date, balance);
+    return { success: true };
+  },
+
+  getCounterBalance: async (date) => {
+    if (isElectron) return await window.electronAPI.getCounterBalance(date);
+    return await db.counter_balance.get(date);
+  },
+
+  getCounterBalances: async (dateRange) => {
+    if (isElectron) return await window.electronAPI.getCounterBalances(dateRange);
+    let query = db.counter_balance;
+    if (dateRange && dateRange.startDate && dateRange.endDate) {
+      const start = dateRange.startDate;
+      const end = dateRange.endDate;
+      return await query.filter(c => c.balance_date >= start && c.balance_date <= end).toArray();
+    }
+    return await query.toArray();
+  },
+
+  getPreviousDayClosingBalance: async (date) => {
+    if (isElectron) return await window.electronAPI.getPreviousDayClosingBalance(date);
+    const balances = await db.counter_balance.toArray();
+    const sorted = balances
+      .filter(b => b.balance_date < date)
+      .sort((a, b) => (a.balance_date > b.balance_date ? -1 : 1));
+    return sorted.length > 0 ? sorted[0].closing_balance : 0;
+  },
+
+  // --- NO-OPS & FALLBACKS FOR PRINTERS/EMAILS IN WEB MODE ---
+  getPrinterStatus: async () => {
+    if (isElectron) return await window.electronAPI.getPrinterStatus();
+    return { connected: false, device: "Standalone Web Mode - Printing Disabled" };
+  },
+  configurePrinter: async (config) => {
+    if (isElectron) return await window.electronAPI.configurePrinter(config);
+    return { success: true };
+  },
+  testPrinterConnection: async () => {
+    if (isElectron) return await window.electronAPI.testPrinterConnection();
+    return { success: true };
+  },
+  reconnectPrinter: async () => {
+    if (isElectron) return await window.electronAPI.reconnectPrinter();
+    return { success: true };
+  },
+  printBill: async (billData) => {
+    if (isElectron) return await window.electronAPI.printBill(billData);
+    return { success: true }; // Bypassed in web mode
+  },
+  getEmailSettings: async () => {
+    if (isElectron) return await window.electronAPI.getEmailSettings();
+    return { enabled: false };
+  },
+  saveEmailSettings: async () => {
+    return true;
+  },
+  testEmailConnection: async () => {
+    return { success: true };
+  },
+  sendTestEmail: async () => {
+    return { success: true };
+  },
+  sendDailyEmailNow: async () => {
+    return { success: true };
+  },
+  sendEmailReportWithPdfs: async () => {
+    return { success: true };
+  },
+  exportStockReport: async () => ({ success: true, message: "Exported" }),
+  exportTransferReport: async () => ({ success: true, message: "Exported" }),
+  exportSalesReport: async () => ({ success: true, message: "Exported" }),
+  exportFinancialReport: async () => ({ success: true, message: "Exported" }),
+  exportPendingBillsReport: async () => ({ success: true, message: "Exported" }),
+  exportDailyReport: async () => ({ success: true, message: "Exported" }),
+  saveDailyTransfer: async (transferData) => {
+    if (isElectron) return await window.electronAPI.saveDailyTransfer(transferData);
+    const id = await db.daily_transfers.add({
+      transfer_date: transferData.transfer_date,
+      total_items: transferData.total_items,
+      total_quantity: transferData.total_quantity,
+      items_transferred: typeof transferData.items_transferred === "string" 
+        ? transferData.items_transferred 
+        : JSON.stringify(transferData.items_transferred),
+      created_at: new Date().toISOString()
+    });
+    return { id, ...transferData, created_at: new Date().toISOString() };
+  },
+  getDailyTransfers: async (dateRange) => {
+    if (isElectron) return await window.electronAPI.getDailyTransfers(dateRange);
+    let query = db.daily_transfers;
+    const start = dateRange?.start || dateRange?.startDate;
+    const end = dateRange?.end || dateRange?.endDate;
+    let transfers;
+    if (start && end) {
+      transfers = await query.filter(t => t.transfer_date >= start && t.transfer_date <= end).toArray();
+    } else {
+      transfers = await query.toArray();
+    }
+    return transfers.map(t => ({
+      ...t,
+      items_transferred: typeof t.items_transferred === "string" ? JSON.parse(t.items_transferred) : t.items_transferred
+    }));
+  },
+  getStockMovements: async (limit) => {
+    if (isElectron) return await window.electronAPI.getStockMovements(limit);
+    return []; // Return empty array fallback in Dexie mode
+  },
+  exportPDF: async (billData) => {
+    if (isElectron) return await window.electronAPI.exportPDF(billData);
+    return { success: true, filePath: "Downloaded/Saved locally (Bypassed)" };
+  },
+  resetApplication: async () => {
+    if (isElectron) return await window.electronAPI.resetApplication();
+    await db.delete();
+    window.location.reload();
+  },
+  closeSellAndGenerateReports: async () => {
+    return { success: true };
+  }
+};

@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Printer, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle } from 'lucide-react';
+import { Settings as SettingsIcon, Printer, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle, MessageCircle, Wifi, WifiOff, CreditCard } from 'lucide-react';
+import { dbService } from '../services/dbService';
+import { whatsappService } from '../services/whatsappService';
+import { APP_CONFIG } from '../config';
 
 const Settings = () => {
   const [printerStatus, setPrinterStatus] = useState({ connected: false, device: 'Not connected' });
@@ -15,7 +18,13 @@ const Settings = () => {
     contact_number: '',
     gst_number: '',
     address: '',
-    thank_you_message: ''
+    thank_you_message: '',
+    printing_enabled: 1,
+    whatsapp_enabled: 0,
+    whatsapp_relay_url: '',
+    whatsapp_template_name: 'counterflow_pos_receipt',
+    whatsapp_language_code: 'en',
+    whatsapp_default_country_code: '91'
   });
   const [emailSettings, setEmailSettings] = useState({
     host: '',
@@ -29,6 +38,8 @@ const Settings = () => {
   const [isEditingBarInfo, setIsEditingBarInfo] = useState(false);
   const [isEditingEmailInfo, setIsEditingEmailInfo] = useState(false);
   const [isEditingPrinterConfig, setIsEditingPrinterConfig] = useState(false);
+  const [isEditingWhatsappInfo, setIsEditingWhatsappInfo] = useState(false);
+  const [isEditingRazorpayInfo, setIsEditingRazorpayInfo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
   const [printerLoading, setPrinterLoading] = useState(false);
@@ -37,15 +48,69 @@ const Settings = () => {
   const [resetConfirmText, setResetConfirmText] = useState('');
   const [closeSellLoading, setCloseSellLoading] = useState(false);
 
+  const [whatsappStatus, setWhatsappStatus] = useState('DISCONNECTED');
+  const [whatsappQr, setWhatsappQr] = useState(null);
+  const [whatsappError, setWhatsappError] = useState(null);
+  const [whatsappLoading, setWhatsappLoading] = useState(false);
+
   useEffect(() => {
     checkPrinterStatus();
     loadBarSettings();
     loadEmailSettings();
   }, []);
 
+  useEffect(() => {
+    let intervalId = null;
+    
+    if (barSettings.whatsapp_enabled && APP_CONFIG.whatsappRelayUrl) {
+      checkRelayStatus();
+      intervalId = setInterval(checkRelayStatus, 5000); // Poll every 5 seconds
+    } else {
+      setWhatsappStatus('DISCONNECTED');
+      setWhatsappQr(null);
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [barSettings.whatsapp_enabled]);
+
+  const checkRelayStatus = async () => {
+    if (!APP_CONFIG.whatsappRelayUrl) return;
+    try {
+      const data = await whatsappService.getStatus(APP_CONFIG.whatsappRelayUrl);
+      setWhatsappStatus(data.status);
+      setWhatsappQr(data.qrCode);
+      setWhatsappError(data.error || null);
+    } catch (err) {
+      setWhatsappStatus('DISCONNECTED');
+      setWhatsappQr(null);
+      setWhatsappError(err.message);
+    }
+  };
+
+  const handleWhatsappLogout = async () => {
+    if (!APP_CONFIG.whatsappRelayUrl) return;
+    try {
+      setWhatsappLoading(true);
+      const res = await whatsappService.logout(APP_CONFIG.whatsappRelayUrl);
+      if (res.success) {
+        alert('WhatsApp unlinked successfully!');
+        setWhatsappStatus('DISCONNECTED');
+        setWhatsappQr(null);
+      } else {
+        alert(`Failed to unlink: ${res.error}`);
+      }
+    } catch (err) {
+      alert(`Error unlinking WhatsApp: ${err.message}`);
+    } finally {
+      setWhatsappLoading(false);
+    }
+  };
+
   const checkPrinterStatus = async () => {
     try {
-      const status = await window.electronAPI.getPrinterStatus();
+      const status = await dbService.getPrinterStatus();
       setPrinterStatus(status);
     } catch (error) {
       // Failed to get printer status
@@ -55,7 +120,7 @@ const Settings = () => {
   const configurePrinter = async () => {
     try {
       setPrinterLoading(true);
-      const result = await window.electronAPI.configurePrinter(printerConfig);
+      const result = await dbService.configurePrinter(printerConfig);
       if (result.success) {
         setIsEditingPrinterConfig(false);
         alert('Printer configuration saved successfully!');
@@ -74,7 +139,7 @@ const Settings = () => {
   const testPrinterConnection = async () => {
     try {
       setPrinterLoading(true);
-      const result = await window.electronAPI.testPrinterConnection();
+      const result = await dbService.testPrinterConnection();
       if (result.success) {
         alert('Printer connection test successful!');
         await checkPrinterStatus();
@@ -91,7 +156,7 @@ const Settings = () => {
   const reconnectPrinter = async () => {
     try {
       setPrinterLoading(true);
-      const result = await window.electronAPI.reconnectPrinter();
+      const result = await dbService.reconnectPrinter();
       if (result.success) {
         alert('Printer reconnected successfully!');
         await checkPrinterStatus();
@@ -107,7 +172,7 @@ const Settings = () => {
 
   const loadBarSettings = async () => {
     try {
-      const settings = await window.electronAPI.getBarSettings();
+      const settings = await dbService.getBarSettings();
       setBarSettings(settings);
     } catch (error) {
       // Failed to load bar settings
@@ -116,7 +181,7 @@ const Settings = () => {
 
   const loadEmailSettings = async () => {
     try {
-      const settings = await window.electronAPI.getEmailSettings();
+      const settings = await dbService.getEmailSettings();
       setEmailSettings(settings);
     } catch (error) {
       // Failed to load email settings
@@ -126,8 +191,10 @@ const Settings = () => {
   const saveBarSettings = async () => {
     try {
       setLoading(true);
-      await window.electronAPI.saveBarSettings(barSettings);
+      await dbService.saveBarSettings(barSettings);
       setIsEditingBarInfo(false);
+      setIsEditingWhatsappInfo(false);
+      setIsEditingRazorpayInfo(false);
       alert('Bar information saved successfully!');
     } catch (error) {
       // Failed to save bar settings
@@ -140,7 +207,7 @@ const Settings = () => {
   const saveEmailSettings = async () => {
     try {
       setEmailLoading(true);
-      const success = await window.electronAPI.saveEmailSettings(emailSettings);
+      const success = await dbService.saveEmailSettings(emailSettings);
       if (success) {
         setIsEditingEmailInfo(false);
         alert('Email settings saved successfully!');
@@ -158,7 +225,7 @@ const Settings = () => {
   const testEmailConnection = async () => {
     try {
       setEmailLoading(true);
-      const result = await window.electronAPI.testEmailConnection();
+      const result = await dbService.testEmailConnection();
       if (result.success) {
         alert('Email connection test successful!');
       } else {
@@ -174,7 +241,7 @@ const Settings = () => {
   const sendTestEmail = async () => {
     try {
       setEmailLoading(true);
-      const result = await window.electronAPI.sendTestEmail();
+      const result = await dbService.sendTestEmail();
       if (result.success) {
         alert('Test email sent successfully!');
       } else {
@@ -190,7 +257,7 @@ const Settings = () => {
   const sendDailyEmailNow = async () => {
     try {
       setEmailLoading(true);
-      const result = await window.electronAPI.sendDailyEmailNow();
+      const result = await dbService.sendDailyEmailNow();
       if (result.success) {
         alert('Daily report email sent successfully!');
       } else {
@@ -249,7 +316,7 @@ const Settings = () => {
 
     try {
       setResetLoading(true);
-      const result = await window.electronAPI.resetApplication();
+      const result = await dbService.resetApplication();
       
       if (result.success) {
         // Reset email settings in UI to default values
@@ -265,7 +332,7 @@ const Settings = () => {
         
         // Force reload email settings from file (which should now be deleted)
         try {
-          const freshEmailSettings = await window.electronAPI.getEmailSettings();
+          const freshEmailSettings = await dbService.getEmailSettings();
           setEmailSettings(freshEmailSettings);
         } catch (error) {
           console.log('Email settings file successfully deleted - using defaults');
@@ -277,7 +344,15 @@ const Settings = () => {
           contact_number: '',
           gst_number: '',
           address: '',
-          thank_you_message: ''
+          thank_you_message: '',
+          printing_enabled: 1,
+          whatsapp_enabled: 0,
+          whatsapp_relay_url: '',
+          whatsapp_template_name: 'counterflow_pos_receipt',
+          whatsapp_language_code: 'en',
+          whatsapp_default_country_code: '91',
+          razorpay_key_id: '',
+          razorpay_key_secret: ''
         });
         
         alert('Application reset completed successfully!\n\nAll data has been cleared and sample data has been restored.\n\nPlease restart the application for best results.');
@@ -307,7 +382,7 @@ const Settings = () => {
   const handleCloseSell = async () => {
     try {
       setCloseSellLoading(true);
-      const result = await window.electronAPI.closeSellAndGenerateReports();
+      const result = await dbService.closeSellAndGenerateReports();
       
       if (result.success) {
         const message = `Close Sell completed successfully!\n\n📁 Reports ZIP: ${result.zipPath}\n\n💾 Database Backup: ${result.databaseBackupPath || 'Failed to create'}\n\n📊 Reports Backup: ${result.reportsBackupPath || 'Failed to create'}\n\n📧 Email sent to owner: ${result.emailSent ? 'Yes' : 'No'}\n\n✅ All data has been safely backed up to your local machine!`;
@@ -652,6 +727,254 @@ const Settings = () => {
                     <strong>Daily Reports Schedule:</strong> Reports are automatically sent every day at 11:59 PM.
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* WhatsApp Cloud-Relay Settings Section */}
+        <div className="table-container" style={{ marginBottom: '30px' }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            padding: '20px',
+            borderBottom: '1px solid #e9ecef'
+          }}>
+            <h2 style={{ margin: 0 }}>
+              <MessageCircle size={20} style={{ marginRight: '10px' }} />
+              WhatsApp Cloud-Relay Settings
+            </h2>
+            <button 
+              onClick={() => setIsEditingWhatsappInfo(!isEditingWhatsappInfo)}
+              className="btn btn-secondary"
+            >
+              <Edit size={16} />
+              {isEditingWhatsappInfo ? 'Cancel' : 'Edit'}
+            </button>
+          </div>
+          
+          <div style={{ padding: '20px' }}>
+            {isEditingWhatsappInfo ? (
+              <div className="whatsapp-settings-form">
+                <div className="form-row">
+                  <label>
+                    Enable WhatsApp Bills:
+                    <input
+                      type="checkbox"
+                      checked={!!barSettings.whatsapp_enabled}
+                      onChange={(e) => handleBarSettingsChange('whatsapp_enabled', e.target.checked ? 1 : 0)}
+                      style={{ marginLeft: '10px' }}
+                    />
+                  </label>
+                  <label>
+                    Enable Physical Printing:
+                    <input
+                      type="checkbox"
+                      checked={!!barSettings.printing_enabled}
+                      onChange={(e) => handleBarSettingsChange('printing_enabled', e.target.checked ? 1 : 0)}
+                      style={{ marginLeft: '10px' }}
+                    />
+                  </label>
+                </div>
+
+                <div className="form-row">
+                  <label>
+                    Template Language Code:
+                    <input
+                      type="text"
+                      value={barSettings.whatsapp_language_code || 'en'}
+                      onChange={(e) => handleBarSettingsChange('whatsapp_language_code', e.target.value)}
+                      className="form-input"
+                      placeholder="en"
+                    />
+                  </label>
+                  <label>
+                    Default Country Code:
+                    <input
+                      type="text"
+                      value={barSettings.whatsapp_default_country_code || '91'}
+                      onChange={(e) => handleBarSettingsChange('whatsapp_default_country_code', e.target.value)}
+                      className="form-input"
+                      placeholder="91"
+                    />
+                  </label>
+                </div>
+
+                <div className="form-actions">
+                  <button 
+                    onClick={saveBarSettings}
+                    disabled={loading}
+                    className="btn btn-primary"
+                  >
+                    <Save size={16} />
+                    {loading ? 'Saving...' : 'Save Settings'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="whatsapp-settings-display">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div>
+                    <h4>WhatsApp Automation</h4>
+                    <p>{barSettings.whatsapp_enabled ? '✓ Enabled' : '✗ Disabled'}</p>
+                    
+                    <h4>Physical Receipt Printing</h4>
+                    <p>{barSettings.printing_enabled ? '✓ Enabled' : '✗ Disabled (Digital Only Mode)'}</p>
+
+                    <h4>Relay Status</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', marginTop: '10px' }}>
+                      {whatsappStatus === 'CONNECTED' ? (
+                        <span style={{ display: 'flex', alignItems: 'center', color: '#2e7d32', fontWeight: 'bold' }}>
+                          <Wifi size={18} style={{ marginRight: '5px' }} /> Linked / Active
+                        </span>
+                      ) : whatsappStatus === 'QR_READY' ? (
+                        <span style={{ display: 'flex', alignItems: 'center', color: '#f57c00', fontWeight: 'bold' }}>
+                          <MessageCircle size={18} style={{ marginRight: '5px' }} /> Scan QR Code to Link
+                        </span>
+                      ) : whatsappStatus === 'INITIALIZING' ? (
+                        <span style={{ display: 'flex', alignItems: 'center', color: '#0288d1', fontWeight: 'bold' }}>
+                          <RotateCcw size={18} className="spin" style={{ marginRight: '5px' }} /> Connecting to Relay...
+                        </span>
+                      ) : (
+                        <span style={{ display: 'flex', alignItems: 'center', color: '#d32f2f', fontWeight: 'bold' }}>
+                          <WifiOff size={18} style={{ marginRight: '5px' }} /> Offline / Not Linked
+                        </span>
+                      )}
+                    </div>
+                    
+                    {whatsappStatus === 'CONNECTED' && (
+                      <button
+                        onClick={handleWhatsappLogout}
+                        disabled={whatsappLoading}
+                        className="btn btn-secondary"
+                        style={{ marginTop: '20px', color: '#d32f2f', borderColor: '#d32f2f' }}
+                      >
+                        <WifiOff size={16} />
+                        {whatsappLoading ? 'Unlinking...' : 'Unlink WhatsApp Device'}
+                      </button>
+                    )}
+                  </div>
+
+                  <div>
+                    {barSettings.whatsapp_enabled && APP_CONFIG.whatsappRelayUrl && (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid #ddd', borderRadius: '8px', padding: '15px', background: '#fafafa', minHeight: '200px' }}>
+                        {whatsappStatus === 'QR_READY' && whatsappQr ? (
+                          <>
+                            <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', textAlign: 'center', fontWeight: 'bold' }}>
+                              Scan this QR code with WhatsApp Linked Devices:
+                            </p>
+                            <img src={whatsappQr} alt="WhatsApp QR Code" style={{ width: '180px', height: '180px' }} />
+                          </>
+                        ) : whatsappStatus === 'CONNECTED' ? (
+                          <div style={{ textAlign: 'center', color: '#2e7d32' }}>
+                            <MessageCircle size={48} style={{ margin: '0 auto 10px auto' }} />
+                            <p style={{ margin: 0, fontWeight: 'bold' }}>Device Linked!</p>
+                            <p style={{ margin: '5px 0 0 0', fontSize: '0.85rem', color: '#666' }}>
+                              POS receipts will be sent automatically from your scanned number.
+                            </p>
+                          </div>
+                        ) : whatsappStatus === 'INITIALIZING' ? (
+                          <div style={{ textAlign: 'center', color: '#0288d1' }}>
+                            <RotateCcw size={48} className="spin" style={{ margin: '0 auto 10px auto' }} />
+                            <p style={{ margin: 0 }}>Starting WhatsApp session...</p>
+                          </div>
+                        ) : (
+                          <div style={{ textAlign: 'center', color: '#666' }}>
+                            <WifiOff size={48} style={{ margin: '0 auto 10px auto' }} />
+                            <p style={{ margin: 0 }}>Relay is offline or not configured.</p>
+                            {whatsappError && <p style={{ fontSize: '0.8rem', color: '#d32f2f', margin: '5px 0 0 0' }}>{whatsappError}</p>}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Razorpay Automatic UPI Settings Section */}
+        <div className="table-container" style={{ marginBottom: '30px' }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            padding: '20px',
+            borderBottom: '1px solid #e9ecef'
+          }}>
+            <h2 style={{ margin: 0 }}>
+              <CreditCard size={20} style={{ marginRight: '10px' }} />
+              Razorpay UPI Settings
+            </h2>
+            <button 
+              onClick={() => setIsEditingRazorpayInfo(!isEditingRazorpayInfo)}
+              className="btn btn-secondary"
+            >
+              <Edit size={16} />
+              {isEditingRazorpayInfo ? 'Cancel' : 'Edit'}
+            </button>
+          </div>
+          
+          <div style={{ padding: '20px' }}>
+            {isEditingRazorpayInfo ? (
+              <div className="razorpay-settings-form">
+                <div className="form-row">
+                  <label>
+                    Razorpay Key ID:
+                    <input
+                      type="text"
+                      value={barSettings.razorpay_key_id || ''}
+                      onChange={(e) => handleBarSettingsChange('razorpay_key_id', e.target.value)}
+                      className="form-input"
+                      placeholder="rzp_test_xxxxxx or rzp_live_xxxxxx"
+                    />
+                  </label>
+                  <label>
+                    Razorpay Key Secret:
+                    <input
+                      type="password"
+                      value={barSettings.razorpay_key_secret || ''}
+                      onChange={(e) => handleBarSettingsChange('razorpay_key_secret', e.target.value)}
+                      className="form-input"
+                      placeholder="Enter Key Secret"
+                    />
+                  </label>
+                </div>
+                
+                <div className="form-actions">
+                  <button 
+                    onClick={saveBarSettings}
+                    disabled={loading}
+                    className="btn btn-primary"
+                  >
+                    <Save size={16} />
+                    {loading ? 'Saving...' : 'Save Settings'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="razorpay-settings-display">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div>
+                    <h4>Integration Status</h4>
+                    <p style={{ margin: 0 }}>
+                      {barSettings.razorpay_key_id && barSettings.razorpay_key_secret ? (
+                        <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✓ Configured</span>
+                      ) : (
+                        <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>✗ Not Configured (UPI Payments will be manual)</span>
+                      )}
+                    </p>
+                    
+                    <h4 style={{ marginTop: '15px' }}>Razorpay Key ID</h4>
+                    <p style={{ margin: 0 }}>{barSettings.razorpay_key_id || 'Not configured'}</p>
+                  </div>
+                  <div>
+                    <h4>Razorpay Key Secret</h4>
+                    <p style={{ margin: 0 }}>{barSettings.razorpay_key_secret ? '••••••••••••••••' : 'Not configured'}</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>

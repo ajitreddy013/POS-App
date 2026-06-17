@@ -140,6 +140,7 @@ class Database {
           category TEXT,
           description TEXT,
           unit TEXT DEFAULT 'pcs',
+          image TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
@@ -246,6 +247,14 @@ class Database {
           gst_number TEXT,
           address TEXT,
           thank_you_message TEXT DEFAULT 'Thank you for visiting!',
+          printing_enabled INTEGER DEFAULT 1,
+          whatsapp_enabled INTEGER DEFAULT 0,
+          whatsapp_relay_url TEXT DEFAULT '',
+          whatsapp_template_name TEXT DEFAULT 'counterflow_pos_receipt',
+          whatsapp_language_code TEXT DEFAULT 'en',
+          whatsapp_default_country_code TEXT DEFAULT '91',
+          razorpay_key_id TEXT DEFAULT '',
+          razorpay_key_secret TEXT DEFAULT '',
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
@@ -315,46 +324,91 @@ class Database {
   }
 
   runMigrations() {
-    return new Promise((resolve, reject) => {
-      // Check if variant column exists in products table
-      this.db.get("PRAGMA table_info(products)", (err, rows) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-
-        // Check if variant column exists
-        this.db.all("PRAGMA table_info(products)", (err, columns) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-
-          const hasVariantColumn = columns.some(
-            (col) => col.name === "variant"
-          );
-
-          if (!hasVariantColumn) {
-            // Add variant column if it doesn't exist
-            this.db.run(
-              "ALTER TABLE products ADD COLUMN variant TEXT",
-              (err) => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        // 1. Check products table for variant column
+        await new Promise((res, rej) => {
+          this.db.all("PRAGMA table_info(products)", (err, columns) => {
+            if (err) return rej(err);
+            const hasVariantColumn = columns.some(col => col.name === "variant");
+            if (!hasVariantColumn) {
+              this.db.run("ALTER TABLE products ADD COLUMN variant TEXT", (err) => {
                 if (err) {
-                  console.log(
-                    "Variant column already exists or error adding it:",
-                    err.message
-                  );
+                  console.log("Error adding variant column:", err.message);
                 } else {
                   console.log("Added variant column to products table");
                 }
-                resolve();
-              }
-            );
-          } else {
-            resolve();
-          }
+                res();
+              });
+            } else {
+              res();
+            }
+          });
         });
-      });
+
+        // 1.5. Check products table for image column
+        await new Promise((res, rej) => {
+          this.db.all("PRAGMA table_info(products)", (err, columns) => {
+            if (err) return rej(err);
+            const hasImageColumn = columns.some(col => col.name === "image");
+            if (!hasImageColumn) {
+              this.db.run("ALTER TABLE products ADD COLUMN image TEXT", (err) => {
+                if (err) {
+                  console.log("Error adding image column:", err.message);
+                } else {
+                  console.log("Added image column to products table");
+                }
+                res();
+              });
+            } else {
+              res();
+            }
+          });
+        });
+
+        // 2. Check bar_settings table for new columns
+        await new Promise((res, rej) => {
+          this.db.all("PRAGMA table_info(bar_settings)", (err, columns) => {
+            if (err) return rej(err);
+            const colNames = columns.map(c => c.name);
+            const newCols = [
+              { name: "printing_enabled", type: "INTEGER DEFAULT 1" },
+              { name: "whatsapp_enabled", type: "INTEGER DEFAULT 0" },
+              { name: "whatsapp_relay_url", type: "TEXT DEFAULT ''" },
+              { name: "whatsapp_template_name", type: "TEXT DEFAULT 'counterflow_pos_receipt'" },
+              { name: "whatsapp_language_code", type: "TEXT DEFAULT 'en'" },
+              { name: "whatsapp_default_country_code", type: "TEXT DEFAULT '91'" },
+              { name: "razorpay_key_id", type: "TEXT DEFAULT ''" },
+              { name: "razorpay_key_secret", type: "TEXT DEFAULT ''" }
+            ];
+
+            let index = 0;
+            const addNextCol = () => {
+              if (index >= newCols.length) return res();
+              const col = newCols[index];
+              if (!colNames.includes(col.name)) {
+                this.db.run(`ALTER TABLE bar_settings ADD COLUMN ${col.name} ${col.type}`, (err) => {
+                  if (err) {
+                    console.log(`Error adding ${col.name}:`, err.message);
+                  } else {
+                    console.log(`Added ${col.name} column to bar_settings table`);
+                  }
+                  index++;
+                  addNextCol();
+                });
+              } else {
+                index++;
+                addNextCol();
+              }
+            };
+            addNextCol();
+          });
+        });
+
+        resolve();
+      } catch (err) {
+        reject(err);
+      }
     });
   }
 
@@ -419,15 +473,16 @@ class Database {
           category,
           description,
           unit,
+          image,
         } = validatedProduct;
 
         const db = this.db;
         db.run(
           `
-          INSERT INTO products (name, variant, sku, barcode, price, cost, category, description, unit)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO products (name, variant, sku, barcode, price, cost, category, description, unit, image)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
-          [name, variant, sku, barcode, price, cost, category, description, unit],
+          [name, variant, sku, barcode, price, cost, category, description, unit, image],
         function (err) {
           if (err) {
             reject(err);
@@ -473,13 +528,14 @@ class Database {
           category,
           description,
           unit,
+          image,
         } = validatedProduct;
 
         this.db.run(
           `
           UPDATE products 
           SET name = ?, variant = ?, sku = ?, barcode = ?, price = ?, cost = ?, 
-              category = ?, description = ?, unit = ?, updated_at = CURRENT_TIMESTAMP
+              category = ?, description = ?, unit = ?, image = ?, updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `,
           [
@@ -492,6 +548,7 @@ class Database {
             category,
             description,
             unit,
+            image,
             id,
           ],
           function (err) {
@@ -1163,11 +1220,17 @@ class Database {
           } else {
             // Return default settings if none exist
             resolve({
-              bar_name: "My Bar",
+              bar_name: "CounterFlow Food Truck",
               contact_number: "",
               gst_number: "",
               address: "",
               thank_you_message: "Thank you for visiting!",
+              printing_enabled: 1,
+              whatsapp_enabled: 0,
+              whatsapp_relay_url: "",
+              whatsapp_template_name: "counterflow_pos_receipt",
+              whatsapp_language_code: "en",
+              whatsapp_default_country_code: "91"
             });
           }
         }
@@ -1178,8 +1241,13 @@ class Database {
   saveBarSettings(settings) {
     return new Promise((resolve, reject) => {
       const query = `
-        INSERT OR REPLACE INTO bar_settings (id, bar_name, contact_number, gst_number, address, thank_you_message, updated_at)
-        VALUES (1, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT OR REPLACE INTO bar_settings (
+          id, bar_name, contact_number, gst_number, address, thank_you_message, 
+          printing_enabled, whatsapp_enabled, whatsapp_relay_url, 
+          whatsapp_template_name, whatsapp_language_code, whatsapp_default_country_code, 
+          updated_at
+        )
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `;
 
       this.db.run(
@@ -1190,6 +1258,12 @@ class Database {
           settings.gst_number || settings.gstNumber,
           settings.address,
           settings.thank_you_message || settings.thankYouMessage,
+          settings.printing_enabled !== undefined ? Number(settings.printing_enabled) : 1,
+          settings.whatsapp_enabled !== undefined ? Number(settings.whatsapp_enabled) : 0,
+          settings.whatsapp_relay_url || "",
+          settings.whatsapp_template_name || "counterflow_pos_receipt",
+          settings.whatsapp_language_code || "en",
+          settings.whatsapp_default_country_code || "91"
         ],
         function (err) {
           if (err) {

@@ -1,3 +1,4 @@
+import { dbService } from "../services/dbService";
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Package, Plus, Edit, Trash2, Search } from 'lucide-react';
@@ -14,7 +15,7 @@ const ProductManagement = () => {
 
   const loadProducts = async () => {
     try {
-      const productList = await window.electronAPI.getProducts();
+      const productList = await dbService.getProducts();
       setProducts(productList);
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -38,10 +39,22 @@ const ProductManagement = () => {
       cost: product?.cost || '',
       category: product?.category || '',
       description: product?.description || '',
-      unit: product?.unit || 'pcs'
+      unit: product?.unit || 'pcs',
+      image: product?.image || ''
     });
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleImageChange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          handleInputChange('image', reader.result);
+        };
+        reader.readAsDataURL(file);
+      }
+    };
 
     const validateForm = () => {
       const newErrors = {};
@@ -248,6 +261,40 @@ const ProductManagement = () => {
                     placeholder="Optional product description"
                   />
                 </div>
+                <div className="form-group" style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Product Image</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+                    {formData.image ? (
+                      <img 
+                        src={formData.image} 
+                        alt="Preview" 
+                        style={{ width: '60px', height: '60px', borderRadius: '6px', objectFit: 'cover', border: '1px solid #ddd' }} 
+                      />
+                    ) : (
+                      <div style={{ width: '60px', height: '60px', borderRadius: '6px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', border: '1px solid #ddd' }}>
+                        No Image
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        style={{ fontSize: '0.85rem' }}
+                      />
+                      {formData.image && (
+                        <button 
+                          type="button" 
+                          onClick={() => handleInputChange('image', '')}
+                          className="btn btn-sm btn-danger"
+                          style={{ padding: '2px 8px', width: 'fit-content', fontSize: '0.8rem' }}
+                        >
+                          Remove Image
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="modal-actions">
@@ -277,9 +324,9 @@ const ProductManagement = () => {
   const handleSaveProduct = async (productData) => {
     try {
       if (editingProduct) {
-        await window.electronAPI.updateProduct(editingProduct.id, productData);
+        await dbService.updateProduct(editingProduct.id, productData);
       } else {
-        await window.electronAPI.addProduct(productData);
+        await dbService.addProduct(productData);
       }
       await loadProducts();
       setShowModal(false);
@@ -294,7 +341,7 @@ const ProductManagement = () => {
   const handleDeleteProduct = async (productId) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
-        await window.electronAPI.deleteProduct(productId);
+        await dbService.deleteProduct(productId);
         await loadProducts();
       } catch (error) {
         // eslint-disable-next-line no-console
@@ -387,18 +434,31 @@ const ProductManagement = () => {
                 return (
                   <tr key={product.id}>
                     <td>
-                      <div>
-                        <strong>{product.name}</strong>
-                        {product.description && (
-                          <>
-                            <br />
-                            <small style={{ color: '#7f8c8d' }}>
-                              {product.description.length > 50 
-                                ? product.description.substring(0, 50) + '...' 
-                                : product.description}
-                            </small>
-                          </>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {product.image ? (
+                          <img 
+                            src={product.image} 
+                            alt={product.name} 
+                            style={{ width: '40px', height: '40px', borderRadius: '4px', objectFit: 'cover', border: '1px solid #ddd' }} 
+                          />
+                        ) : (
+                          <div style={{ width: '40px', height: '40px', borderRadius: '4px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', border: '1px solid #ddd' }}>
+                            <Package size={20} />
+                          </div>
                         )}
+                        <div>
+                          <strong>{product.name}</strong>
+                          {product.description && (
+                            <>
+                              <br />
+                              <small style={{ color: '#7f8c8d' }}>
+                                {product.description.length > 50 
+                                  ? product.description.substring(0, 50) + '...' 
+                                  : product.description}
+                              </small>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td>{product.variant || '-'}</td>

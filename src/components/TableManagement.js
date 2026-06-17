@@ -1,3 +1,4 @@
+import { dbService } from "../services/dbService";
 import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { 
@@ -27,7 +28,7 @@ const TableManagement = ({ onSelectTable }) => {
 
   const loadTables = useCallback(async () => {
     try {
-      const tableList = await window.electronAPI.getTables();
+      const tableList = await dbService.getTables();
       setTables(tableList);
     } catch (error) {
       // Failed to load tables
@@ -36,7 +37,7 @@ const TableManagement = ({ onSelectTable }) => {
 
   const initializeDefaultTables = useCallback(async () => {
     try {
-      const tableList = await window.electronAPI.getTables();
+      const tableList = await dbService.getTables();
       
       // Check if we have tables T1-T12
       const existingTableNames = tableList.map(table => table.name);
@@ -44,7 +45,7 @@ const TableManagement = ({ onSelectTable }) => {
       
       for (const tableName of requiredTables) {
         if (!existingTableNames.includes(tableName)) {
-          await window.electronAPI.addTable({
+          await dbService.addTable({
             name: tableName,
             capacity: 4,
             area: 'restaurant',
@@ -76,7 +77,7 @@ const TableManagement = ({ onSelectTable }) => {
     }
     
     try {
-      const tableList = await window.electronAPI.getTables();
+      const tableList = await dbService.getTables();
       
       // Find tables after T12 and delete them
       const tablesToDelete = tableList.filter(table => {
@@ -85,7 +86,7 @@ const TableManagement = ({ onSelectTable }) => {
       });
       
       for (const table of tablesToDelete) {
-        await window.electronAPI.deleteTable(table.id);
+        await dbService.deleteTable(table.id);
       }
       
       loadTables();
@@ -128,7 +129,7 @@ const TableManagement = ({ onSelectTable }) => {
         status: 'available'
       };
       
-      await window.electronAPI.addTable(tableToAdd);
+      await dbService.addTable(tableToAdd);
       loadTables();
     } catch (error) {
       // Failed to add table
@@ -138,7 +139,7 @@ const TableManagement = ({ onSelectTable }) => {
 
   const handleUpdateTable = async (tableId, updates) => {
     try {
-      await window.electronAPI.updateTable(tableId, updates);
+      await dbService.updateTable(tableId, updates);
       setEditingTable(null);
       loadTables();
     } catch (error) {
@@ -150,7 +151,7 @@ const TableManagement = ({ onSelectTable }) => {
   const handleDeleteTable = async (tableId) => {
     if (window.confirm('Are you sure you want to delete this table?')) {
       try {
-        await window.electronAPI.deleteTable(tableId);
+        await dbService.deleteTable(tableId);
         loadTables();
       } catch (error) {
         // Failed to delete table

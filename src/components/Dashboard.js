@@ -1,3 +1,4 @@
+import { dbService } from "../services/dbService";
 import React, { useState, useEffect } from "react";
 import {
   BarChart3,
@@ -53,7 +54,7 @@ const Dashboard = () => {
       setLoading(true);
 
       // Get inventory data
-      const inventory = await window.electronAPI.getInventory();
+      const inventory = await dbService.getInventory();
       const lowStockItems = inventory.filter(
         (item) => item.godown_stock + item.counter_stock <= item.min_stock_level
       );
@@ -64,7 +65,7 @@ const Dashboard = () => {
       // eslint-disable-next-line no-console
       console.log("Dashboard loading for date:", todayDate); // Debug log
 
-      const todaySales = await window.electronAPI.getSales({
+      const todaySales = await dbService.getSales({
         start: getStartOfDay(todayDate),
         end: getEndOfDay(todayDate),
       });
@@ -78,13 +79,13 @@ const Dashboard = () => {
       );
 
       // Get today's spendings
-      const todaySpendings = await window.electronAPI.getDailySpendingTotal(
+      const todaySpendings = await dbService.getDailySpendingTotal(
         todayDate
       );
       const netIncome = todayRevenue - todaySpendings;
 
       // Get today's opening balance
-      const todayCounterBalance = await window.electronAPI.getCounterBalance(
+      const todayCounterBalance = await dbService.getCounterBalance(
         todayDate
       );
       const openingBalance = todayCounterBalance
@@ -97,7 +98,7 @@ const Dashboard = () => {
       // Get recent sales (last 7 days)
       const now = new Date();
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const recentSales = await window.electronAPI.getSales({
+      const recentSales = await dbService.getSales({
         start: formatDateTimeToString(weekAgo),
         end: formatDateTimeToString(now),
       });

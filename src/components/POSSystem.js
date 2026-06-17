@@ -8,9 +8,15 @@ import {
   User,
   Calculator,
   Clock,
+  MessageSquare,
+  Check,
+  Package,
 } from "lucide-react";
 import { getLocalDateTimeString } from "../utils/dateUtils";
 import { addPendingBill } from "../services/billService";
+import { dbService } from "../services/dbService";
+import { whatsappService } from "../services/whatsappService";
+import { APP_CONFIG } from "../config";
 
 const POSSystem = () => {
   const [products, setProducts] = useState([]);
@@ -25,7 +31,13 @@ const POSSystem = () => {
   const [tax, setTax] = useState(0);
   const [loading, setLoading] = useState(false);
   const [barSettings, setBarSettings] = useState(null);
+  const [sendWhatsapp, setSendWhatsapp] = useState(false);
   const searchInputRef = useRef(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentQrUrl, setPaymentQrUrl] = useState("");
+  const [activeQrId, setActiveQrId] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState("creating");
+  const pollingIntervalRef = useRef(null);
 
   useEffect(() => {
     loadProducts();
@@ -34,12 +46,18 @@ const POSSystem = () => {
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
+    return () => {
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    };
   }, []);
 
   const loadBarSettings = async () => {
     try {
-      const settings = await window.electronAPI.getBarSettings();
+      const settings = await dbService.getBarSettings();
       setBarSettings(settings);
+      if (settings && settings.whatsapp_enabled === 1) {
+        setSendWhatsapp(true);
+      }
     } catch (error) {
       // Failed to load bar settings
       setBarSettings(null);
@@ -48,7 +66,7 @@ const POSSystem = () => {
 
   const loadProducts = async () => {
     try {
-      const productList = await window.electronAPI.getProducts();
+      const productList = await dbService.getProducts();
       setProducts(productList.filter((p) => p.counter_stock > 0)); // Only show products with counter stock
     } catch (error) {
       // Failed to load products
@@ -222,12 +240,7 @@ const POSSystem = () => {
     }
   };
 
-  const processSale = async () => {
-    if (cart.length === 0) {
-      alert("Cart is empty!");
-      return;
-    }
-
+  const executeSaleWrite = async () => {
     setLoading(true);
     try {
       const saleData = {
@@ -253,10 +266,26 @@ const POSSystem = () => {
       };
 
       // Save sale to database
-      await window.electronAPI.createSale(saleData);
+      await dbService.createSale(saleData);
 
-      // Auto-print bill to default printer
-      await printBill(saleData);
+      // Auto-print bill to default printer if enabled
+      if (barSettings && barSettings.printing_enabled === 1) {
+        await printBill(saleData);
+      }
+
+      // Auto-send WhatsApp receipt if enabled and number exists
+      if (sendWhatsapp && customerPhone && barSettings && barSettings.whatsapp_enabled === 1) {
+        try {
+          const waResult = await whatsappService.sendBill(APP_CONFIG.whatsappRelayUrl, barSettings, saleData);
+          if (waResult.success) {
+            console.log("WhatsApp receipt sent!");
+          } else {
+            alert(`WhatsApp Receipt Send Failed: ${waResult.error}`);
+          }
+        } catch (waErr) {
+          console.error("WhatsApp error:", waErr);
+        }
+      }
 
       // Clear cart and customer info
       setCart([]);
@@ -279,9 +308,102 @@ const POSSystem = () => {
     }
   };
 
+  const processSale = async () => {
+    if (cart.length === 0) {
+      alert("Cart is empty!");
+      return;
+    }
+
+    // Check if payment method is UPI and Razorpay is configured
+    if (paymentMethod === "upi" && barSettings && barSettings.razorpay_key_id && barSettings.razorpay_key_secret) {
+      startRazorpayPayment();
+      return;
+    }
+
+    executeSaleWrite();
+  };
+
+  const startRazorpayPayment = async () => {
+    setPaymentModalOpen(true);
+    setPaymentStatus("creating");
+    setPaymentQrUrl("");
+    setActiveQrId("");
+    
+    try {
+      const orderId = await generateSaleNumber();
+      const amount = calculateTotal();
+      const relayUrl = APP_CONFIG.whatsappRelayUrl;
+
+      // Call relay to create QR code
+      const response = await fetch(`${relayUrl}/payment/create-qr`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount,
+          orderId,
+          keyId: barSettings.razorpay_key_id,
+          keySecret: barSettings.razorpay_key_secret
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setPaymentQrUrl(data.qrImageUrl);
+        setActiveQrId(data.qrCodeId);
+        setPaymentStatus("pending");
+        
+        // Start polling for payment status
+        startPollingPayment(data.qrCodeId, relayUrl);
+      } else {
+        setPaymentStatus("error");
+        alert(`Failed to create Razorpay QR: ${data.error}`);
+      }
+    } catch (err) {
+      setPaymentStatus("error");
+      alert(`Error connecting to payment relay: ${err.message}`);
+    }
+  };
+
+  const startPollingPayment = (qrCodeId, relayUrl) => {
+    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const response = await fetch(`${relayUrl}/payment/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            qrCodeId,
+            keyId: barSettings.razorpay_key_id,
+            keySecret: barSettings.razorpay_key_secret
+          })
+        });
+
+        const data = await response.json();
+        if (data.success && data.paid) {
+          clearInterval(pollingIntervalRef.current);
+          setPaymentStatus("success");
+          
+          // Wait 1 second to show success state, then complete checkout
+          setTimeout(() => {
+            setPaymentModalOpen(false);
+            executeSaleWrite();
+          }, 1000);
+        }
+      } catch (err) {
+        console.error("Error polling payment status:", err);
+      }
+    }, 2000);
+  };
+
+  const cancelRazorpayPayment = () => {
+    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    setPaymentModalOpen(false);
+  };
+
   const printBill = async (billData) => {
     try {
-      const result = await window.electronAPI.printBill(billData);
+      const result = await dbService.printBill(billData);
       if (result.success) {
         alert("Bill printed successfully!");
       } else {
@@ -347,16 +469,25 @@ const POSSystem = () => {
                 className="product-card"
                 onClick={() => addToCart(product)}
               >
+                <div className="product-card-image-container">
+                  {product.image ? (
+                    <img src={product.image} alt={product.name} className="product-card-image" />
+                  ) : (
+                    <div className="product-card-placeholder">
+                      <Package size={36} />
+                    </div>
+                  )}
+                </div>
                 <div className="product-info">
                   <h3>{product.name}</h3>
                   {product.variant && (
                     <p className="product-variant">{product.variant}</p>
                   )}
                   <p className="product-sku">{product.sku}</p>
-                  <p className="product-price">₹{product.price.toFixed(2)}</p>
-                  <p className="product-stock">
-                    Stock: {product.counter_stock}
-                  </p>
+                  <div className="product-card-footer">
+                    <span className="product-price">₹{product.price.toFixed(2)}</span>
+                    <span className="product-stock">Stock: {product.counter_stock}</span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -435,6 +566,19 @@ const POSSystem = () => {
                 maxLength="10"
               />
             </div>
+            {barSettings && barSettings.whatsapp_enabled === 1 && (
+              <div style={{ display: "flex", alignItems: "center", marginTop: "10px" }}>
+                <label style={{ display: "flex", alignItems: "center", fontSize: "0.9rem", cursor: "pointer", color: "#2e7d32", fontWeight: "bold" }}>
+                  <input
+                    type="checkbox"
+                    checked={sendWhatsapp}
+                    onChange={(e) => setSendWhatsapp(e.target.checked)}
+                    style={{ marginRight: "8px", width: "16px", height: "16px", cursor: "pointer" }}
+                  />
+                  Send via WhatsApp
+                </label>
+              </div>
+            )}
           </div>
 
           <div className="cart-section">
@@ -595,9 +739,87 @@ const POSSystem = () => {
           </div>
         </div>
       </div>
+
+      {paymentModalOpen && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.6)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 1000,
+          padding: "20px"
+        }}>
+          <div style={{
+            background: "white",
+            padding: "30px",
+            borderRadius: "12px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+            textAlign: "center",
+            maxWidth: "400px",
+            width: "100%"
+          }}>
+            <h3 style={{ margin: "0 0 15px 0", fontSize: "1.3rem", color: "#333" }}>UPI Payment Verification</h3>
+            <p style={{ fontSize: "1.1rem", fontWeight: "bold", margin: "0 0 20px 0", color: "#333" }}>
+              Amount: ₹{calculateTotal().toFixed(2)}
+            </p>
+            
+            {paymentStatus === "creating" && (
+              <div style={{ padding: "40px 0" }}>
+                <div className="spinning" style={{ border: "4px solid #f3f3f3", borderTop: "4px solid #3498db", borderRadius: "50%", width: "40px", height: "40px", margin: "0 auto 15px auto" }}></div>
+                <p style={{ margin: 0, color: "#666" }}>Generating dynamic UPI QR code...</p>
+              </div>
+            )}
+
+            {paymentStatus === "pending" && paymentQrUrl && (
+              <div>
+                <p style={{ fontSize: "0.9rem", color: "#666", margin: "0 0 15px 0" }}>
+                  Scan this QR code using GPay, PhonePe, Paytm, or any UPI app:
+                </p>
+                <img src={paymentQrUrl} alt="Razorpay UPI QR" style={{ width: "200px", height: "200px", border: "1px solid #ddd", borderRadius: "6px", margin: "0 auto 15px auto", display: "block" }} />
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "#f57c00", fontWeight: "bold" }}>
+                  <div className="spinning" style={{ border: "2px solid #f3f3f3", borderTop: "2px solid #f57c00", borderRadius: "50%", width: "16px", height: "16px" }}></div>
+                  Waiting for customer payment...
+                </div>
+              </div>
+            )}
+
+            {paymentStatus === "success" && (
+              <div style={{ padding: "40px 0", color: "#2e7d32" }}>
+                <div style={{ fontSize: "3rem", margin: "0 0 15px 0" }}>✓</div>
+                <p style={{ margin: 0, fontWeight: "bold", fontSize: "1.2rem" }}>Payment Successful!</p>
+                <p style={{ margin: "5px 0 0 0", color: "#666" }}>Completing checkout...</p>
+              </div>
+            )}
+
+            {paymentStatus === "error" && (
+              <div style={{ padding: "40px 0", color: "#d32f2f" }}>
+                <div style={{ fontSize: "3rem", margin: "0 0 15px 0" }}>✗</div>
+                <p style={{ margin: 0, fontWeight: "bold" }}>Payment Failed</p>
+                <p style={{ margin: "10px 0 0 0" }}>
+                  <button onClick={startRazorpayPayment} className="btn btn-secondary" style={{ padding: "8px 15px" }}>Retry QR Code</button>
+                </p>
+              </div>
+            )}
+
+            <div style={{ marginTop: "25px", borderTop: "1px solid #eee", paddingTop: "20px" }}>
+              <button 
+                onClick={cancelRazorpayPayment} 
+                className="btn btn-secondary" 
+                style={{ width: "100%", padding: "10px", borderColor: "#d32f2f", color: "#d32f2f" }}
+              >
+                Cancel Checkout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
 
 export default POSSystem;

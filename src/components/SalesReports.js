@@ -1,3 +1,4 @@
+import { dbService } from "../services/dbService";
 import React, { useState, useEffect, useCallback } from "react";
 import { BarChart3, Mail, DollarSign, FileText, X, Download, Eye } from "lucide-react";
 import { 
@@ -24,21 +25,21 @@ const SalesReports = () => {
       
       // Create proper date range with start/end times for the selected date
       // Load sales data with details (cost price, sale price, profit)
-      const salesData = await window.electronAPI.getSalesWithDetails({
+      const salesData = await dbService.getSalesWithDetails({
         start: getStartOfDay(selectedDate),
         end: getEndOfDay(selectedDate),
       });
       setSales(salesData || []);
 
       // Load spendings data
-      const spendingsData = await window.electronAPI.getSpendings({
+      const spendingsData = await dbService.getSpendings({
         start: getStartOfDay(selectedDate),
         end: getEndOfDay(selectedDate),
       });
       setSpendings(spendingsData || []);
 
       // Load counter balance data
-      const counterBalanceData = await window.electronAPI.getCounterBalances({
+      const counterBalanceData = await dbService.getCounterBalances({
         start: getStartOfDay(selectedDate),
         end: getEndOfDay(selectedDate),
       });
@@ -62,7 +63,7 @@ const SalesReports = () => {
   const sendEmailReport = async () => {
     try {
       setEmailLoading(true);
-      const result = await window.electronAPI.sendEmailReportWithPdfs(selectedDate);
+      const result = await dbService.sendEmailReportWithPdfs(selectedDate);
       if (result.success) {
         alert("Email report with PDF attachments sent successfully!");
       } else {
@@ -77,7 +78,7 @@ const SalesReports = () => {
 
   const exportSalesReportPDF = async () => {
     try {
-      const result = await window.electronAPI.exportSalesReport(sales, selectedDate);
+      const result = await dbService.exportSalesReport(sales, selectedDate);
       if (result.success) {
         alert(`PDF saved at ${result.filePath}`);
       } else {
@@ -100,7 +101,7 @@ const SalesReports = () => {
         totalOpeningBalance,
         totalBalance
       };
-      const result = await window.electronAPI.exportFinancialReport(reportData, selectedDate);
+      const result = await dbService.exportFinancialReport(reportData, selectedDate);
       if (result.success) {
         alert(`PDF saved at ${result.filePath}`);
       } else {
@@ -134,7 +135,7 @@ const SalesReports = () => {
   const handleViewBill = async (sale) => {
     try {
       // Get detailed sale data with items
-      const saleWithItems = await window.electronAPI.getSaleWithItems(sale.id);
+      const saleWithItems = await dbService.getSaleWithItems(sale.id);
       
       if (!saleWithItems) {
         alert('Sale data not found');
@@ -142,7 +143,7 @@ const SalesReports = () => {
       }
       
       // Get bar settings for formatting the bill
-      const barSettings = await window.electronAPI.getBarSettings();
+      const barSettings = await dbService.getBarSettings();
       
       // Format the sale data for bill generation and preview
       const billData = {
@@ -175,7 +176,7 @@ const SalesReports = () => {
     
     setBillGenerating(true);
     try {
-      const result = await window.electronAPI.exportPDF(selectedBill);
+      const result = await dbService.exportPDF(selectedBill);
       if (result.success) {
         alert(`Bill PDF saved to: ${result.filePath}`);
       } else {
