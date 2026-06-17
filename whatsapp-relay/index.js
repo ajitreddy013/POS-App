@@ -1,3 +1,4 @@
+require("dotenv").config();
 const path = require("path");
 process.env.PUPPETEER_CACHE_DIR = path.join(__dirname, ".cache/puppeteer");
 
@@ -229,11 +230,13 @@ function razorpayRequest(method, path, body, keyId, keySecret) {
 // Create Razorpay Dynamic QR Code
 app.post("/payment/create-qr", async (req, res) => {
   const { amount, orderId, keyId, keySecret } = req.body;
+  const rzpKeyId = keyId || process.env.RAZORPAY_KEY_ID;
+  const rzpKeySecret = keySecret || process.env.RAZORPAY_KEY_SECRET;
 
-  if (!amount || !orderId || !keyId || !keySecret) {
+  if (!amount || !orderId || !rzpKeyId || !rzpKeySecret) {
     return res.status(400).json({
       success: false,
-      error: "Missing required fields: amount, orderId, keyId, and keySecret are required."
+      error: "Missing required fields: amount, orderId, and Razorpay credentials (keyId/keySecret) must be configured."
     });
   }
 
@@ -255,7 +258,7 @@ app.post("/payment/create-qr", async (req, res) => {
     };
 
     console.log(`Creating Razorpay QR Code for Order #${orderId}, Amount: ${amountInPaise} paise`);
-    const response = await razorpayRequest("POST", "/v1/qr_codes", payload, keyId, keySecret);
+    const response = await razorpayRequest("POST", "/v1/qr_codes", payload, rzpKeyId, rzpKeySecret);
     
     res.json({
       success: true,
@@ -275,17 +278,19 @@ app.post("/payment/create-qr", async (req, res) => {
 // Check Razorpay QR Payment Status
 app.post("/payment/status", async (req, res) => {
   const { qrCodeId, keyId, keySecret } = req.body;
+  const rzpKeyId = keyId || process.env.RAZORPAY_KEY_ID;
+  const rzpKeySecret = keySecret || process.env.RAZORPAY_KEY_SECRET;
 
-  if (!qrCodeId || !keyId || !keySecret) {
+  if (!qrCodeId || !rzpKeyId || !rzpKeySecret) {
     return res.status(400).json({
       success: false,
-      error: "Missing required fields: qrCodeId, keyId, and keySecret are required."
+      error: "Missing required fields: qrCodeId and Razorpay credentials must be configured."
     });
   }
 
   try {
     console.log(`Checking Razorpay status for QR: ${qrCodeId}`);
-    const response = await razorpayRequest("GET", `/v1/qr_codes/${qrCodeId}`, null, keyId, keySecret);
+    const response = await razorpayRequest("GET", `/v1/qr_codes/${qrCodeId}`, null, rzpKeyId, rzpKeySecret);
     
     // If status is closed or payments_count_received > 0, it's paid
     const isPaid = response.status === "closed" || response.payments_count_received > 0;
@@ -308,11 +313,13 @@ app.post("/payment/status", async (req, res) => {
 // Create Razorpay Payment Link
 app.post("/payment/create-link", async (req, res) => {
   const { amount, orderId, customerName, customerPhone, keyId, keySecret } = req.body;
+  const rzpKeyId = keyId || process.env.RAZORPAY_KEY_ID;
+  const rzpKeySecret = keySecret || process.env.RAZORPAY_KEY_SECRET;
 
-  if (!amount || !orderId || !keyId || !keySecret) {
+  if (!amount || !orderId || !rzpKeyId || !rzpKeySecret) {
     return res.status(400).json({
       success: false,
-      error: "Missing required fields: amount, orderId, keyId, and keySecret are required."
+      error: "Missing required fields: amount, orderId, and Razorpay credentials must be configured."
     });
   }
 
@@ -339,7 +346,7 @@ app.post("/payment/create-link", async (req, res) => {
     };
 
     console.log(`Creating Razorpay Payment Link for Order #${orderId}, Amount: ${amountInPaise} paise`);
-    const response = await razorpayRequest("POST", "/v1/payment_links", payload, keyId, keySecret);
+    const response = await razorpayRequest("POST", "/v1/payment_links", payload, rzpKeyId, rzpKeySecret);
     
     res.json({
       success: true,
@@ -359,17 +366,19 @@ app.post("/payment/create-link", async (req, res) => {
 // Check Razorpay Payment Link Status
 app.post("/payment/link-status", async (req, res) => {
   const { paymentLinkId, keyId, keySecret } = req.body;
+  const rzpKeyId = keyId || process.env.RAZORPAY_KEY_ID;
+  const rzpKeySecret = keySecret || process.env.RAZORPAY_KEY_SECRET;
 
-  if (!paymentLinkId || !keyId || !keySecret) {
+  if (!paymentLinkId || !rzpKeyId || !rzpKeySecret) {
     return res.status(400).json({
       success: false,
-      error: "Missing required fields: paymentLinkId, keyId, and keySecret are required."
+      error: "Missing required fields: paymentLinkId and Razorpay credentials must be configured."
     });
   }
 
   try {
     console.log(`Checking Razorpay status for Payment Link: ${paymentLinkId}`);
-    const response = await razorpayRequest("GET", `/v1/payment_links/${paymentLinkId}`, null, keyId, keySecret);
+    const response = await razorpayRequest("GET", `/v1/payment_links/${paymentLinkId}`, null, rzpKeyId, rzpKeySecret);
     
     const isPaid = response.status === "paid";
     
