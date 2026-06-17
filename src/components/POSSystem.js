@@ -200,6 +200,15 @@ const POSSystem = () => {
       return;
     }
 
+    // Enforce 10-digit mobile number for UPI payments
+    if (paymentMethod === "upi") {
+      const cleanPhone = customerPhone.replace(/\D/g, "");
+      if (cleanPhone.length !== 10) {
+        alert("Please enter a valid 10-digit mobile number to proceed with UPI checkout.");
+        return;
+      }
+    }
+
     // Check if payment method is UPI and Razorpay is configured
     if (paymentMethod === "upi" && barSettings && barSettings.razorpay_key_id && barSettings.razorpay_key_secret) {
       startRazorpayPayment();

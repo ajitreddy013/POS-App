@@ -32,14 +32,7 @@ const ProductManagement = () => {
   const ProductModal = ({ product, onClose, onSave }) => {
     const [formData, setFormData] = useState({
       name: product?.name || '',
-      variant: product?.variant || '',
-      sku: product?.sku || '',
-      barcode: product?.barcode || '',
       price: product?.price || '',
-      cost: product?.cost || '',
-      category: product?.category || '',
-      description: product?.description || '',
-      unit: product?.unit || 'pcs',
       image: product?.image || ''
     });
     const [errors, setErrors] = useState({});
@@ -59,12 +52,7 @@ const ProductManagement = () => {
     const validateForm = () => {
       const newErrors = {};
       if (!formData.name.trim()) newErrors.name = 'Product name is required';
-      if (!formData.sku.trim()) newErrors.sku = 'SKU is required';
       if (!formData.price || formData.price <= 0) newErrors.price = 'Valid selling price is required';
-      if (!formData.cost || formData.cost <= 0) newErrors.cost = 'Valid cost price is required';
-      if (formData.price && formData.cost && parseFloat(formData.price) < parseFloat(formData.cost)) {
-        newErrors.price = 'Selling price should be greater than cost price';
-      }
       return newErrors;
     };
 
@@ -81,7 +69,19 @@ const ProductManagement = () => {
       setErrors({});
       
       try {
-        await onSave(formData);
+        const productData = {
+          ...formData,
+          sku: product?.sku || `PROD-${Date.now()}`,
+          cost: product?.cost !== undefined ? product.cost : 0,
+          unit: product?.unit || 'pcs',
+          variant: product?.variant || '',
+          category: product?.category || '',
+          barcode: product?.barcode || '',
+          description: product?.description || '',
+          godown_stock: product?.godown_stock || 0,
+          counter_stock: product?.counter_stock || 0
+        };
+        await onSave(productData);
       } catch (error) {
         // eslint-disable-next-line no-console
         console.error('Failed to save product:', error);
@@ -93,7 +93,6 @@ const ProductManagement = () => {
 
     const handleInputChange = (field, value) => {
       setFormData(prev => ({ ...prev, [field]: value }));
-      // Clear error when user starts typing
       if (errors[field]) {
         setErrors(prev => ({ ...prev, [field]: '' }));
       }
@@ -120,149 +119,36 @@ const ProductManagement = () => {
               )}
               
               <div className="form-section">
-                <div className="form-section-title">
-                  Basic Information
-                </div>
-                <div className="form-grid two-columns">
-                  <div className="form-group">
-                    <label className="required">Product Name</label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => handleInputChange('name', e.target.value)}
-                      className={`form-input ${errors.name ? 'error' : ''}`}
-                      placeholder="Enter product name"
-                      required
-                    />
-                    {errors.name && <div className="form-error">{errors.name}</div>}
-                  </div>
-                  <div className="form-group">
-                    <label>Variant</label>
-                    <input
-                      type="text"
-                      value={formData.variant}
-                      onChange={(e) => handleInputChange('variant', e.target.value)}
-                      className="form-input"
-                      placeholder="e.g., 180ml, Large, Regular"
-                    />
-                  </div>
-                </div>
-                
-                <div className="form-grid two-columns">
-                  <div className="form-group">
-                    <label className="required">SKU</label>
-                    <input
-                      type="text"
-                      value={formData.sku}
-                      onChange={(e) => handleInputChange('sku', e.target.value)}
-                      className={`form-input ${errors.sku ? 'error' : ''}`}
-                      placeholder="Stock Keeping Unit"
-                      required
-                    />
-                    {errors.sku && <div className="form-error">{errors.sku}</div>}
-                  </div>
-                  <div className="form-group">
-                    <label>Category</label>
-                    <input
-                      type="text"
-                      value={formData.category}
-                      onChange={(e) => handleInputChange('category', e.target.value)}
-                      className="form-input"
-                      placeholder="Product category"
-                    />
-                  </div>
-                </div>
-                
-                <div className="form-group">
-                  <label>Barcode</label>
+                <div className="form-group" style={{ marginBottom: '15px' }}>
+                  <label className="required">Product Name</label>
                   <input
                     type="text"
-                    value={formData.barcode}
-                    onChange={(e) => handleInputChange('barcode', e.target.value)}
-                    className="form-input"
-                    placeholder="Barcode number (optional)"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    className={`form-input ${errors.name ? 'error' : ''}`}
+                    placeholder="Enter product name"
+                    required
                   />
-                </div>
-              </div>
-              
-              <div className="form-section">
-                <div className="form-section-title">
-                  Pricing & Unit
-                </div>
-                <div className="form-grid two-columns">
-                  <div className="form-group">
-                    <label className="required">Cost Price (₹)</label>
-                    <input
-                      type="number"
-                      value={formData.cost}
-                      onChange={(e) => handleInputChange('cost', parseFloat(e.target.value) || '')}
-                      className={`form-input ${errors.cost ? 'error' : ''}`}
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      required
-                    />
-                    {errors.cost && <div className="form-error">{errors.cost}</div>}
-                  </div>
-                  <div className="form-group">
-                    <label className="required">Selling Price (₹)</label>
-                    <input
-                      type="number"
-                      value={formData.price}
-                      onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || '')}
-                      className={`form-input ${errors.price ? 'error' : ''}`}
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      required
-                    />
-                    {errors.price && <div className="form-error">{errors.price}</div>}
-                    {formData.price && formData.cost && parseFloat(formData.price) > parseFloat(formData.cost) && (
-                      <div className="form-success">
-                        Profit: ₹{(parseFloat(formData.price) - parseFloat(formData.cost)).toFixed(2)} 
-                        ({(((parseFloat(formData.price) - parseFloat(formData.cost)) / parseFloat(formData.cost)) * 100).toFixed(1)}%)
-                      </div>
-                    )}
-                  </div>
+                  {errors.name && <div className="form-error">{errors.name}</div>}
                 </div>
                 
-                <div className="form-group">
-                  <label>Unit</label>
-                  <select
-                    value={formData.unit}
-                    onChange={(e) => handleInputChange('unit', e.target.value)}
-                    className="form-input"
-                  >
-                    <option value="pcs">Pieces</option>
-                    <option value="bottle">Bottle</option>
-                    <option value="ml">Milliliter</option>
-                    <option value="l">Liter</option>
-                    <option value="kg">Kilogram</option>
-                    <option value="g">Gram</option>
-                    <option value="box">Box</option>
-                    <option value="pack">Pack</option>
-                    <option value="plate">Plate</option>
-                    <option value="glass">Glass</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div className="form-section">
-                <div className="form-section-title">
-                  Additional Details
-                </div>
-                <div className="form-group">
-                  <label>Description</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => handleInputChange('description', e.target.value)}
-                    className="form-input"
-                    rows="3"
-                    placeholder="Optional product description"
+                <div className="form-group" style={{ marginBottom: '15px' }}>
+                  <label className="required">Selling Price (₹)</label>
+                  <input
+                    type="number"
+                    value={formData.price}
+                    onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || '')}
+                    className={`form-input ${errors.price ? 'error' : ''}`}
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    required
                   />
+                  {errors.price && <div className="form-error">{errors.price}</div>}
                 </div>
+
                 <div className="form-group" style={{ marginTop: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Product Image</label>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Product Image (Photo)</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
                     {formData.image ? (
                       <img 
@@ -395,7 +281,7 @@ const ProductManagement = () => {
           <Search size={20} />
           <input
             type="text"
-            placeholder="Search products by name, SKU, or category..."
+            placeholder="Search products by name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
@@ -409,26 +295,19 @@ const ProductManagement = () => {
           <thead>
             <tr>
               <th>Product</th>
-              <th>Variant</th>
-              <th>SKU</th>
-              <th>Category</th>
-              <th>Cost Price</th>
               <th>Selling Price</th>
-              <th>Unit</th>
-              <th>Stock</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '40px', color: '#7f8c8d' }}>
+                <td colSpan="3" style={{ textAlign: 'center', padding: '40px', color: '#7f8c8d' }}>
                   {searchTerm ? 'No products found matching your search' : 'No products added yet'}
                 </td>
               </tr>
             ) : (
               filteredProducts.map(product => {
-                const cost = product.cost || 0;
                 const price = product.price || 0;
                 
                 return (
@@ -461,18 +340,7 @@ const ProductManagement = () => {
                         </div>
                       </div>
                     </td>
-                    <td>{product.variant || '-'}</td>
-                    <td>{product.sku}</td>
-                    <td>{product.category || '-'}</td>
-                    <td>₹{cost.toFixed(2)}</td>
                     <td>₹{price.toFixed(2)}</td>
-                    <td>{product.unit}</td>
-                    <td>
-                      <div style={{ fontSize: '0.85rem' }}>
-                        <div>G: {product.godown_stock || 0}</div>
-                        <div>C: {product.counter_stock || 0}</div>
-                      </div>
-                    </td>
                     <td>
                       <div className="action-buttons">
                         <button
