@@ -4,7 +4,7 @@ services:
     runtime: node
     rootDir: whatsapp-relay
     buildCommand: npm install
-    startCommand: node --max-old-space-size=250 index.js
+    startCommand: node --max-old-space-size=150 index.js
     plan: free
     envVars:
       - key: PORT

@@ -40,10 +40,13 @@ function initializeClient() {
         "--no-first-run",
         "--no-zygote",
         "--disable-gpu",
-        "--js-flags=--max-old-space-size=150",
+        "--js-flags=--max-old-space-size=100",
         "--disable-extensions",
         "--disable-default-apps",
-        "--mute-audio"
+        "--mute-audio",
+        "--single-process",
+        "--disable-features=site-per-process",
+        "--disable-features=Translate"
       ]
     }
   });
