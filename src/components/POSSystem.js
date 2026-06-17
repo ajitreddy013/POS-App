@@ -25,19 +25,19 @@ const POSSystem = () => {
   const [loading, setLoading] = useState(false);
   const [barSettings, setBarSettings] = useState(null);
   const searchInputRef = useRef(null);
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState("idle");
-  const [paymentType, setPaymentType] = useState("payment_link");
-  const [nativeQrImageUrl, setNativeQrImageUrl] = useState("");
-  const [paymentLinkUrl, setPaymentLinkUrl] = useState("");
-  const [activeLinkId, setActiveLinkId] = useState("");
-  const pollingIntervalRef = useRef(null);
 
   useEffect(() => {
     loadProducts();
     loadBarSettings();
+
+    // Dynamically load Razorpay checkout script
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    document.body.appendChild(script);
+
     return () => {
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+      document.body.removeChild(script);
     };
   }, []);
 
@@ -202,15 +202,6 @@ const POSSystem = () => {
       return;
     }
 
-    // Enforce 10-digit mobile number for UPI payments
-    if (paymentMethod === "upi") {
-      const cleanPhone = customerPhone.replace(/\D/g, "");
-      if (cleanPhone.length !== 10) {
-        alert("Please enter a valid 10-digit mobile number to proceed with UPI checkout.");
-        return;
-      }
-    }
-
     // Check if payment method is UPI and automated Razorpay checkout is enabled
     const isRazorpayEnabled = barSettings && barSettings.razorpay_enabled === 1;
     if (paymentMethod === "upi" && isRazorpayEnabled) {
@@ -222,112 +213,64 @@ const POSSystem = () => {
   };
 
   const startRazorpayPayment = async () => {
-    setPaymentModalOpen(true);
-    setPaymentStatus("creating");
-    setPaymentLinkUrl("");
-    setActiveLinkId("");
-    
     const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
 
     try {
       const orderId = await generateSaleNumber();
       const amount = calculateTotal();
 
-      // Call relay to create Payment Link (relies on server-side Render environment variables)
-      const response = await fetch(`${relayUrl}/payment/create-link`, {
+      // Ensure script is loaded
+      if (!window.Razorpay) {
+        alert("Razorpay SDK failed to load. Please check your internet connection.");
+        return;
+      }
+
+      const response = await fetch(`${relayUrl}/payment/create-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount,
-          orderId,
-          customerName: customerName.trim() || "Walk-in Customer",
-          customerPhone: customerPhone.trim() || undefined
+          orderId
         })
       });
 
       const data = await response.json();
       if (data.success) {
-        setPaymentLinkUrl(data.shortUrl || "");
-        setActiveLinkId(data.paymentLinkId);
-        setPaymentStatus("pending");
-        setPaymentType(data.type || "payment_link");
-        setNativeQrImageUrl(data.qrImageUrl || "");
+        const options = {
+          key: data.keyId,
+          amount: data.amount,
+          currency: data.currency,
+          name: barSettings?.bar_name || "CounterFlow POS",
+          description: `Payment for Order #${orderId}`,
+          order_id: data.orderId,
+          prefill: {
+            name: customerName.trim() || "",
+            contact: customerPhone.trim() || ""
+          },
+          theme: {
+            color: "#3399cc"
+          },
+          handler: function (response) {
+            // Payment succeeded
+            executeSaleWrite();
+          }
+        };
+
+        const rzp = new window.Razorpay(options);
         
-        // Start polling for payment link status
-        startPollingPaymentLink(data.paymentLinkId, relayUrl);
-      } else {
-        setPaymentStatus("error");
-        alert(`Failed to create Payment Link: ${data.error}`);
-      }
-    } catch (err) {
-      setPaymentStatus("error");
-      alert(`Cannot reach relay server at:\n${relayUrl}\n\nMake sure the relay server is running on your Mac and the Relay URL in Settings points to your Mac's IP (e.g. http://10.109.19.56:8080).\n\nError: ${err.message}`);
-    }
-  };
-
-  const startPollingPaymentLink = (paymentLinkId, relayUrl) => {
-    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-
-    pollingIntervalRef.current = setInterval(async () => {
-      try {
-        const response = await fetch(`${relayUrl}/payment/link-status`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            paymentLinkId
-          })
+        rzp.on("payment.failed", function (response) {
+          alert(`Payment Failed: ${response.error.description}`);
         });
 
-        const data = await response.json();
-        if (data.success && data.paid) {
-          clearInterval(pollingIntervalRef.current);
-          setPaymentStatus("success");
-          
-          // Wait 1 second to show success state, then complete checkout
-          setTimeout(() => {
-            setPaymentModalOpen(false);
-            executeSaleWrite();
-          }, 1000);
-        }
-      } catch (err) {
-        console.error("Error polling payment status:", err);
-      }
-    }, 2000);
-  };
+        rzp.open();
 
-  const cancelRazorpayPayment = () => {
-    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-    setPaymentModalOpen(false);
-  };
-
-  const printBill = async (billData) => {
-    try {
-      const result = await dbService.printBill(billData);
-      if (result.success) {
-        alert("Bill printed successfully!");
       } else {
-        alert(`Print failed: ${result.error}`);
+        alert(`Failed to initialize payment: ${data.error}`);
       }
-    } catch (error) {
-      // Print error
-      alert("Failed to print bill");
+    } catch (err) {
+      alert(`Cannot reach relay server at:\n${relayUrl}\n\nError: ${err.message}`);
     }
   };
-
-  // Export PDF function - not currently used but available for future use
-  // const exportPDF = async (billData) => {
-  //   try {
-  //     const result = await window.electronAPI.exportPDF(billData);
-  //     if (result.success) {
-  //       alert(`PDF saved to: ${result.filePath}`);
-  //     } else {
-  //       alert(`PDF export failed: ${result.error}`);
-  //     }
-  //   } catch (error) {
-  //     // PDF export error
-  //     alert("Failed to export PDF");
-  //   }
-  // };
 
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && filteredProducts.length > 0) {
@@ -356,7 +299,6 @@ const POSSystem = () => {
       </div>
 
       <div className="pos-layout">
-        {/* Left Panel - Product Cards */}
         <div className="product-panel">
           <div className="products-grid">
             {filteredProducts.slice(0, 12).map((product) => (
@@ -389,7 +331,6 @@ const POSSystem = () => {
           </div>
         </div>
 
-        {/* Right Panel - Cart and Billing */}
         <div className="cart-panel">
           <div className="customer-section">
             <h3>
@@ -408,7 +349,7 @@ const POSSystem = () => {
                 placeholder="Phone Number (10 digits)"
                 value={customerPhone}
                 onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+                  const value = e.target.value.replace(/\D/g, '');
                   if (value.length <= 10) {
                     setCustomerPhone(value);
                   }
@@ -417,14 +358,12 @@ const POSSystem = () => {
                 maxLength="10"
               />
             </div>
-
           </div>
 
           <div className="cart-section">
             <h3>
               <ShoppingCart size={20} /> Cart ({cart.length} items)
             </h3>
-
             <div className="cart-items">
               {cart.length === 0 ? (
                 <p className="empty-cart">Cart is empty</p>
@@ -437,9 +376,7 @@ const POSSystem = () => {
                     </div>
                     <div className="quantity-controls">
                       <button
-                        onClick={() =>
-                          updateQuantity(item.id, item.quantity - 1)
-                        }
+                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
                         className="qty-btn"
                       >
                         <Minus size={16} />
@@ -447,16 +384,12 @@ const POSSystem = () => {
                       <input
                         type="number"
                         value={item.quantity}
-                        onChange={(e) =>
-                          updateQuantity(item.id, parseInt(e.target.value) || 0)
-                        }
+                        onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
                         className="qty-input"
                         min="1"
                       />
                       <button
-                        onClick={() =>
-                          updateQuantity(item.id, item.quantity + 1)
-                        }
+                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
                         className="qty-btn"
                       >
                         <Plus size={16} />
@@ -485,9 +418,7 @@ const POSSystem = () => {
                   <input
                     type="number"
                     value={discount}
-                    onChange={(e) =>
-                      setDiscount(parseFloat(e.target.value) || 0)
-                    }
+                    onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
                     min="0"
                     className="form-input"
                     placeholder="0"
@@ -562,123 +493,6 @@ const POSSystem = () => {
           </div>
         </div>
       </div>
-
-      {paymentModalOpen && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.6)",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          zIndex: 1000,
-          padding: "20px"
-        }}>
-          <div style={{
-            background: "white",
-            padding: "30px",
-            borderRadius: "12px",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-            textAlign: "center",
-            maxWidth: "400px",
-            width: "100%"
-          }}>
-            <h3 style={{ margin: "0 0 15px 0", fontSize: "1.3rem", color: "#333" }}>UPI Payment Verification</h3>
-            <p style={{ fontSize: "1.1rem", fontWeight: "bold", margin: "0 0 20px 0", color: "#333" }}>
-              Amount: ₹{calculateTotal().toFixed(2)}
-            </p>
-            
-            {paymentStatus === "creating" && (
-              <div style={{ padding: "40px 0" }}>
-                <div className="spinning" style={{ border: "4px solid #f3f3f3", borderTop: "4px solid #3498db", borderRadius: "50%", width: "40px", height: "40px", margin: "0 auto 15px auto" }}></div>
-                <p style={{ margin: 0, color: "#666" }}>Generating dynamic UPI QR code...</p>
-              </div>
-            )}
-
-            {paymentStatus === "pending" && (
-              <div>
-                <p style={{ fontSize: "0.95rem", color: "#444", margin: "0 0 10px 0", lineHeight: "1.4" }}>
-                  Scan the QR code below or click the button to complete the payment:
-                </p>
-                
-                {paymentType === "qr_code" && nativeQrImageUrl ? (
-                  <img 
-                    src={nativeQrImageUrl} 
-                    alt="Native UPI QR Code" 
-                    style={{ width: "200px", height: "200px", margin: "0 auto 15px auto", display: "block", border: "1px solid #ddd", borderRadius: "8px", padding: "5px", backgroundColor: "#fff" }} 
-                  />
-                ) : paymentLinkUrl ? (
-                  <>
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(paymentLinkUrl)}`} 
-                      alt="Razorpay Payment QR Code" 
-                      style={{ width: "200px", height: "200px", margin: "0 auto 15px auto", display: "block", border: "1px solid #ddd", borderRadius: "8px", padding: "5px", backgroundColor: "#fff" }} 
-                    />
-                    <button 
-                      onClick={() => window.open(paymentLinkUrl, "_blank")} 
-                      className="btn btn-primary"
-                      style={{ 
-                        display: "inline-flex", 
-                        alignItems: "center", 
-                        justifyContent: "center", 
-                        gap: "8px", 
-                        padding: "12px 24px", 
-                        fontSize: "1rem", 
-                        fontWeight: "bold",
-                        backgroundColor: "#3399cc",
-                        borderColor: "#3399cc",
-                        color: "#fff",
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                        margin: "0 auto 20px auto",
-                        boxShadow: "0 2px 8px rgba(51,153,204,0.3)"
-                      }}
-                    >
-                      Open Razorpay Payment Page
-                    </button>
-                  </>
-                ) : null}
-
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "#f57c00", fontWeight: "bold", marginTop: "10px" }}>
-                  <div className="spinning" style={{ border: "2px solid #f3f3f3", borderTop: "2px solid #f57c00", borderRadius: "50%", width: "16px", height: "16px" }}></div>
-                  Waiting for payment confirmation...
-                </div>
-              </div>
-            )}
-
-            {paymentStatus === "success" && (
-              <div style={{ padding: "40px 0", color: "#2e7d32" }}>
-                <div style={{ fontSize: "3rem", margin: "0 0 15px 0" }}>✓</div>
-                <p style={{ margin: 0, fontWeight: "bold", fontSize: "1.2rem" }}>Payment Successful!</p>
-                <p style={{ margin: "5px 0 0 0", color: "#666" }}>Completing checkout...</p>
-              </div>
-            )}
-
-            {paymentStatus === "error" && (
-              <div style={{ padding: "40px 0", color: "#d32f2f" }}>
-                <div style={{ fontSize: "3rem", margin: "0 0 15px 0" }}>✗</div>
-                <p style={{ margin: 0, fontWeight: "bold" }}>Payment Failed</p>
-                <p style={{ margin: "10px 0 0 0" }}>
-                  <button onClick={startRazorpayPayment} className="btn btn-secondary" style={{ padding: "8px 15px" }}>Retry Payment</button>
-                </p>
-              </div>
-            )}
-
-            <div style={{ marginTop: "25px", borderTop: "1px solid #eee", paddingTop: "20px" }}>
-              <button 
-                onClick={cancelRazorpayPayment} 
-                className="btn btn-secondary" 
-                style={{ width: "100%", padding: "10px", borderColor: "#d32f2f", color: "#d32f2f" }}
-              >
-                Cancel Checkout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
