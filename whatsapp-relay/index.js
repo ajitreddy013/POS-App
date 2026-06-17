@@ -431,7 +431,7 @@ app.post("/payment/create-link", async (req, res) => {
 
   try {
     const amountInPaise = Math.round(parseFloat(amount) * 100);
-    const expireTimestamp = Math.floor(Date.now() / 1000) + 600; // 10 minutes
+    const expireTimestamp = Math.floor(Date.now() / 1000) + 960; // 16 minutes
 
     const payload = {
       amount: amountInPaise,
