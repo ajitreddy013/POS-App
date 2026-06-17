@@ -2,6 +2,30 @@ require("dotenv").config();
 const path = require("path");
 process.env.PUPPETEER_CACHE_DIR = path.join(__dirname, ".cache/puppeteer");
 
+// Intercept console logs to expose them via endpoint for easy debugging on Render
+const logEntries = [];
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+console.log = (...args) => {
+  logEntries.push(`[${new Date().toISOString()}] [INFO] ${args.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(" ")}`);
+  if (logEntries.length > 500) logEntries.shift();
+  originalLog.apply(console, args);
+};
+
+console.error = (...args) => {
+  logEntries.push(`[${new Date().toISOString()}] [ERROR] ${args.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(" ")}`);
+  if (logEntries.length > 500) logEntries.shift();
+  originalError.apply(console, args);
+};
+
+console.warn = (...args) => {
+  logEntries.push(`[${new Date().toISOString()}] [WARN] ${args.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(" ")}`);
+  if (logEntries.length > 500) logEntries.shift();
+  originalWarn.apply(console, args);
+};
+
 const express = require("express");
 const cors = require("cors");
 const { Client, LocalAuth } = require("whatsapp-web.js");
@@ -148,6 +172,12 @@ app.get("/status", (req, res) => {
     status: connectionStatus,
     qrCode: activeQrCode
   });
+});
+
+// View Deployed Logs
+app.get("/logs", (req, res) => {
+  res.setHeader("Content-Type", "text/plain");
+  res.send(logEntries.join("\n"));
 });
 
 // Send WhatsApp Receipt
