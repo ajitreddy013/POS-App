@@ -1,3 +1,6 @@
+const path = require("path");
+process.env.PUPPETEER_CACHE_DIR = path.join(__dirname, ".cache/puppeteer");
+
 const express = require("express");
 const cors = require("cors");
 const { Client, LocalAuth } = require("whatsapp-web.js");

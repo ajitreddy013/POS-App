@@ -1,4 +1,6 @@
+const path = require('path');
 const { execSync } = require('child_process');
+process.env.PUPPETEER_CACHE_DIR = path.join(__dirname, '../whatsapp-relay/.cache/puppeteer');
 
 console.log('Running postinstall script...');
 
