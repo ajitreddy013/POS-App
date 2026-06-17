@@ -19,6 +19,82 @@ const SalesReports = () => {
   const [showBillModal, setShowBillModal] = useState(false);
   const [billGenerating, setBillGenerating] = useState(false);
 
+  const normalizeSales = (salesList) => {
+    if (!salesList) return [];
+    return salesList.map(sale => {
+      const saleNumber = sale.saleNumber || sale.sale_number || "";
+      const saleType = sale.saleType || sale.sale_type || "parcel";
+      const tableNumber = sale.tableNumber || sale.table_number || null;
+      const customerName = sale.customerName || sale.customer_name || "Walk-in Customer";
+      const customerPhone = sale.customerPhone || sale.customer_phone || "";
+      const saleDate = sale.saleDate || sale.sale_date || "";
+      const paymentMethod = sale.paymentMethod || sale.payment_method || "Cash";
+      const subtotal = sale.subtotal !== undefined ? sale.subtotal : (sale.subtotal_price || 0);
+      const taxAmount = sale.taxAmount !== undefined ? sale.taxAmount : (sale.tax_amount || 0);
+      const discountAmount = sale.discountAmount !== undefined ? sale.discountAmount : (sale.discount_amount || 0);
+      const totalAmount = sale.totalAmount !== undefined ? sale.totalAmount : (sale.total_amount || 0);
+
+      let itemCount = sale.item_count;
+      if (itemCount === undefined) {
+        itemCount = sale.items ? sale.items.reduce((sum, item) => sum + (item.quantity || 0), 0) : 0;
+      }
+
+      const totalCostPrice = sale.total_cost_price !== undefined ? sale.total_cost_price : 0;
+      const totalSalePrice = sale.total_sale_price !== undefined ? sale.total_sale_price : totalAmount;
+      const profit = sale.profit !== undefined ? sale.profit : (totalSalePrice - totalCostPrice);
+
+      return {
+        ...sale,
+        sale_number: saleNumber,
+        sale_type: saleType,
+        table_number: tableNumber,
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        sale_date: saleDate,
+        payment_method: paymentMethod,
+        tax_amount: taxAmount,
+        discount_amount: discountAmount,
+        total_amount: totalAmount,
+        item_count: itemCount,
+        total_cost_price: totalCostPrice,
+        total_sale_price: totalSalePrice,
+        profit: profit,
+
+        saleNumber,
+        saleType,
+        tableNumber,
+        customerName,
+        customerPhone,
+        saleDate,
+        paymentMethod,
+        subtotal,
+        taxAmount,
+        discountAmount,
+        totalAmount,
+      };
+    });
+  };
+
+  const normalizeSpendings = (spendingsList) => {
+    if (!spendingsList) return [];
+    return spendingsList.map(s => ({
+      ...s,
+      spending_date: s.spending_date || s.spendingDate || "",
+      payment_method: s.payment_method || s.paymentMethod || "cash",
+      amount: s.amount !== undefined ? Number(s.amount) : 0
+    }));
+  };
+
+  const normalizeCounterBalances = (balancesList) => {
+    if (!balancesList) return [];
+    return balancesList.map(b => ({
+      ...b,
+      balance_date: b.balance_date || b.balanceDate || "",
+      opening_balance: b.opening_balance !== undefined ? Number(b.opening_balance) : (b.openingBalance ? Number(b.openingBalance) : 0),
+      closing_balance: b.closing_balance !== undefined ? Number(b.closing_balance) : (b.closingBalance ? Number(b.closingBalance) : 0),
+    }));
+  };
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -29,21 +105,21 @@ const SalesReports = () => {
         start: getStartOfDay(selectedDate),
         end: getEndOfDay(selectedDate),
       });
-      setSales(salesData || []);
+      setSales(normalizeSales(salesData));
 
       // Load spendings data
       const spendingsData = await dbService.getSpendings({
         start: getStartOfDay(selectedDate),
         end: getEndOfDay(selectedDate),
       });
-      setSpendings(spendingsData || []);
+      setSpendings(normalizeSpendings(spendingsData));
 
       // Load counter balance data
       const counterBalanceData = await dbService.getCounterBalances({
         start: getStartOfDay(selectedDate),
         end: getEndOfDay(selectedDate),
       });
-      setCounterBalances(counterBalanceData || []);
+      setCounterBalances(normalizeCounterBalances(counterBalanceData));
     } catch (error) {
       // Failed to load reports data
     } finally {
