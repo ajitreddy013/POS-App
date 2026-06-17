@@ -61,9 +61,6 @@ function initializeClient() {
     authStrategy: new LocalAuth({
       dataPath: path.join(__dirname, ".wwebjs_auth")
     }),
-    webVersionCache: {
-      type: 'none'
-    },
     puppeteer: {
       headless: true,
       args: [
@@ -74,17 +71,7 @@ function initializeClient() {
         "--no-first-run",
         "--no-zygote",
         "--disable-gpu",
-        "--js-flags=--max-old-space-size=80",
-        "--disable-extensions",
-        "--disable-default-apps",
-        "--mute-audio",
-        "--single-process",
-        "--disable-features=site-per-process",
-        "--disable-features=Translate",
-        "--disk-cache-size=0",
-        "--disable-background-networking",
-        "--disable-sync",
-        "--disable-blink-features=AutomationControlled"
+        "--js-flags=--max-old-space-size=80"
       ]
     }
   });
