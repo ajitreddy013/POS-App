@@ -90,13 +90,14 @@ const Dashboard = () => {
       // Calculate total balance (net income + opening balance)
       const totalBalance = netIncome + openingBalance;
 
-      // Get recent sales (last 7 days)
+      // Get recent sales (last 7 days) and sort them by date descending
       const now = new Date();
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const recentSales = await dbService.getSales({
         startDate: formatDateTimeToString(weekAgo),
         endDate: formatDateTimeToString(now),
       }) || [];
+      recentSales.sort((a, b) => new Date(b.saleDate || b.sale_date) - new Date(a.saleDate || a.sale_date));
 
       setDashboardData({
         totalProducts: inventory.length,
@@ -107,7 +108,7 @@ const Dashboard = () => {
         netIncome: Number(netIncome || 0),
         openingBalance: Number(openingBalance || 0),
         totalBalance: Number(totalBalance || 0),
-        recentSales: (recentSales || []).slice(0, 10),
+        recentSales: recentSales.slice(0, 10),
       });
 
       setLastUpdated(formatDateTimeToString(new Date()));

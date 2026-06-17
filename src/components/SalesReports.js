@@ -105,6 +105,9 @@ const SalesReports = () => {
         start: getStartOfDay(selectedDate),
         end: getEndOfDay(selectedDate),
       });
+      if (salesData) {
+        salesData.sort((a, b) => new Date(b.saleDate || b.sale_date) - new Date(a.saleDate || a.sale_date));
+      }
       setSales(normalizeSales(salesData));
 
       // Load spendings data
@@ -396,13 +399,9 @@ const SalesReports = () => {
           <thead>
             <tr>
               <th>Sale Number</th>
-              <th>Type</th>
-              <th>Table/Parcel</th>
               <th>Customer</th>
               <th>Items</th>
-              <th>Cost Price</th>
-              <th>Sale Price</th>
-              <th>Profit</th>
+              <th>Amount</th>
               <th>Date</th>
               <th>Bill</th>
             </tr>
@@ -438,21 +437,9 @@ const SalesReports = () => {
               {sales.map((sale) => (
                 <tr key={sale.id}>
                   <td>{sale.sale_number}</td>
-                  <td className={`sale-type ${sale.sale_type}`}>
-                    {sale.sale_type === "table" ? "Table" : "Parcel"}
-                  </td>
-                  <td>
-                    {sale.sale_type === "table"
-                      ? sale.table_number || "-"
-                      : "Parcel"}
-                  </td>
                   <td>{sale.customer_name || "Walk-in Customer"}</td>
                   <td>{sale.item_count}</td>
-                  <td>₹{(sale.total_cost_price || 0).toFixed(2)}</td>
                   <td>₹{(sale.total_sale_price || sale.total_amount).toFixed(2)}</td>
-                  <td className={`profit ${(sale.profit || 0) >= 0 ? 'positive' : 'negative'}`}>
-                    ₹{(sale.profit || 0).toFixed(2)}
-                  </td>
                   <td>{formatDate(sale.sale_date)}</td>
                   <td>
 <button onClick={() => handleViewBill(sale)} className="btn btn-secondary" aria-label="View Bill">
@@ -547,13 +534,23 @@ const SalesReports = () => {
             </div>
             
             <div className="modal-content">
-              <div className="bill-preview">
-                {/* Simplified Bill Header */}
-                <div className="bill-header">
-                  <h2>Bill Details</h2>
+              <div className="bill-preview" style={{ fontFamily: "monospace", padding: "10px", background: "#fff", color: "#000", maxWidth: "400px", margin: "0 auto", border: "1px solid #eee", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+                {/* Professional Bill Header */}
+                <div className="bill-header" style={{ textAlign: "center", marginBottom: "15px" }}>
+                  <h2 style={{ margin: "0 0 8px 0", fontSize: "1.4rem", textTransform: "uppercase" }}>{selectedBill.barSettings?.bar_name || 'CounterFlow POS'}</h2>
+                  {selectedBill.barSettings?.address && (
+                    <p style={{ margin: "2px 0", fontSize: "0.9rem", color: "#333" }}>{selectedBill.barSettings.address}</p>
+                  )}
+                  {selectedBill.barSettings?.contact_number && (
+                    <p style={{ margin: "2px 0", fontSize: "0.9rem", color: "#333" }}>Ph: {selectedBill.barSettings.contact_number}</p>
+                  )}
+                  {selectedBill.barSettings?.gst_number && (
+                    <p style={{ margin: "2px 0", fontSize: "0.9rem", color: "#333" }}>GSTIN: {selectedBill.barSettings.gst_number}</p>
+                  )}
+                  <h3 style={{ margin: "15px 0 5px 0", fontSize: "1.1rem", textDecoration: "underline" }}>TAX INVOICE</h3>
                 </div>
                 
-                <hr />
+                <hr style={{ borderTop: "1px dashed #000", margin: "10px 0" }} />
                 
                 {/* Bill Details */}
                 <div className="bill-details">
@@ -590,62 +587,65 @@ const SalesReports = () => {
                   )}
                 </div>
                 
-                <hr />
+                <hr style={{ borderTop: "1px dashed #000", margin: "10px 0" }} />
                 
                 {/* Items Table */}
-                <div className="bill-items">
-                  <table className="bill-items-table">
+                <div className="bill-items" style={{ margin: "15px 0" }}>
+                  <table className="bill-items-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.95rem" }}>
                     <thead>
-                      <tr>
-                        <th>Item</th>
-                        <th>Qty</th>
-                        <th>Rate</th>
-                        <th>Amount</th>
+                      <tr style={{ borderBottom: "1px dashed #000" }}>
+                        <th style={{ textAlign: "left", padding: "5px 0" }}>Item</th>
+                        <th style={{ textAlign: "center", padding: "5px 0" }}>Qty</th>
+                        <th style={{ textAlign: "right", padding: "5px 0" }}>Rate</th>
+                        <th style={{ textAlign: "right", padding: "5px 0" }}>Amount</th>
                       </tr>
                     </thead>
                     <tbody>
                       {selectedBill.items?.map((item, index) => (
                         <tr key={index}>
-                          <td>{item.name}</td>
-                          <td>{item.quantity}</td>
-                          <td>₹{item.unitPrice?.toFixed(2)}</td>
-                          <td>₹{item.totalPrice?.toFixed(2)}</td>
+                          <td style={{ textAlign: "left", padding: "3px 0" }}>{item.name}</td>
+                          <td style={{ textAlign: "center", padding: "3px 0" }}>{item.quantity}</td>
+                          <td style={{ textAlign: "right", padding: "3px 0" }}>{item.unitPrice?.toFixed(2)}</td>
+                          <td style={{ textAlign: "right", padding: "3px 0" }}>{(item.totalPrice || (item.price * item.quantity))?.toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
                 
-                <hr />
+                <hr style={{ borderTop: "1px dashed #000", margin: "10px 0" }} />
                 
                 {/* Bill Summary */}
-                <div className="bill-summary">
-                  <div className="summary-row">
+                <div className="bill-summary" style={{ fontSize: "1rem" }}>
+                  <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "3px 0" }}>
                     <span>Subtotal:</span>
-                    <span>₹{selectedBill.subtotal?.toFixed(2)}</span>
+                    <span>{selectedBill.subtotal?.toFixed(2)}</span>
                   </div>
                   
                   {selectedBill.discountAmount > 0 && (
-                    <div className="summary-row">
+                    <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "3px 0" }}>
                       <span>Discount:</span>
-                      <span>-₹{selectedBill.discountAmount?.toFixed(2)}</span>
+                      <span>-{selectedBill.discountAmount?.toFixed(2)}</span>
                     </div>
                   )}
                   
                   {selectedBill.taxAmount > 0 && (
-                    <div className="summary-row">
+                    <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "3px 0" }}>
                       <span>Tax:</span>
-                      <span>₹{selectedBill.taxAmount?.toFixed(2)}</span>
+                      <span>{selectedBill.taxAmount?.toFixed(2)}</span>
                     </div>
                   )}
                   
-                  <div className="summary-row total">
-                    <span><strong>Total:</strong></span>
-                    <span><strong>₹{selectedBill.totalAmount?.toFixed(2)}</strong></span>
+                  <div className="summary-row total" style={{ display: "flex", justifyContent: "space-between", margin: "10px 0 0 0", fontSize: "1.2rem", fontWeight: "bold" }}>
+                    <span>Total:</span>
+                    <span>{selectedBill.totalAmount?.toFixed(2)}</span>
                   </div>
                 </div>
                 
-                <hr />
+                <hr style={{ borderTop: "1px dashed #000", margin: "10px 0" }} />
+                <div style={{ textAlign: "center", margin: "15px 0 5px 0", fontSize: "1rem", fontWeight: "bold" }}>
+                  {selectedBill.barSettings?.thank_you_message || "Thank you for visiting!"}
+                </div>
                 
               </div>
             </div>
