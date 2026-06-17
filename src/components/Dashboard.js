@@ -53,9 +53,9 @@ const Dashboard = () => {
       setLoading(true);
 
       // Get inventory data
-      const inventory = await dbService.getInventory();
+      const inventory = await dbService.getInventory() || [];
       const lowStockItems = inventory.filter(
-        (item) => item.godown_stock + item.counter_stock <= item.min_stock_level
+        (item) => (item.godown_stock || 0) + (item.counter_stock || 0) <= (item.min_stock_level || 0)
       );
 
       // Get today's sales using system local date
@@ -65,30 +65,26 @@ const Dashboard = () => {
       console.log("Dashboard loading for date:", todayDate); // Debug log
 
       const todaySales = await dbService.getSales({
-        start: getStartOfDay(todayDate),
-        end: getEndOfDay(todayDate),
-      });
+        startDate: getStartOfDay(todayDate),
+        endDate: getEndOfDay(todayDate),
+      }) || [];
 
       // eslint-disable-next-line no-console
       console.log("Today sales found:", todaySales.length); // Debug log
 
       const todayRevenue = todaySales.reduce(
-        (sum, sale) => sum + sale.total_amount,
+        (sum, sale) => sum + Number(sale.totalAmount || sale.total_amount || 0),
         0
       );
 
       // Get today's spendings
-      const todaySpendings = await dbService.getDailySpendingTotal(
-        todayDate
-      );
+      const todaySpendings = Number(await dbService.getDailySpendingTotal(todayDate) || 0);
       const netIncome = todayRevenue - todaySpendings;
 
       // Get today's opening balance
-      const todayCounterBalance = await dbService.getCounterBalance(
-        todayDate
-      );
+      const todayCounterBalance = await dbService.getCounterBalance(todayDate);
       const openingBalance = todayCounterBalance
-        ? todayCounterBalance.opening_balance
+        ? Number(todayCounterBalance.opening_balance || todayCounterBalance.openingBalance || 0)
         : 0;
 
       // Calculate total balance (net income + opening balance)
@@ -98,20 +94,20 @@ const Dashboard = () => {
       const now = new Date();
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const recentSales = await dbService.getSales({
-        start: formatDateTimeToString(weekAgo),
-        end: formatDateTimeToString(now),
-      });
+        startDate: formatDateTimeToString(weekAgo),
+        endDate: formatDateTimeToString(now),
+      }) || [];
 
       setDashboardData({
         totalProducts: inventory.length,
         lowStockItems: lowStockItems.length,
         todaySales: todaySales.length,
-        totalRevenue: todayRevenue,
-        todaySpendings: todaySpendings,
-        netIncome: netIncome,
-        openingBalance: openingBalance,
-        totalBalance: totalBalance,
-        recentSales: recentSales.slice(0, 10),
+        totalRevenue: Number(todayRevenue || 0),
+        todaySpendings: Number(todaySpendings || 0),
+        netIncome: Number(netIncome || 0),
+        openingBalance: Number(openingBalance || 0),
+        totalBalance: Number(totalBalance || 0),
+        recentSales: (recentSales || []).slice(0, 10),
       });
 
       setLastUpdated(formatDateTimeToString(new Date()));
@@ -238,10 +234,10 @@ const Dashboard = () => {
             ) : (
               dashboardData.recentSales.map((sale) => (
                 <tr key={sale.id}>
-                  <td>{sale.sale_number}</td>
-                  <td>{sale.customer_name || "Walk-in Customer"}</td>
-                  <td>{sale.item_count} items</td>
-                  <td>₹{sale.total_amount.toFixed(2)}</td>
+                  <td>{sale.saleNumber || sale.sale_number}</td>
+                  <td>{sale.customerName || sale.customer_name || "Walk-in Customer"}</td>
+                  <td>{sale.items ? sale.items.length : (sale.item_count || '-')} items</td>
+                  <td>₹{(sale.totalAmount || sale.total_amount || 0).toFixed(2)}</td>
                   <td>
                     <span
                       style={{
@@ -252,10 +248,10 @@ const Dashboard = () => {
                         fontSize: "0.8rem",
                       }}
                     >
-                      {sale.payment_method}
+                      {sale.paymentMethod || sale.payment_method}
                     </span>
                   </td>
-                  <td>{formatDate(sale.sale_date)}</td>
+                  <td>{formatDate(sale.saleDate || sale.sale_date)}</td>
                 </tr>
               ))
             )}

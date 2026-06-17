@@ -131,13 +131,13 @@ function AppContent() {
    * - Settings: Application configuration
    */
   const menuItems = [
-    { path: "/", name: "POS", icon: ShoppingCart },                // Point of sale (default)
+    { path: "/dashboard", name: "Dashboard", icon: BarChart3 },     // Dashboard (first)
+    { path: "/", name: "POS", icon: ShoppingCart },                // Point of sale
     { path: "/products", name: "Products", icon: Package },        // Product catalog
     { path: "/reports", name: "Reports", icon: BarChart3 },         // Sales reports
     { path: "/spendings", name: "Spendings", icon: DollarSign },   // Expense tracking
     { path: "/counter-balance", name: "Counter Balance", icon: Wallet }, // Cash management
     { path: "/pending-bills", name: "Pending Bills", icon: Clock }, // Saved bills
-    { path: "/dashboard", name: "Dashboard", icon: BarChart3 },     // Dashboard
     { path: "/settings", name: "Settings", icon: SettingsIcon },   // Configuration
   ];
 

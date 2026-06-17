@@ -249,30 +249,9 @@ const ProductManagement = () => {
         </button>
       </div>
 
-      {/* Summary Cards - moved to top for quick look */}
-      <div className="summary-cards">
-        <div className="summary-card">
-          <h3>Total Products</h3>
-          <div className="value">{products.length}</div>
-        </div>
-        <div className="summary-card">
-          <h3>Total Inventory Value</h3>
-          <div className="value">
-            ₹{products.reduce((sum, product) => {
-              const stock = (product.godown_stock || 0) + (product.counter_stock || 0);
-              return sum + (stock * (product.cost || 0));
-            }, 0).toFixed(2)}
-          </div>
-          <small style={{ color: '#7f8c8d', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>
-            (At Cost Price - Investment Value)
-          </small>
-        </div>
-        <div className="summary-card">
-          <h3>Categories</h3>
-          <div className="value">
-            {new Set(products.filter(p => p.category).map(p => p.category)).size}
-          </div>
-        </div>
+      {/* Total Products Count */}
+      <div style={{ marginBottom: '16px', fontSize: '1rem', color: '#555', fontWeight: '500' }}>
+        Total Products: <strong style={{ color: '#2c3e50', fontSize: '1.1rem' }}>{products.length}</strong>
       </div>
 
       {/* Search */}
