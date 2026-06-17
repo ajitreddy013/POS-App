@@ -4,14 +4,14 @@
   "description": "WhatsApp Cloud-Relay for CounterFlow POS App",
   "main": "index.js",
   "scripts": {
-    "start": "node --max-old-space-size=120 index.js",
-    "postinstall": "PUPPETEER_CACHE_DIR=./.cache/puppeteer npx puppeteer browsers install chrome"
+    "start": "node index.js"
   },
   "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.5",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "qrcode": "^1.5.3",
-    "whatsapp-web.js": "^1.26.0"
+    "pino": "^9.1.0",
+    "qrcode": "^1.5.3"
   }
 }

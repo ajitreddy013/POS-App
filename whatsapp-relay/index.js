@@ -35,7 +35,8 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const express = require("express");
 const cors = require("cors");
-const { Client, LocalAuth } = require("whatsapp-web.js");
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require("@whiskeysockets/baileys");
+const pino = require("pino");
 const QRCode = require("qrcode");
 const fs = require("fs");
 const https = require("https");
@@ -49,76 +50,71 @@ app.use(express.json());
 // Global State
 let connectionStatus = "INITIALIZING"; // INITIALIZING, QR_READY, CONNECTED, DISCONNECTED
 let activeQrCode = null; // Store QR code data URI
-let client = null;
+let sock = null;
 
-// Initialize WhatsApp Client
-function initializeClient() {
-  console.log("Initializing WhatsApp Client...");
+// Initialize WhatsApp Client (Baileys)
+async function initializeClient() {
+  console.log("Initializing WhatsApp Client (Baileys)...");
   connectionStatus = "INITIALIZING";
   activeQrCode = null;
 
-  client = new Client({
-    authStrategy: new LocalAuth({
-      dataPath: path.join(__dirname, ".wwebjs_auth")
-    }),
-    puppeteer: {
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-accelerated-2d-canvas",
-        "--no-first-run",
-        "--no-zygote",
-        "--disable-gpu",
-        "--js-flags=--max-old-space-size=80",
-        "--disable-extensions",
-        "--disable-default-apps",
-        "--mute-audio",
-        "--disable-features=site-per-process",
-        "--disable-features=Translate",
-        "--disk-cache-size=0"
-      ]
-    }
-  });
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, ".auth_info_baileys"));
+    const { version } = await fetchLatestBaileysVersion();
 
-  // Client Event Handlers
-  client.on("qr", async (qr) => {
-    console.log("QR Code received, converting to Data URI...");
-    try {
-      activeQrCode = await QRCode.toDataURL(qr);
-      connectionStatus = "QR_READY";
-    } catch (err) {
-      console.error("Failed to generate QR Data URI:", err);
-    }
-  });
+    sock = makeWASocket({
+      version,
+      printQRInTerminal: false,
+      auth: state,
+      logger: pino({ level: 'silent' }), // Prevent huge memory logs
+      browser: ['CounterFlow POS', 'MacOS', '1.0.0'], // Identify as MacOS device
+      syncFullHistory: false // Reduce memory footprint further
+    });
 
-  client.on("ready", () => {
-    console.log("WhatsApp Client is READY and CONNECTED!");
-    connectionStatus = "CONNECTED";
-    activeQrCode = null;
-  });
+    // Save credentials whenever they are updated
+    sock.ev.on("creds.update", saveCreds);
 
-  client.on("authenticated", () => {
-    console.log("WhatsApp Client authenticated successfully. Syncing chats...");
-    connectionStatus = "AUTHENTICATING";
-    activeQrCode = null;
-  });
+    // Handle connection updates
+    sock.ev.on("connection.update", async (update) => {
+      const { connection, lastDisconnect, qr } = update;
 
-  client.on("auth_failure", (msg) => {
-    console.error("WhatsApp Authentication failure:", msg);
-    cleanupSession();
-  });
+      if (qr) {
+        console.log("QR Code received, converting to Data URI...");
+        try {
+          activeQrCode = await QRCode.toDataURL(qr);
+          connectionStatus = "QR_READY";
+        } catch (err) {
+          console.error("Failed to generate QR Data URI:", err);
+        }
+      }
 
-  client.on("disconnected", (reason) => {
-    console.log("WhatsApp Client disconnected:", reason);
-    handleDisconnect(reason);
-  });
+      if (connection === "close") {
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        
+        console.log("WhatsApp connection closed. Reason:", statusCode, "Reconnect:", shouldReconnect);
+        
+        connectionStatus = "DISCONNECTED";
+        activeQrCode = null;
 
-  client.initialize().catch((err) => {
-    console.error("Error during client initialization:", err);
+        if (shouldReconnect) {
+          console.log("Reconnecting in 3 seconds...");
+          setTimeout(initializeClient, 3000);
+        } else {
+          console.log("User logged out. Session is invalid.");
+          cleanupSession();
+        }
+      } else if (connection === "open") {
+        console.log("WhatsApp Client is READY and CONNECTED!");
+        connectionStatus = "CONNECTED";
+        activeQrCode = null;
+      }
+    });
+
+  } catch (err) {
+    console.error("Error during Baileys initialization:", err);
     connectionStatus = "DISCONNECTED";
-  });
+  }
 }
 
 // Helper to destroy client and delete local auth files
@@ -126,77 +122,27 @@ async function cleanupSession() {
   connectionStatus = "DISCONNECTED";
   activeQrCode = null;
 
-  if (client) {
+  if (sock) {
     try {
-      client.removeAllListeners();
-      await client.destroy();
+      sock.ev.removeAllListeners();
+      sock = null;
     } catch (err) {
       console.error("Error destroying client:", err);
     }
-    client = null;
   }
 
   // Delete auth folder to ensure a fresh scan next time
-  const authPath = path.join(__dirname, ".wwebjs_auth");
+  const authPath = path.join(__dirname, ".auth_info_baileys");
   if (fs.existsSync(authPath)) {
     try {
       fs.rmSync(authPath, { recursive: true, force: true });
-      console.log("Deleted .wwebjs_auth session folder.");
+      console.log("Deleted .auth_info_baileys session folder.");
     } catch (err) {
       console.error("Failed to delete session folder:", err);
     }
   }
 
   // Re-initialize client to generate a new QR code
-  setTimeout(() => {
-    initializeClient();
-  }, 3000);
-}
-
-// Helper to handle unexpected disconnect without deleting the session files
-async function handleDisconnect(reason) {
-  console.log(`Handling unexpected disconnect. Reason: ${reason}`);
-  
-  if (reason === 'LOGOUT') {
-    console.log("User logged out. Cleaning up session entirely...");
-    return cleanupSession();
-  }
-
-  connectionStatus = "DISCONNECTED";
-  activeQrCode = null;
-
-  if (client) {
-    try {
-      client.removeAllListeners();
-      await client.destroy();
-    } catch (err) {
-      console.error("Error destroying client on disconnect:", err);
-    }
-    client = null;
-  }
-
-  console.log("Re-initializing client to attempt automatic reconnection...");
-  setTimeout(() => {
-    initializeClient();
-  }, 5000);
-}
-
-// Gracefully restart client without logging out (preserving session files)
-async function restartClient() {
-  console.log("Gracefully restarting WhatsApp client to reclaim memory...");
-  connectionStatus = "INITIALIZING";
-  activeQrCode = null;
-
-  
-  if (client) {
-    try {
-      client.removeAllListeners();
-      await client.destroy();
-    } catch (err) {
-      console.error("Error destroying client during restart:", err);
-    }
-  }
-  
   setTimeout(() => {
     initializeClient();
   }, 3000);
@@ -236,18 +182,18 @@ app.post("/send", async (req, res) => {
     });
   }
 
-  // Format phone number to WhatsApp format (e.g. 919876543210@c.us)
+  // Format phone number to WhatsApp format (e.g. 919876543210@s.whatsapp.net)
   let cleanNumber = to.replace(/\D/g, "");
-  if (!cleanNumber.endsWith("@c.us")) {
-    cleanNumber = `${cleanNumber}@c.us`;
+  if (!cleanNumber.endsWith("@s.whatsapp.net")) {
+    cleanNumber = `${cleanNumber}@s.whatsapp.net`;
   }
 
   try {
     console.log(`Sending message to: ${cleanNumber}`);
-    const response = await client.sendMessage(cleanNumber, message);
+    const response = await sock.sendMessage(cleanNumber, { text: message });
     res.json({
       success: true,
-      messageId: response.id.id
+      messageId: response?.key?.id
     });
   } catch (err) {
     console.error(`Failed to send message to ${cleanNumber}:`, err);
@@ -262,8 +208,8 @@ app.post("/send", async (req, res) => {
 app.post("/logout", async (req, res) => {
   console.log("Logging out and unlinking WhatsApp...");
   try {
-    if (client && connectionStatus === "CONNECTED") {
-      await client.logout();
+    if (sock && connectionStatus === "CONNECTED") {
+      await sock.logout();
     }
     cleanupSession();
     res.json({ success: true, message: "Logged out successfully" });
@@ -450,26 +396,4 @@ app.post("/payment/link-status", async (req, res) => {
 app.listen(port, () => {
   console.log(`WhatsApp Cloud-Relay Server running on port ${port}`);
   initializeClient();
-  startMemoryMonitor();
 });
-
-// Monitor memory usage and restart if exceeding threshold to fit 512MB Render free tier
-function startMemoryMonitor() {
-  // Check memory every 3 minutes
-  setInterval(() => {
-    try {
-      const mem = process.memoryUsage();
-      const rssMB = Math.round(mem.rss / 1024 / 1024);
-      const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
-      console.log(`[Memory Monitor] Node Process RSS: ${rssMB}MB, Heap Used: ${heapUsedMB}MB`);
-      
-      // If RSS exceeds 200MB, trigger a restart to free memory
-      if (rssMB > 200) {
-        console.warn(`[Memory Monitor] RSS memory usage (${rssMB}MB) exceeded 200MB. Restarting client to release Chromium...`);
-        restartClient();
-      }
-    } catch (err) {
-      console.error("Failed to run memory monitor:", err);
-    }
-  }, 3 * 60 * 1000);
-}
