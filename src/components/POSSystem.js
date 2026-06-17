@@ -164,7 +164,7 @@ const POSSystem = () => {
       // Auto-send WhatsApp receipt silently if customer phone is available
       if (customerPhone && customerPhone.trim() !== "") {
         try {
-          const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+          const relayUrl = APP_CONFIG.whatsappRelayUrl;
           await whatsappService.sendBill(relayUrl, barSettings || {}, saleData);
         } catch (waErr) {
           // Silent fail — WhatsApp is optional

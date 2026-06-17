@@ -24,7 +24,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [sendWhatsapp, setSendWhatsapp] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [discount, setDiscount] = useState(0);
   const [tax, setTax] = useState(0);
@@ -368,18 +367,13 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         await printBill(saleData);
       }
 
-      // Auto-send WhatsApp receipt if enabled and number exists
-      if (sendWhatsapp && customerPhone && barSettings && barSettings.whatsapp_enabled === 1) {
+      // Auto-send WhatsApp receipt silently if customer phone is available
+      if (customerPhone && customerPhone.trim() !== "") {
         try {
-          const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-          const waResult = await whatsappService.sendBill(relayUrl, barSettings, saleData);
-          if (waResult.success) {
-            console.log("WhatsApp receipt sent!");
-          } else {
-            alert(`WhatsApp Receipt Send Failed: ${waResult.error}`);
-          }
+          const relayUrl = APP_CONFIG.whatsappRelayUrl;
+          await whatsappService.sendBill(relayUrl, barSettings || {}, saleData);
         } catch (waErr) {
-          console.error("WhatsApp error:", waErr);
+          // Silent fail — WhatsApp is optional
         }
       }
 
@@ -633,20 +627,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                 maxLength="10"
               />
             </div>
-            {barSettings && barSettings.whatsapp_enabled === 1 && (
-              <div className="whatsapp-checkbox-row" style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  type="checkbox"
-                  id="sendWhatsappCheckbox"
-                  checked={sendWhatsapp}
-                  onChange={(e) => setSendWhatsapp(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
-                />
-                <label htmlFor="sendWhatsappCheckbox" style={{ fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--text-color, inherit)' }}>
-                  Send via WhatsApp
-                </label>
-              </div>
-            )}
           </div>
 
           <div className="cart-section">

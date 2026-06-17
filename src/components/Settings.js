@@ -674,172 +674,99 @@ const Settings = () => {
           }}>
             <h2 style={{ margin: 0 }}>
               <MessageCircle size={20} style={{ marginRight: '10px' }} />
-              WhatsApp Cloud-Relay Settings
+              WhatsApp Linked Devices
             </h2>
-            <button 
-              onClick={() => setIsEditingWhatsappInfo(!isEditingWhatsappInfo)}
-              className="btn btn-secondary"
-            >
-              <Edit size={16} />
-              {isEditingWhatsappInfo ? 'Cancel' : 'Edit'}
-            </button>
           </div>
           
           <div style={{ padding: '20px' }}>
-            {isEditingWhatsappInfo ? (
-              <div className="whatsapp-settings-form">
-                <div className="form-row">
-                  <label>
-                    Enable WhatsApp Bills:
-                    <input
-                      type="checkbox"
-                      checked={!!barSettings.whatsapp_enabled}
-                      onChange={(e) => handleBarSettingsChange('whatsapp_enabled', e.target.checked ? 1 : 0)}
-                      style={{ marginLeft: '10px' }}
-                    />
-                  </label>
+            <div className="whatsapp-settings-display">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div>
+                  <h4>Relay Status</h4>
+                  <div style={{ display: 'flex', alignItems: 'center', marginTop: '10px' }}>
+                    {whatsappStatus === 'CONNECTED' ? (
+                      <span style={{ display: 'flex', alignItems: 'center', color: '#2e7d32', fontWeight: 'bold' }}>
+                        <Wifi size={18} style={{ marginRight: '5px' }} /> Linked / Active
+                      </span>
+                    ) : whatsappStatus === 'AUTHENTICATING' ? (
+                      <span style={{ display: 'flex', alignItems: 'center', color: '#0288d1', fontWeight: 'bold' }}>
+                        <RotateCcw size={18} className="spin" style={{ marginRight: '5px' }} /> Authenticating / Syncing...
+                      </span>
+                    ) : whatsappStatus === 'QR_READY' ? (
+                      <span style={{ display: 'flex', alignItems: 'center', color: '#f57c00', fontWeight: 'bold' }}>
+                        <MessageCircle size={18} style={{ marginRight: '5px' }} /> Scan QR Code to Link
+                      </span>
+                    ) : whatsappStatus === 'INITIALIZING' ? (
+                      <span style={{ display: 'flex', alignItems: 'center', color: '#0288d1', fontWeight: 'bold' }}>
+                        <RotateCcw size={18} className="spin" style={{ marginRight: '5px' }} /> Connecting to Relay...
+                      </span>
+                    ) : (
+                      <span style={{ display: 'flex', alignItems: 'center', color: '#d32f2f', fontWeight: 'bold' }}>
+                        <WifiOff size={18} style={{ marginRight: '5px' }} /> Offline / Not Linked
+                      </span>
+                    )}
+                  </div>
+                  
+                  {whatsappStatus === 'CONNECTED' && (
+                    <button
+                      onClick={handleWhatsappLogout}
+                      disabled={whatsappLoading}
+                      className="btn btn-secondary"
+                      style={{ marginTop: '20px', color: '#d32f2f', borderColor: '#d32f2f' }}
+                    >
+                      <WifiOff size={16} />
+                      {whatsappLoading ? 'Unlinking...' : 'Unlink WhatsApp Device'}
+                    </button>
+                  )}
                 </div>
 
-                <div className="form-row">
-                  <label style={{ width: '100%' }}>
-                    WhatsApp Relay URL:
-                    <input
-                      type="text"
-                      value={barSettings.whatsapp_relay_url || ''}
-                      onChange={(e) => handleBarSettingsChange('whatsapp_relay_url', e.target.value)}
-                      className="form-input"
-                      placeholder="e.g. https://pos-app-nqsm.onrender.com"
-                      style={{ width: '100%', marginTop: '5px' }}
-                    />
-                  </label>
-                </div>
-
-                <div className="form-row">
-                  <label>
-                    Template Language Code:
-                    <input
-                      type="text"
-                      value={barSettings.whatsapp_language_code || 'en'}
-                      onChange={(e) => handleBarSettingsChange('whatsapp_language_code', e.target.value)}
-                      className="form-input"
-                      placeholder="en"
-                    />
-                  </label>
-                  <label>
-                    Default Country Code:
-                    <input
-                      type="text"
-                      value={barSettings.whatsapp_default_country_code || '91'}
-                      onChange={(e) => handleBarSettingsChange('whatsapp_default_country_code', e.target.value)}
-                      className="form-input"
-                      placeholder="91"
-                    />
-                  </label>
-                </div>
-
-                <div className="form-actions">
-                  <button 
-                    onClick={saveBarSettings}
-                    disabled={loading}
-                    className="btn btn-primary"
-                  >
-                    <Save size={16} />
-                    {loading ? 'Saving...' : 'Save Settings'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="whatsapp-settings-display">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                  <div>
-                    <h4>WhatsApp Automation</h4>
-                    <p>{barSettings.whatsapp_enabled ? '✓ Enabled' : '✗ Disabled'}</p>
-                    
-                    <h4>Relay URL</h4>
-                    <p style={{ wordBreak: 'break-all' }}>{barSettings.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl || 'Not configured'}</p>
-                    
-                    <h4>Relay Status</h4>
-                    <div style={{ display: 'flex', alignItems: 'center', marginTop: '10px' }}>
-                      {whatsappStatus === 'CONNECTED' ? (
-                        <span style={{ display: 'flex', alignItems: 'center', color: '#2e7d32', fontWeight: 'bold' }}>
-                          <Wifi size={18} style={{ marginRight: '5px' }} /> Linked / Active
-                        </span>
+                <div>
+                  {getActiveRelayUrl() ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid #ddd', borderRadius: '8px', padding: '15px', background: '#fafafa', minHeight: '200px' }}>
+                      {whatsappStatus === 'QR_READY' && whatsappQr ? (
+                        <>
+                          <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', textAlign: 'center', fontWeight: 'bold' }}>
+                            Scan this QR code with WhatsApp Linked Devices:
+                          </p>
+                          <img src={whatsappQr} alt="WhatsApp QR Code" style={{ width: '180px', height: '180px' }} />
+                        </>
+                      ) : whatsappStatus === 'CONNECTED' ? (
+                        <div style={{ textAlign: 'center', color: '#2e7d32' }}>
+                          <MessageCircle size={48} style={{ margin: '0 auto 10px auto' }} />
+                          <p style={{ margin: 0, fontWeight: 'bold' }}>Device Linked!</p>
+                          <p style={{ margin: '5px 0 0 0', fontSize: '0.85rem', color: '#666' }}>
+                            POS receipts will be sent automatically from your scanned number.
+                          </p>
+                        </div>
                       ) : whatsappStatus === 'AUTHENTICATING' ? (
-                        <span style={{ display: 'flex', alignItems: 'center', color: '#0288d1', fontWeight: 'bold' }}>
-                          <RotateCcw size={18} className="spin" style={{ marginRight: '5px' }} /> Authenticating / Syncing...
-                        </span>
-                      ) : whatsappStatus === 'QR_READY' ? (
-                        <span style={{ display: 'flex', alignItems: 'center', color: '#f57c00', fontWeight: 'bold' }}>
-                          <MessageCircle size={18} style={{ marginRight: '5px' }} /> Scan QR Code to Link
-                        </span>
+                        <div style={{ textAlign: 'center', color: '#0288d1' }}>
+                          <RotateCcw size={48} className="spin" style={{ margin: '0 auto 10px auto' }} />
+                          <p style={{ margin: 0, fontWeight: 'bold' }}>Authenticated!</p>
+                          <p style={{ margin: '5px 0 0 0', fontSize: '0.85rem', color: '#666' }}>
+                            Syncing chats and data. Please wait...
+                          </p>
+                        </div>
                       ) : whatsappStatus === 'INITIALIZING' ? (
-                        <span style={{ display: 'flex', alignItems: 'center', color: '#0288d1', fontWeight: 'bold' }}>
-                          <RotateCcw size={18} className="spin" style={{ marginRight: '5px' }} /> Connecting to Relay...
-                        </span>
+                        <div style={{ textAlign: 'center', color: '#0288d1' }}>
+                          <RotateCcw size={48} className="spin" style={{ margin: '0 auto 10px auto' }} />
+                          <p style={{ margin: 0 }}>Starting WhatsApp session...</p>
+                        </div>
                       ) : (
-                        <span style={{ display: 'flex', alignItems: 'center', color: '#d32f2f', fontWeight: 'bold' }}>
-                          <WifiOff size={18} style={{ marginRight: '5px' }} /> Offline / Not Linked
-                        </span>
+                        <div style={{ textAlign: 'center', color: '#666' }}>
+                          <WifiOff size={48} style={{ margin: '0 auto 10px auto' }} />
+                          <p style={{ margin: 0 }}>Relay is offline or not configured.</p>
+                          {whatsappError && <p style={{ fontSize: '0.8rem', color: '#d32f2f', margin: '5px 0 0 0' }}>{whatsappError}</p>}
+                        </div>
                       )}
                     </div>
-                    
-                    {whatsappStatus === 'CONNECTED' && (
-                      <button
-                        onClick={handleWhatsappLogout}
-                        disabled={whatsappLoading}
-                        className="btn btn-secondary"
-                        style={{ marginTop: '20px', color: '#d32f2f', borderColor: '#d32f2f' }}
-                      >
-                        <WifiOff size={16} />
-                        {whatsappLoading ? 'Unlinking...' : 'Unlink WhatsApp Device'}
-                      </button>
-                    )}
-                  </div>
-
-                  <div>
-                    {barSettings.whatsapp_enabled && getActiveRelayUrl() && (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid #ddd', borderRadius: '8px', padding: '15px', background: '#fafafa', minHeight: '200px' }}>
-                        {whatsappStatus === 'QR_READY' && whatsappQr ? (
-                          <>
-                            <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', textAlign: 'center', fontWeight: 'bold' }}>
-                              Scan this QR code with WhatsApp Linked Devices:
-                            </p>
-                            <img src={whatsappQr} alt="WhatsApp QR Code" style={{ width: '180px', height: '180px' }} />
-                          </>
-                        ) : whatsappStatus === 'CONNECTED' ? (
-                          <div style={{ textAlign: 'center', color: '#2e7d32' }}>
-                            <MessageCircle size={48} style={{ margin: '0 auto 10px auto' }} />
-                            <p style={{ margin: 0, fontWeight: 'bold' }}>Device Linked!</p>
-                            <p style={{ margin: '5px 0 0 0', fontSize: '0.85rem', color: '#666' }}>
-                              POS receipts will be sent automatically from your scanned number.
-                            </p>
-                          </div>
-                        ) : whatsappStatus === 'AUTHENTICATING' ? (
-                          <div style={{ textAlign: 'center', color: '#0288d1' }}>
-                            <RotateCcw size={48} className="spin" style={{ margin: '0 auto 10px auto' }} />
-                            <p style={{ margin: 0, fontWeight: 'bold' }}>Authenticated!</p>
-                            <p style={{ margin: '5px 0 0 0', fontSize: '0.85rem', color: '#666' }}>
-                              Syncing chats and data. Please wait...
-                            </p>
-                          </div>
-                        ) : whatsappStatus === 'INITIALIZING' ? (
-                          <div style={{ textAlign: 'center', color: '#0288d1' }}>
-                            <RotateCcw size={48} className="spin" style={{ margin: '0 auto 10px auto' }} />
-                            <p style={{ margin: 0 }}>Starting WhatsApp session...</p>
-                          </div>
-                        ) : (
-                          <div style={{ textAlign: 'center', color: '#666' }}>
-                            <WifiOff size={48} style={{ margin: '0 auto 10px auto' }} />
-                            <p style={{ margin: 0 }}>Relay is offline or not configured.</p>
-                            {whatsappError && <p style={{ fontSize: '0.8rem', color: '#d32f2f', margin: '5px 0 0 0' }}>{whatsappError}</p>}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  ) : (
+                    <div style={{ padding: '20px', color: '#d32f2f', textAlign: 'center', border: '1px solid #ffcdd2', borderRadius: '8px', background: '#ffebee' }}>
+                      <p>WhatsApp Relay URL is not configured.</p>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
 
