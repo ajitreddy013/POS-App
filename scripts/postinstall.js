@@ -7,8 +7,12 @@ if (process.env.RENDER === 'true') {
   try {
     execSync('npm install', { cwd: 'whatsapp-relay', stdio: 'inherit' });
     console.log('whatsapp-relay dependencies installed successfully.');
+    
+    console.log('Installing headless Chrome for Puppeteer...');
+    execSync('npx puppeteer browsers install chrome', { cwd: 'whatsapp-relay', stdio: 'inherit' });
+    console.log('Headless Chrome installed successfully.');
   } catch (err) {
-    console.error('Failed to install whatsapp-relay dependencies:', err.message);
+    console.error('Failed to install whatsapp-relay dependencies/Chrome:', err.message);
     process.exit(1);
   }
 } else {
