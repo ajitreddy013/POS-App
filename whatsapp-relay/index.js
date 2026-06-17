@@ -303,6 +303,88 @@ app.post("/payment/status", async (req, res) => {
   }
 });
 
+// Create Razorpay Payment Link
+app.post("/payment/create-link", async (req, res) => {
+  const { amount, orderId, customerName, customerPhone, keyId, keySecret } = req.body;
+
+  if (!amount || !orderId || !keyId || !keySecret) {
+    return res.status(400).json({
+      success: false,
+      error: "Missing required fields: amount, orderId, keyId, and keySecret are required."
+    });
+  }
+
+  try {
+    const amountInPaise = Math.round(parseFloat(amount) * 100);
+    const expireTimestamp = Math.floor(Date.now() / 1000) + 600; // 10 minutes
+
+    const payload = {
+      amount: amountInPaise,
+      currency: "INR",
+      accept_partial: false,
+      reference_id: orderId,
+      description: `Payment for Order #${orderId}`,
+      customer: {
+        name: customerName || "Walk-in Customer",
+        contact: customerPhone ? `+91${customerPhone.replace(/\D/g, "")}` : undefined
+      },
+      notify: {
+        sms: false,
+        email: false
+      },
+      reminder_enable: false,
+      expire_by: expireTimestamp
+    };
+
+    console.log(`Creating Razorpay Payment Link for Order #${orderId}, Amount: ${amountInPaise} paise`);
+    const response = await razorpayRequest("POST", "/v1/payment_links", payload, keyId, keySecret);
+    
+    res.json({
+      success: true,
+      paymentLinkId: response.id,
+      shortUrl: response.short_url,
+      status: response.status
+    });
+  } catch (err) {
+    console.error("Razorpay Payment Link creation failed:", err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message || "Failed to create Payment Link."
+    });
+  }
+});
+
+// Check Razorpay Payment Link Status
+app.post("/payment/link-status", async (req, res) => {
+  const { paymentLinkId, keyId, keySecret } = req.body;
+
+  if (!paymentLinkId || !keyId || !keySecret) {
+    return res.status(400).json({
+      success: false,
+      error: "Missing required fields: paymentLinkId, keyId, and keySecret are required."
+    });
+  }
+
+  try {
+    console.log(`Checking Razorpay status for Payment Link: ${paymentLinkId}`);
+    const response = await razorpayRequest("GET", `/v1/payment_links/${paymentLinkId}`, null, keyId, keySecret);
+    
+    const isPaid = response.status === "paid";
+    
+    res.json({
+      success: true,
+      paid: isPaid,
+      status: response.status
+    });
+  } catch (err) {
+    console.error("Razorpay Payment Link status check failed:", err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message || "Failed to fetch Payment Link status."
+    });
+  }
+});
+
 // Start Server
 app.listen(port, () => {
   console.log(`WhatsApp Cloud-Relay Server running on port ${port}`);

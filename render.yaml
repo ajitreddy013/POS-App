@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: counterflow-whatsapp-relay
+    runtime: node
+    rootDir: whatsapp-relay
+    buildCommand: npm install
+    startCommand: node index.js
+    plan: free
+    envVars:
+      - key: PORT
+        value: 10000

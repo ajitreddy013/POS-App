@@ -7,13 +7,9 @@ import {
   ShoppingCart,
   User,
   Calculator,
-  Clock,
-  MessageSquare,
-  Check,
   Package,
 } from "lucide-react";
 import { getLocalDateTimeString } from "../utils/dateUtils";
-import { addPendingBill } from "../services/billService";
 import { dbService } from "../services/dbService";
 import { whatsappService } from "../services/whatsappService";
 import { APP_CONFIG } from "../config";
@@ -25,27 +21,19 @@ const POSSystem = () => {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [saleType, setSaleType] = useState("parcel");
-  const [tableNumber, setTableNumber] = useState("");
   const [discount, setDiscount] = useState(0);
-  const [tax, setTax] = useState(0);
   const [loading, setLoading] = useState(false);
   const [barSettings, setBarSettings] = useState(null);
-  const [sendWhatsapp, setSendWhatsapp] = useState(false);
   const searchInputRef = useRef(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [paymentQrUrl, setPaymentQrUrl] = useState("");
-  const [activeQrId, setActiveQrId] = useState("");
+  const [paymentLinkUrl, setPaymentLinkUrl] = useState("");
+  const [activeLinkId, setActiveLinkId] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("creating");
   const pollingIntervalRef = useRef(null);
 
   useEffect(() => {
     loadProducts();
     loadBarSettings();
-    // Focus on search input when component mounts
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
     return () => {
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     };
@@ -55,9 +43,6 @@ const POSSystem = () => {
     try {
       const settings = await dbService.getBarSettings();
       setBarSettings(settings);
-      if (settings && settings.whatsapp_enabled === 1) {
-        setSendWhatsapp(true);
-      }
     } catch (error) {
       // Failed to load bar settings
       setBarSettings(null);
@@ -105,11 +90,8 @@ const POSSystem = () => {
       ]);
     }
 
-    // Clear search and refocus
+    // Clear search
     setSearchTerm("");
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
   };
 
   const updateQuantity = (productId, newQuantity) => {
@@ -133,18 +115,13 @@ const POSSystem = () => {
     return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   };
 
-  const calculateTaxAmount = () => {
-    return (calculateSubtotal() * tax) / 100;
-  };
-
   const calculateDiscountAmount = () => {
-    return (calculateSubtotal() * discount) / 100;
+    // Discount is a flat ₹ amount, capped at subtotal
+    return Math.min(discount, calculateSubtotal());
   };
 
   const calculateTotal = () => {
-    return (
-      calculateSubtotal() + calculateTaxAmount() - calculateDiscountAmount()
-    );
+    return Math.max(0, calculateSubtotal() - calculateDiscountAmount());
   };
 
   const generateSaleNumber = async () => {
@@ -159,84 +136,14 @@ const POSSystem = () => {
     return `${day}${month}${year}${randomNum}`;
   };
 
-  const savePendingBill = async () => {
-    if (cart.length === 0) {
-      alert("Cart is empty!");
-      return;
-    }
-
-    // Validate required fields for pending bills
-    const errors = [];
-    
-    if (!customerName || customerName.trim() === "") {
-      errors.push("Customer name");
-    }
-
-    if (!customerPhone || customerPhone.trim() === "") {
-      errors.push("Customer phone number");
-    } else if (customerPhone.trim().length !== 10 || !/^\d{10}$/.test(customerPhone.trim())) {
-      alert("Phone number must be exactly 10 digits!");
-      return;
-    }
-
-    if (errors.length > 0) {
-      alert(`${errors.join(" and ")} ${errors.length > 1 ? 'are' : 'is'} mandatory for pending bills!`);
-      return;
-    }
-
-    if ((saleType === "table" || saleType === "moving table") && (!tableNumber || tableNumber.trim() === "")) {
-      alert("Table number is required for table and moving table sales!");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const billData = {
-        billNumber: await generateSaleNumber(),
-        saleType,
-        tableNumber: (saleType === "table" || saleType === "moving table") ? tableNumber : null,
-        customerName: customerName.trim(),
-        customerPhone: customerPhone.trim(),
-        items: cart.map((item) => ({
-          productId: item.id,
-          name: item.name,
-          quantity: item.quantity,
-          unitPrice: item.price,
-          totalPrice: item.price * item.quantity,
-        })),
-        subtotal: calculateSubtotal(),
-        taxAmount: calculateTaxAmount(),
-        discountAmount: calculateDiscountAmount(),
-        totalAmount: calculateTotal(),
-        paymentMethod,
-        notes: "",
-      };
-
-      await addPendingBill(billData);
-      alert("Bill saved as pending!");
-
-      // Clear cart and customer info
-      setCart([]);
-      setCustomerName("");
-      setCustomerPhone("");
-      setTableNumber("");
-      setDiscount(0);
-      setTax(0);
-    } catch (error) {
-      // Failed to save pending bill
-      alert("Failed to save pending bill. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const executeSaleWrite = async () => {
     setLoading(true);
     try {
       const saleData = {
         saleNumber: await generateSaleNumber(),
-        saleType,
-        tableNumber: (saleType === "table" || saleType === "moving table") ? tableNumber : null,
+        saleType: "parcel",
+        tableNumber: null,
         customerName: customerName || "Walk-in Customer",
         customerPhone,
         items: cart.map((item) => ({
@@ -247,7 +154,7 @@ const POSSystem = () => {
           totalPrice: item.price * item.quantity,
         })),
         subtotal: calculateSubtotal(),
-        taxAmount: calculateTaxAmount(),
+        taxAmount: 0,
         discountAmount: calculateDiscountAmount(),
         totalAmount: calculateTotal(),
         paymentMethod,
@@ -258,22 +165,13 @@ const POSSystem = () => {
       // Save sale to database
       await dbService.createSale(saleData);
 
-      // Auto-print bill to default printer if enabled
-      if (barSettings && barSettings.printing_enabled === 1) {
-        await printBill(saleData);
-      }
-
-      // Auto-send WhatsApp receipt if enabled and number exists
-      if (sendWhatsapp && customerPhone && barSettings && barSettings.whatsapp_enabled === 1) {
+      // Auto-send WhatsApp receipt silently if customer phone is available
+      if (customerPhone && customerPhone.trim() !== "") {
         try {
-          const waResult = await whatsappService.sendBill(APP_CONFIG.whatsappRelayUrl, barSettings, saleData);
-          if (waResult.success) {
-            console.log("WhatsApp receipt sent!");
-          } else {
-            alert(`WhatsApp Receipt Send Failed: ${waResult.error}`);
-          }
+          const relayUrl = APP_CONFIG.whatsappRelayUrl;
+          await whatsappService.sendBill(relayUrl, barSettings || {}, saleData);
         } catch (waErr) {
-          console.error("WhatsApp error:", waErr);
+          // Silent fail — WhatsApp is optional
         }
       }
 
@@ -281,9 +179,7 @@ const POSSystem = () => {
       setCart([]);
       setCustomerName("");
       setCustomerPhone("");
-      setTableNumber("");
       setDiscount(0);
-      setTax(0);
 
       // Reload products to update stock
       await loadProducts();
@@ -316,21 +212,24 @@ const POSSystem = () => {
   const startRazorpayPayment = async () => {
     setPaymentModalOpen(true);
     setPaymentStatus("creating");
-    setPaymentQrUrl("");
-    setActiveQrId("");
+    setPaymentLinkUrl("");
+    setActiveLinkId("");
     
+    const relayUrl = APP_CONFIG.whatsappRelayUrl;
+
     try {
       const orderId = await generateSaleNumber();
       const amount = calculateTotal();
-      const relayUrl = APP_CONFIG.whatsappRelayUrl;
 
-      // Call relay to create QR code
-      const response = await fetch(`${relayUrl}/payment/create-qr`, {
+      // Call relay to create Payment Link
+      const response = await fetch(`${relayUrl}/payment/create-link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount,
           orderId,
+          customerName: customerName.trim() || "Walk-in Customer",
+          customerPhone: customerPhone.trim() || undefined,
           keyId: barSettings.razorpay_key_id,
           keySecret: barSettings.razorpay_key_secret
         })
@@ -338,32 +237,36 @@ const POSSystem = () => {
 
       const data = await response.json();
       if (data.success) {
-        setPaymentQrUrl(data.qrImageUrl);
-        setActiveQrId(data.qrCodeId);
+        setPaymentLinkUrl(data.shortUrl);
+        setActiveLinkId(data.paymentLinkId);
         setPaymentStatus("pending");
         
-        // Start polling for payment status
-        startPollingPayment(data.qrCodeId, relayUrl);
+        // Open the link in a new tab/system browser
+        const target = (typeof window !== "undefined" && window.Capacitor) ? "_system" : "_blank";
+        window.open(data.shortUrl, target);
+        
+        // Start polling for payment link status
+        startPollingPaymentLink(data.paymentLinkId, relayUrl);
       } else {
         setPaymentStatus("error");
-        alert(`Failed to create Razorpay QR: ${data.error}`);
+        alert(`Failed to create Payment Link: ${data.error}`);
       }
     } catch (err) {
       setPaymentStatus("error");
-      alert(`Error connecting to payment relay: ${err.message}`);
+      alert(`Cannot reach relay server at:\n${relayUrl}\n\nMake sure the relay server is running on your Mac and the Relay URL in Settings points to your Mac's IP (e.g. http://10.109.19.56:8080).\n\nError: ${err.message}`);
     }
   };
 
-  const startPollingPayment = (qrCodeId, relayUrl) => {
+  const startPollingPaymentLink = (paymentLinkId, relayUrl) => {
     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
 
     pollingIntervalRef.current = setInterval(async () => {
       try {
-        const response = await fetch(`${relayUrl}/payment/status`, {
+        const response = await fetch(`${relayUrl}/payment/link-status`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            qrCodeId,
+            paymentLinkId,
             keyId: barSettings.razorpay_key_id,
             keySecret: barSettings.razorpay_key_secret
           })
@@ -485,50 +388,6 @@ const POSSystem = () => {
 
         {/* Right Panel - Cart and Billing */}
         <div className="cart-panel">
-          <div className="sale-type-section">
-            <h3>Sale Type</h3>
-            <div className="form-row">
-              <label>
-                <input
-                  type="radio"
-                  value="parcel"
-                  checked={saleType === "parcel"}
-                  onChange={(e) => setSaleType(e.target.value)}
-                />
-                Parcel
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  value="moving table"
-                  checked={saleType === "moving table"}
-                  onChange={(e) => setSaleType(e.target.value)}
-                />
-                Moving Table
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  value="table"
-                  checked={saleType === "table"}
-                  onChange={(e) => setSaleType(e.target.value)}
-                />
-                Table
-              </label>
-            </div>
-            {(saleType === "table" || saleType === "moving table") && (
-              <div className="form-row">
-                <input
-                  type="text"
-                  placeholder="Table Number"
-                  value={tableNumber}
-                  onChange={(e) => setTableNumber(e.target.value)}
-                  className="form-input"
-                />
-              </div>
-            )}
-          </div>
-
           <div className="customer-section">
             <h3>
               <User size={20} /> Customer Information
@@ -555,19 +414,7 @@ const POSSystem = () => {
                 maxLength="10"
               />
             </div>
-            {barSettings && barSettings.whatsapp_enabled === 1 && (
-              <div style={{ display: "flex", alignItems: "center", marginTop: "10px" }}>
-                <label style={{ display: "flex", alignItems: "center", fontSize: "0.9rem", cursor: "pointer", color: "#2e7d32", fontWeight: "bold" }}>
-                  <input
-                    type="checkbox"
-                    checked={sendWhatsapp}
-                    onChange={(e) => setSendWhatsapp(e.target.checked)}
-                    style={{ marginRight: "8px", width: "16px", height: "16px", cursor: "pointer" }}
-                  />
-                  Send via WhatsApp
-                </label>
-              </div>
-            )}
+
           </div>
 
           <div className="cart-section">
@@ -602,7 +449,6 @@ const POSSystem = () => {
                         }
                         className="qty-input"
                         min="1"
-                        max={item.maxStock}
                       />
                       <button
                         onClick={() =>
@@ -631,8 +477,8 @@ const POSSystem = () => {
           <div className="billing-section">
             <div className="billing-controls">
               <div className="form-row">
-                <label>
-                  Discount (%)
+                <label style={{ gridColumn: '1 / -1' }}>
+                  Discount (₹)
                   <input
                     type="number"
                     value={discount}
@@ -640,19 +486,8 @@ const POSSystem = () => {
                       setDiscount(parseFloat(e.target.value) || 0)
                     }
                     min="0"
-                    max="100"
-                    className="form-input small"
-                  />
-                </label>
-                <label>
-                  Tax (%)
-                  <input
-                    type="number"
-                    value={tax}
-                    onChange={(e) => setTax(parseFloat(e.target.value) || 0)}
-                    min="0"
-                    max="100"
-                    className="form-input small"
+                    className="form-input"
+                    placeholder="0"
                   />
                 </label>
               </div>
@@ -665,9 +500,7 @@ const POSSystem = () => {
                   className="form-input"
                 >
                   <option value="cash">Cash</option>
-                  <option value="card">Card</option>
                   <option value="upi">UPI</option>
-                  <option value="cheque">Cheque</option>
                 </select>
               </label>
             </div>
@@ -679,14 +512,8 @@ const POSSystem = () => {
               </div>
               {discount > 0 && (
                 <div className="summary-line discount">
-                  <span>Discount ({discount}%):</span>
+                  <span>Discount:</span>
                   <span>-₹{calculateDiscountAmount().toFixed(2)}</span>
-                </div>
-              )}
-              {tax > 0 && (
-                <div className="summary-line tax">
-                  <span>Tax ({tax}%):</span>
-                  <span>₹{calculateTaxAmount().toFixed(2)}</span>
                 </div>
               )}
               <div className="summary-line total">
@@ -697,30 +524,17 @@ const POSSystem = () => {
 
             <div className="action-buttons">
               <button
-                onClick={savePendingBill}
-                disabled={cart.length === 0 || loading}
-                className="btn btn-secondary save-pending-btn"
-              >
-                {loading ? (
-                  "Saving..."
-                ) : (
-                  <>
-                    <Clock size={20} />
-                    Save as Pending
-                  </>
-                )}
-              </button>
-              <button
                 onClick={processSale}
                 disabled={cart.length === 0 || loading}
                 className="btn btn-primary process-sale-btn"
+                style={{ width: "100%" }}
               >
                 {loading ? (
                   "Processing..."
                 ) : (
                   <>
                     <Calculator size={20} />
-                    Process Sale
+                    Process Bill
                   </>
                 )}
               </button>
@@ -764,15 +578,36 @@ const POSSystem = () => {
               </div>
             )}
 
-            {paymentStatus === "pending" && paymentQrUrl && (
+            {paymentStatus === "pending" && paymentLinkUrl && (
               <div>
-                <p style={{ fontSize: "0.9rem", color: "#666", margin: "0 0 15px 0" }}>
-                  Scan this QR code using GPay, PhonePe, Paytm, or any UPI app:
+                <p style={{ fontSize: "0.95rem", color: "#444", margin: "0 0 20px 0", lineHeight: "1.4" }}>
+                  Redirecting to Razorpay hosted checkout page. If the page did not open, click the button below to complete the payment:
                 </p>
-                <img src={paymentQrUrl} alt="Razorpay UPI QR" style={{ width: "200px", height: "200px", border: "1px solid #ddd", borderRadius: "6px", margin: "0 auto 15px auto", display: "block" }} />
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "#f57c00", fontWeight: "bold" }}>
+                <button 
+                  onClick={() => window.open(paymentLinkUrl, "_blank")} 
+                  className="btn btn-primary"
+                  style={{ 
+                    display: "inline-flex", 
+                    alignItems: "center", 
+                    justifyContent: "center", 
+                    gap: "8px", 
+                    padding: "12px 24px", 
+                    fontSize: "1rem", 
+                    fontWeight: "bold",
+                    backgroundColor: "#3399cc",
+                    borderColor: "#3399cc",
+                    color: "#fff",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    margin: "0 auto 20px auto",
+                    boxShadow: "0 2px 8px rgba(51,153,204,0.3)"
+                  }}
+                >
+                  Open Razorpay Payment Page
+                </button>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "#f57c00", fontWeight: "bold", marginTop: "10px" }}>
                   <div className="spinning" style={{ border: "2px solid #f3f3f3", borderTop: "2px solid #f57c00", borderRadius: "50%", width: "16px", height: "16px" }}></div>
-                  Waiting for customer payment...
+                  Waiting for payment confirmation...
                 </div>
               </div>
             )}
@@ -790,7 +625,7 @@ const POSSystem = () => {
                 <div style={{ fontSize: "3rem", margin: "0 0 15px 0" }}>✗</div>
                 <p style={{ margin: 0, fontWeight: "bold" }}>Payment Failed</p>
                 <p style={{ margin: "10px 0 0 0" }}>
-                  <button onClick={startRazorpayPayment} className="btn btn-secondary" style={{ padding: "8px 15px" }}>Retry QR Code</button>
+                  <button onClick={startRazorpayPayment} className="btn btn-secondary" style={{ padding: "8px 15px" }}>Retry Payment</button>
                 </p>
               </div>
             )}
