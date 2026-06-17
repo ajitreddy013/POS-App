@@ -4257,3 +4257,9 @@ td:nth-child(7) { /* Profit column */
     font-size: 11px;
   }
 }
+
+/* Razorpay iframe scale for bigger QR code */
+.razorpay-checkout-frame {
+  transform: scale(1.3) !important;
+  transform-origin: center center !important;
+}
