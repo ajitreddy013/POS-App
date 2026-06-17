@@ -1,18 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Printer, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle, MessageCircle, Wifi, WifiOff, CreditCard } from 'lucide-react';
+import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle, MessageCircle, Wifi, WifiOff, CreditCard } from 'lucide-react';
 import { dbService } from '../services/dbService';
 import { whatsappService } from '../services/whatsappService';
 import { APP_CONFIG } from '../config';
 
 const Settings = () => {
-  const [printerStatus, setPrinterStatus] = useState({ connected: false, device: 'Not connected' });
-  const [printerConfig, setPrinterConfig] = useState({
-    type: 'usb',
-    networkHost: '192.168.1.100',
-    networkPort: 9100,
-    serialPath: '/dev/ttyUSB0',
-    serialBaudRate: 9600
-  });
   const [barSettings, setBarSettings] = useState({
     bar_name: '',
     contact_number: '',
@@ -37,12 +29,10 @@ const Settings = () => {
   });
   const [isEditingBarInfo, setIsEditingBarInfo] = useState(false);
   const [isEditingEmailInfo, setIsEditingEmailInfo] = useState(false);
-  const [isEditingPrinterConfig, setIsEditingPrinterConfig] = useState(false);
   const [isEditingWhatsappInfo, setIsEditingWhatsappInfo] = useState(false);
   const [isEditingRazorpayInfo, setIsEditingRazorpayInfo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
-  const [printerLoading, setPrinterLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
@@ -54,7 +44,6 @@ const Settings = () => {
   const [whatsappLoading, setWhatsappLoading] = useState(false);
 
   useEffect(() => {
-    checkPrinterStatus();
     loadBarSettings();
     loadEmailSettings();
   }, []);
@@ -108,67 +97,7 @@ const Settings = () => {
     }
   };
 
-  const checkPrinterStatus = async () => {
-    try {
-      const status = await dbService.getPrinterStatus();
-      setPrinterStatus(status);
-    } catch (error) {
-      // Failed to get printer status
-    }
-  };
 
-  const configurePrinter = async () => {
-    try {
-      setPrinterLoading(true);
-      const result = await dbService.configurePrinter(printerConfig);
-      if (result.success) {
-        setIsEditingPrinterConfig(false);
-        alert('Printer configuration saved successfully!');
-        await checkPrinterStatus();
-      } else {
-        alert(`Failed to configure printer: ${result.error}`);
-      }
-    } catch (error) {
-      // Failed to configure printer
-      alert('Failed to configure printer');
-    } finally {
-      setPrinterLoading(false);
-    }
-  };
-
-  const testPrinterConnection = async () => {
-    try {
-      setPrinterLoading(true);
-      const result = await dbService.testPrinterConnection();
-      if (result.success) {
-        alert('Printer connection test successful!');
-        await checkPrinterStatus();
-      } else {
-        alert(`Printer connection test failed: ${result.error}`);
-      }
-    } catch (error) {
-      alert('Printer connection test failed');
-    } finally {
-      setPrinterLoading(false);
-    }
-  };
-
-  const reconnectPrinter = async () => {
-    try {
-      setPrinterLoading(true);
-      const result = await dbService.reconnectPrinter();
-      if (result.success) {
-        alert('Printer reconnected successfully!');
-        await checkPrinterStatus();
-      } else {
-        alert(`Failed to reconnect printer: ${result.error}`);
-      }
-    } catch (error) {
-      alert('Failed to reconnect printer');
-    } finally {
-      setPrinterLoading(false);
-    }
-  };
 
   const loadBarSettings = async () => {
     try {
@@ -195,10 +124,10 @@ const Settings = () => {
       setIsEditingBarInfo(false);
       setIsEditingWhatsappInfo(false);
       setIsEditingRazorpayInfo(false);
-      alert('Bar information saved successfully!');
+      alert('Shop information saved successfully!');
     } catch (error) {
       // Failed to save bar settings
-      alert('Failed to save bar information');
+      alert('Failed to save shop information');
     } finally {
       setLoading(false);
     }
@@ -295,12 +224,7 @@ const Settings = () => {
     }
   };
 
-  const handlePrinterConfigChange = (field, value) => {
-    setPrinterConfig(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+
 
   const handleResetApplication = async () => {
     if (!showResetConfirm) {
@@ -405,7 +329,7 @@ const Settings = () => {
       </div>
 
       <div style={{ padding: '20px 30px' }}>
-        {/* Bar Information Section */}
+        {/* Shop Information Section */}
         <div className="table-container" style={{ marginBottom: '30px' }}>
           <div style={{ 
             display: 'flex', 
@@ -416,7 +340,7 @@ const Settings = () => {
           }}>
             <h2 style={{ margin: 0 }}>
               <Store size={20} style={{ marginRight: '10px' }} />
-              Bar Information
+              Shop Information
             </h2>
             <button 
               onClick={() => setIsEditingBarInfo(!isEditingBarInfo)}
@@ -432,13 +356,13 @@ const Settings = () => {
               <div className="bar-settings-form">
                 <div className="form-row">
                   <label>
-                    Bar Name:
+                    Shop Name:
                     <input
                       type="text"
                       value={barSettings.bar_name}
                       onChange={(e) => handleBarSettingsChange('bar_name', e.target.value)}
                       className="form-input"
-                      placeholder="Enter bar name"
+                      placeholder="Enter shop name"
                     />
                   </label>
                   <label>
@@ -503,7 +427,7 @@ const Settings = () => {
               <div className="bar-settings-display">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                   <div>
-                    <h4>Bar Name</h4>
+                    <h4>Shop Name</h4>
                     <p>{barSettings.bar_name || 'Not set'}</p>
                     <h4>Contact Number</h4>
                     <p>{barSettings.contact_number || 'Not set'}</p>
@@ -767,15 +691,7 @@ const Settings = () => {
                       style={{ marginLeft: '10px' }}
                     />
                   </label>
-                  <label>
-                    Enable Physical Printing:
-                    <input
-                      type="checkbox"
-                      checked={!!barSettings.printing_enabled}
-                      onChange={(e) => handleBarSettingsChange('printing_enabled', e.target.checked ? 1 : 0)}
-                      style={{ marginLeft: '10px' }}
-                    />
-                  </label>
+                  
                 </div>
 
                 <div className="form-row">
@@ -819,9 +735,6 @@ const Settings = () => {
                     <h4>WhatsApp Automation</h4>
                     <p>{barSettings.whatsapp_enabled ? '✓ Enabled' : '✗ Disabled'}</p>
                     
-                    <h4>Physical Receipt Printing</h4>
-                    <p>{barSettings.printing_enabled ? '✓ Enabled' : '✗ Disabled (Digital Only Mode)'}</p>
-
                     <h4>Relay Status</h4>
                     <div style={{ display: 'flex', alignItems: 'center', marginTop: '10px' }}>
                       {whatsappStatus === 'CONNECTED' ? (
@@ -1194,117 +1107,6 @@ const Settings = () => {
 
         <div className="summary-cards">
           <div className="summary-card">
-            <h3><Printer size={20} style={{ marginRight: '10px' }} />Printer Status</h3>
-            <div className="value" style={{ 
-              fontSize: '1rem', 
-              color: printerStatus.connected ? '#27ae60' : '#e74c3c',
-              textAlign: 'center',
-              margin: '10px 0'
-            }}>
-              {printerStatus.connected ? 'Connected' : 'Disconnected'}
-            </div>
-            <p style={{ margin: '10px 0 0 0', fontSize: '0.9rem', color: '#7f8c8d', textAlign: 'center' }}>
-              Device: {printerStatus.device}
-            </p>
-            <button 
-              onClick={checkPrinterStatus}
-              className="btn btn-primary"
-              style={{ marginTop: '15px', alignSelf: 'center' }}
-            >
-              Check Status
-            </button>
-          </div>
-
-          <div className="summary-card printer-config-card">
-            <h3 className="printer-config-title"><Printer size={20} />Printer Configuration</h3>
-            <div className="printer-config-content">
-              <div className="config-status">
-                <span className="status-label">Status:</span>
-                <span className={`status-value ${printerStatus.connected ? 'connected' : 'disconnected'}`}>
-                  {printerStatus.connected ? 'Connected' : 'Disconnected'}
-                </span>
-                <span className="device-name">({printerStatus.device})</span>
-              </div>
-              <div className="config-type">
-                <span className="type-label">Type:</span>
-                <span className="type-value">{printerConfig.type.toUpperCase()}</span>
-              </div>
-              {isEditingPrinterConfig ? (
-                <>
-                  <label>
-                    Printer Type:
-                    <select value={printerConfig.type} onChange={(e) => handlePrinterConfigChange('type', e.target.value)}>
-                      <option value="usb">USB</option>
-                      <option value="network">Network</option>
-                      <option value="serial">Serial</option>
-                    </select>
-                  </label>
-                  {printerConfig.type === 'network' && (
-                  <>
-                    <label>
-                      Network Host:
-                      <input
-                        type="text"
-                        value={printerConfig.networkHost}
-                        onChange={(e) => handlePrinterConfigChange('networkHost', e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Network Port:
-                      <input
-                        type="number"
-                        value={printerConfig.networkPort}
-                        onChange={(e) => handlePrinterConfigChange('networkPort', e.target.value)}
-                      />
-                    </label>
-                  </>
-                  )}
-                  {printerConfig.type === 'serial' && (
-                  <>
-                    <label>
-                      Serial Path:
-                      <input
-                        type="text"
-                        value={printerConfig.serialPath}
-                        onChange={(e) => handlePrinterConfigChange('serialPath', e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Serial Baud Rate:
-                      <input
-                        type="number"
-                        value={printerConfig.serialBaudRate}
-                        onChange={(e) => handlePrinterConfigChange('serialBaudRate', e.target.value)}
-                      />
-                    </label>
-                  </>
-                  )}
-                  <div className="printer-actions">
-                    <button className="btn btn-success config-save-btn" onClick={configurePrinter}>
-                      Save Configuration
-                    </button>
-                    <button className="btn btn-secondary config-cancel-btn" onClick={() => setIsEditingPrinterConfig(false)}>
-                      Cancel
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <button className="btn btn-primary config-edit-btn" onClick={() => setIsEditingPrinterConfig(true)}>
-                  Edit Configuration
-                </button>
-              )}
-              <div className="printer-actions">
-                <button className="btn btn-info test-connection-btn" onClick={testPrinterConnection} disabled={printerLoading}>
-                  {printerLoading ? 'Testing...' : 'Test Connection'}
-                </button>
-                <button className="btn btn-warning reconnect-btn" onClick={reconnectPrinter} disabled={printerLoading}>
-                  {printerLoading ? 'Reconnecting...' : 'Reconnect'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="summary-card">
             <h3><Info size={20} style={{ marginRight: '10px' }} />Application Info</h3>
             <div style={{ textAlign: 'left', fontSize: '0.9rem', width: '100%' }}>
               <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
@@ -1355,15 +1157,6 @@ const Settings = () => {
                 <td>Operating System</td>
                 <td>Windows 10 or later</td>
                 <td><span style={{ color: '#27ae60' }}>✓ Compatible</span></td>
-              </tr>
-              <tr>
-                <td>Thermal Printer</td>
-                <td>Epson TM-T82II or compatible</td>
-                <td>
-                  <span style={{ color: printerStatus.connected ? '#27ae60' : '#e74c3c' }}>
-                    {printerStatus.connected ? '✓ Connected' : '✗ Not Connected'}
-                  </span>
-                </td>
               </tr>
               <tr>
                 <td>Database</td>

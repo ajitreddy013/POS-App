@@ -476,7 +476,6 @@ const POSSystem = () => {
                   <p className="product-sku">{product.sku}</p>
                   <div className="product-card-footer">
                     <span className="product-price">₹{product.price.toFixed(2)}</span>
-                    <span className="product-stock">Stock: {product.counter_stock}</span>
                   </div>
                 </div>
               </div>

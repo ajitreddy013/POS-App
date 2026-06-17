@@ -2,7 +2,6 @@ import { dbService } from "../services/dbService";
 import React, { useState, useEffect } from "react";
 import {
   BarChart3,
-  AlertTriangle,
   RefreshCw,
 } from "lucide-react";
 import { 
@@ -152,10 +151,6 @@ const Dashboard = () => {
           <h3>Total Products</h3>
           <div className="value">{dashboardData.totalProducts}</div>
         </div>
-        <div className="summary-card warning">
-          <h3>Low Stock Items</h3>
-          <div className="value">{dashboardData.lowStockItems}</div>
-        </div>
         <div className="summary-card">
           <h3>Today&apos;s Sales</h3>
           <div className="value">{dashboardData.todaySales}</div>
@@ -203,24 +198,6 @@ const Dashboard = () => {
       )}
 
       {/* Alerts */}
-      {dashboardData.lowStockItems > 0 && (
-        <div className="alert alert-warning">
-          <AlertTriangle size={20} />
-          <span>
-            {dashboardData.lowStockItems} item(s) are running low on stock!
-            <a
-              href="/inventory"
-              style={{
-                marginLeft: "10px",
-                color: "#856404",
-                textDecoration: "underline",
-              }}
-            >
-              View Inventory
-            </a>
-          </span>
-        </div>
-      )}
 
       {/* Recent Sales */}
       <div className="table-container">

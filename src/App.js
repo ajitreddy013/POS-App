@@ -45,8 +45,6 @@ import {
   Settings as SettingsIcon, // Settings icon
   Menu,            // Menu open icon
   X,               // Menu close icon
-  Coffee,          // Tables icon
-  ArrowRight,      // Transfer icon
   DollarSign,      // Spendings icon
   Wallet,          // Counter balance icon
   Clock,           // Pending bills icon
@@ -58,11 +56,7 @@ import "./App.css";
 // Business component imports
 import Dashboard from "./components/Dashboard";                   // Main dashboard
 import ProductManagement from "./components/ProductManagement";   // Product catalog
-import InventoryManagement from "./components/InventoryManagement"; // Stock monitoring
-import DailyTransfer from "./components/DailyTransfer";           // Stock transfers
 import POSSystem from "./components/POSSystem";                   // Point of sale
-import TableManagement from "./components/TableManagement";       // Table management
-import TablePOS from "./components/TablePOS";                     // Table-specific POS
 import SalesReports from "./components/SalesReports";             // Sales reporting
 import Settings from "./components/Settings";                     // App settings
 import Spendings from "./components/Spendings";                   // Expense tracking
@@ -89,9 +83,6 @@ function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(true);  // Sidebar collapsed/expanded state
   const [currentUser] = useState("Admin");                // Current user (future: from authentication)
   
-  // Business State
-  const [selectedTable, setSelectedTable] = useState(null); // Currently selected table for POS
-  
   // Router state
   const location = useLocation(); // Current route location
 
@@ -101,32 +92,6 @@ function AppContent() {
    */
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
-  };
-
-  /**
-   * Handle table selection from TableManagement component
-   * When a table is selected, it switches to TablePOS component
-   * @param {Object} table - Selected table object
-   */
-  const handleTableSelect = (table) => {
-    setSelectedTable(table);
-  };
-
-  /**
-   * Handle table updates from TablePOS component
-   * Updates the selected table state when table status changes
-   * @param {Object} updatedTable - Updated table object
-   */
-  const handleTableUpdate = (updatedTable) => {
-    setSelectedTable(updatedTable);
-  };
-
-  /**
-   * Handle back navigation from TablePOS to TableManagement
-   * Clears the selected table to return to table list view
-   */
-  const handleBackToTables = () => {
-    setSelectedTable(null);
   };
 
   /**
@@ -141,12 +106,6 @@ function AppContent() {
     console.log(`Navigation clicked: ${path}`);
     // eslint-disable-next-line no-console
     console.log(`Current location: ${location.pathname}`);
-    
-    // Reset table selection when navigating away from tables
-    // This ensures clean state when switching between modules
-    if (path !== '/tables') {
-      setSelectedTable(null);
-    }
     
     // Let the Link component handle the navigation naturally
     // Don't prevent default or use navigate() to avoid conflicts
@@ -172,16 +131,13 @@ function AppContent() {
    * - Settings: Application configuration
    */
   const menuItems = [
-    { path: "/", name: "Dashboard", icon: BarChart3 },           // Main overview
-    { path: "/tables", name: "Tables", icon: Coffee },             // Table management
+    { path: "/", name: "POS", icon: ShoppingCart },                // Point of sale (default)
     { path: "/products", name: "Products", icon: Package },        // Product catalog
-    { path: "/inventory", name: "Inventory", icon: Package },      // Stock monitoring
-    { path: "/transfer", name: "Daily Transfer", icon: ArrowRight }, // Stock transfers
-    { path: "/pos", name: "POS", icon: ShoppingCart },             // Point of sale
     { path: "/reports", name: "Reports", icon: BarChart3 },         // Sales reports
     { path: "/spendings", name: "Spendings", icon: DollarSign },   // Expense tracking
     { path: "/counter-balance", name: "Counter Balance", icon: Wallet }, // Cash management
     { path: "/pending-bills", name: "Pending Bills", icon: Clock }, // Saved bills
+    { path: "/dashboard", name: "Dashboard", icon: BarChart3 },     // Dashboard
     { path: "/settings", name: "Settings", icon: SettingsIcon },   // Configuration
   ];
 
@@ -232,30 +188,14 @@ function AppContent() {
         }`}
       >
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route
-            path="/tables"
-            element={
-              selectedTable ? (
-                <TablePOS
-                  table={selectedTable}
-                  onBack={handleBackToTables}
-                  onTableUpdate={handleTableUpdate}
-                />
-              ) : (
-                <TableManagement onSelectTable={handleTableSelect} />
-              )
-            }
-          />
+          <Route path="/" element={<POSSystem />} />
           <Route path="/products" element={<ProductManagement />} />
-          <Route path="/inventory" element={<InventoryManagement />} />
-          <Route path="/transfer" element={<DailyTransfer />} />
-          <Route path="/pos" element={<POSSystem />} />
           <Route path="/reports" element={<SalesReports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/spendings" element={<Spendings />} />
           <Route path="/counter-balance" element={<CounterBalance />} />
           <Route path="/pending-bills" element={<PendingBills />} />
+          <Route path="/dashboard" element={<Dashboard />} />
         </Routes>
       </div>
     </div>
