@@ -20,7 +20,7 @@ const POSSystem = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentMethod, setPaymentMethod] = useState("upi");
   const [discount, setDiscount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [barSettings, setBarSettings] = useState(null);
@@ -341,26 +341,23 @@ const POSSystem = () => {
         <h1>
           <ShoppingCart size={24} /> POS System
         </h1>
+        <div className="search-input-container" style={{ flex: 1, maxWidth: '480px', margin: '0 20px' }}>
+          <Search size={20} />
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search products by name, SKU, or barcode..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyPress={handleKeyPress}
+            className="search-input"
+          />
+        </div>
       </div>
 
       <div className="pos-layout">
-        {/* Left Panel - Product Search and Selection */}
+        {/* Left Panel - Product Cards */}
         <div className="product-panel">
-          <div className="search-section">
-            <div className="search-input-container">
-              <Search size={20} />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search products by name, SKU, or barcode..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={handleKeyPress}
-                className="search-input"
-              />
-            </div>
-          </div>
-
           <div className="products-grid">
             {filteredProducts.slice(0, 12).map((product) => (
               <div
@@ -498,17 +495,34 @@ const POSSystem = () => {
                 </label>
               </div>
 
-              <label>
-                Payment Method
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="form-input"
-                >
-                  <option value="cash">Cash</option>
-                  <option value="upi">UPI</option>
-                </select>
-              </label>
+              <div style={{ marginTop: '10px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: '#2c3e50', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Payment Method</div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {['upi', 'cash'].map((method) => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setPaymentMethod(method)}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        border: `2px solid ${paymentMethod === method ? '#667eea' : '#e1e8ed'}`,
+                        borderRadius: '10px',
+                        background: paymentMethod === method ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'white',
+                        color: paymentMethod === method ? 'white' : '#495057',
+                        fontWeight: '600',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      {method === 'upi' ? 'UPI' : 'Cash'}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="bill-summary">
@@ -586,9 +600,14 @@ const POSSystem = () => {
 
             {paymentStatus === "pending" && paymentLinkUrl && (
               <div>
-                <p style={{ fontSize: "0.95rem", color: "#444", margin: "0 0 20px 0", lineHeight: "1.4" }}>
-                  Redirecting to Razorpay hosted checkout page. If the page did not open, click the button below to complete the payment:
+                <p style={{ fontSize: "0.95rem", color: "#444", margin: "0 0 10px 0", lineHeight: "1.4" }}>
+                  Scan the QR code below or click the button to complete the payment:
                 </p>
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(paymentLinkUrl)}`} 
+                  alt="Razorpay Payment QR Code" 
+                  style={{ width: "200px", height: "200px", margin: "0 auto 15px auto", display: "block", border: "1px solid #ddd", borderRadius: "8px", padding: "5px", backgroundColor: "#fff" }} 
+                />
                 <button 
                   onClick={() => window.open(paymentLinkUrl, "_blank")} 
                   className="btn btn-primary"
