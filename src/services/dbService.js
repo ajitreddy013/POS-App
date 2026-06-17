@@ -198,7 +198,12 @@ export const dbService = {
   getBarSettings: async () => {
     if (isElectron) return await window.electronAPI.getBarSettings();
     const settings = await db.bar_settings.get(1);
-    if (settings) return settings;
+    if (settings) {
+      if (settings.razorpay_enabled === undefined) {
+        settings.razorpay_enabled = 1;
+      }
+      return settings;
+    }
     return {
       bar_name: "CounterFlow Food Truck",
       contact_number: "",
@@ -211,6 +216,7 @@ export const dbService = {
       whatsapp_template_name: "counterflow_pos_receipt",
       whatsapp_language_code: "en",
       whatsapp_default_country_code: "91",
+      razorpay_enabled: 1,
       razorpay_key_id: "",
       razorpay_key_secret: ""
     };
