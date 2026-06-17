@@ -188,9 +188,11 @@ const POSSystem = () => {
 
       // Trigger dashboard refresh by dispatching a custom event
       window.dispatchEvent(new CustomEvent("saleCompleted"));
+      alert("Payment successful! Sale has been recorded.");
     } catch (error) {
       // Failed to process sale
-      alert("Failed to process sale. Please try again.");
+      console.error("Sale write error:", error);
+      alert("Failed to process sale. Error: " + error.message);
     } finally {
       setLoading(false);
     }

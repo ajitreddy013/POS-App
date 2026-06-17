@@ -172,13 +172,13 @@ export const dbService = {
   getSales: async (dateRange) => {
     if (isElectron) return await window.electronAPI.getSales(dateRange);
     let query = db.sales;
-    if (dateRange && dateRange.startDate && dateRange.endDate) {
+    if (dateRange && (dateRange.startDate || dateRange.start) && (dateRange.endDate || dateRange.end)) {
       // Basic date filtering based on ISO date prefix
-      const start = dateRange.startDate;
-      const end = dateRange.endDate;
+      const start = dateRange.startDate || dateRange.start;
+      const end = dateRange.endDate || dateRange.end;
       return await query.filter(s => {
         const sDate = s.saleDate.substring(0, 10);
-        return sDate >= start && sDate <= end;
+        return sDate >= start.substring(0, 10) && sDate <= end.substring(0, 10);
       }).toArray();
     }
     return await query.toArray();
