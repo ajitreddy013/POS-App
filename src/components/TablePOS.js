@@ -211,15 +211,9 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   };
 
   const generateSaleNumber = async () => {
-    const now = new Date();
-    const day = now.getDate().toString().padStart(2, "0");
-    const month = (now.getMonth() + 1).toString().padStart(2, "0");
-    const year = now.getFullYear().toString().slice(-2);
-
-    // Generate a random 3-digit number
-    const randomNum = Math.floor(Math.random() * 900) + 100; // 100-999
-
-    return `${day}${month}${year}${randomNum}`;
+    // Generate a sequential order number based on total sales
+    const allSales = await dbService.getSales() || [];
+    return (allSales.length + 1).toString();
   };
 
   const savePendingBill = async () => {
