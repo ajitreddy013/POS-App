@@ -318,6 +318,41 @@ app.post("/payment/create-qr", async (req, res) => {
   }
 });
 
+// Check Razorpay QR Payment Status
+app.post("/payment/status", async (req, res) => {
+  const { qrCodeId, keyId, keySecret } = req.body;
+  const rzpKeyId = keyId || process.env.RAZORPAY_KEY_ID;
+  const rzpKeySecret = keySecret || process.env.RAZORPAY_KEY_SECRET;
+
+  if (!qrCodeId || !rzpKeyId || !rzpKeySecret) {
+    return res.status(400).json({
+      success: false,
+      error: "Missing required fields: qrCodeId and Razorpay credentials must be configured."
+    });
+  }
+
+  try {
+    console.log(`Checking Razorpay status for QR: ${qrCodeId}`);
+    const response = await razorpayRequest("GET", `/v1/qr_codes/${qrCodeId}`, null, rzpKeyId, rzpKeySecret);
+    
+    // If status is closed or payments_count_received > 0, it's paid
+    const isPaid = response.status === "closed" || response.payments_count_received > 0;
+    
+    res.json({
+      success: true,
+      paid: isPaid,
+      status: response.status,
+      paymentsCount: response.payments_count_received
+    });
+  } catch (err) {
+    console.error("Razorpay status check failed:", err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message || "Failed to fetch QR status."
+    });
+  }
+});
+
 // Create Razorpay Order for Standard Checkout
 app.post("/payment/create-order", async (req, res) => {
   const { amount, orderId, keyId, keySecret } = req.body;

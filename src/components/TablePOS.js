@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import PropTypes from "prop-types";
 import {
   Search,
@@ -12,11 +12,15 @@ import {
   Clock,
   Save,
   Package,
+  ArrowRight,
 } from "lucide-react";
 import { getLocalDateTimeString } from "../utils/dateUtils";
 import { dbService } from "../services/dbService";
 import { whatsappService } from "../services/whatsappService";
 import { APP_CONFIG } from "../config";
+import { playSuccessFeedback, playErrorFeedback } from "../utils/feedbackUtils";
+
+const formatCurrency = (value) => `₹${Number(value || 0).toFixed(2)}`;
 
 const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const [products, setProducts] = useState([]);
@@ -31,6 +35,11 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const [barSettings, setBarSettings] = useState(null);
   const [autoSaving, setAutoSaving] = useState(false);
   const searchInputRef = useRef(null);
+  const phoneInputRef = useRef(null);
+  const [notice, setNotice] = useState(null);
+  const [activeTab, setActiveTab] = useState("menu"); // 'menu' or 'cart' for mobile view
+  const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const noticeTimeoutRef = useRef(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentQrUrl, setPaymentQrUrl] = useState("");
   const [activeQrId, setActiveQrId] = useState("");
@@ -60,7 +69,9 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
+
     return () => {
+      if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     };
   }, [loadTableOrder]);
@@ -71,6 +82,17 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       setBarSettings(settings);
       if (settings && settings.whatsapp_enabled === 1) {
         setSendWhatsapp(true);
+      }
+      
+      // Check if WhatsApp is linked and active
+      try {
+        const relayUrl = settings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+        const data = await whatsappService.getStatus(relayUrl);
+        if (data && data.status !== "CONNECTED") {
+          showNotice("warning", "Warning: WhatsApp is not linked. Please link your device in Settings to send receipts.", 12000);
+        }
+      } catch (waErr) {
+        showNotice("warning", "Warning: Could not connect to WhatsApp relay. Please check your settings.", 12000);
       }
     } catch (error) {
       // Failed to load bar settings
@@ -88,13 +110,29 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     }
   };
 
+  const showNotice = (type, message, duration = 5000) => {
+    setNotice({ type, message });
+    if (noticeTimeoutRef.current) {
+      window.clearTimeout(noticeTimeoutRef.current);
+    }
+    if (duration > 0) {
+      noticeTimeoutRef.current = window.setTimeout(() => {
+        setNotice(null);
+      }, duration);
+    }
+  };
 
-  const filteredProducts = products.filter(
-    (product) =>
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (product.barcode && product.barcode.includes(searchTerm))
-  );
+
+  const filteredProducts = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
+    if (!term) return products;
+    return products.filter(
+      (product) =>
+        product.name.toLowerCase().includes(term) ||
+        (product.sku || "").toLowerCase().includes(term) ||
+        (product.barcode && product.barcode.includes(term))
+    );
+  }, [products, searchTerm]);
 
   const addToCart = async (product) => {
     const existingItem = cart.find((item) => item.id === product.id);
@@ -272,6 +310,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       setCustomerPhone("");
       setDiscount(0);
       setTax(0);
+      setActiveTab("menu");
       
       // Clear table order
       await dbService.clearTableOrder(table.id);
@@ -383,15 +422,20 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       setCustomerPhone("");
       setDiscount(0);
       setTax(0);
+      setActiveTab("menu");
 
       await loadProducts();
       onTableUpdate({ ...table, status: "available", current_bill_amount: 0 });
 
       // Trigger dashboard refresh by dispatching a custom event
       window.dispatchEvent(new CustomEvent("saleCompleted"));
+      playSuccessFeedback();
+      showNotice("success", "Order Placed! Check WhatsApp for receipt.");
     } catch (error) {
       // Failed to process sale
-      alert("Failed to process sale. Please try again.");
+      console.error("Table POS sale write error:", error);
+      playErrorFeedback();
+      showNotice("error", "error");
     } finally {
       setLoading(false);
     }
@@ -406,6 +450,14 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     // Check if payment method is UPI and automated Razorpay checkout is enabled
     const isRazorpayEnabled = barSettings && barSettings.razorpay_enabled === 1;
     if (paymentMethod === "upi" && isRazorpayEnabled) {
+      const cleanedPhone = customerPhone.replace(/\D/g, "");
+      if (!cleanedPhone || cleanedPhone.length !== 10) {
+        showNotice("error", "Please enter a valid 10-digit phone number for UPI payment.", 6000);
+        if (phoneInputRef.current) {
+          phoneInputRef.current.focus();
+        }
+        return;
+      }
       startRazorpayPayment();
       return;
     }
@@ -419,18 +471,21 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     setPaymentQrUrl("");
     setActiveQrId("");
     
+    const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+
     try {
       const orderId = await generateSaleNumber();
       const amount = calculateTotal();
-      const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
 
-      // Call relay to create QR code (relies on server-side Render environment variables)
+      // Call relay to create QR code
       const response = await fetch(`${relayUrl}/payment/create-qr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount,
-          orderId
+          orderId,
+          keyId: barSettings?.razorpay_key_id,
+          keySecret: barSettings?.razorpay_key_secret
         })
       });
 
@@ -444,11 +499,11 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         startPollingPayment(data.qrCodeId, relayUrl);
       } else {
         setPaymentStatus("error");
-        alert(`Failed to create Razorpay QR: ${data.error}`);
+        showNotice("error", `Failed to create Razorpay QR: ${data.error}`, 6000);
       }
     } catch (err) {
       setPaymentStatus("error");
-      alert(`Error connecting to payment relay: ${err.message}`);
+      showNotice("error", `Error connecting to payment relay: ${err.message}`, 6000);
     }
   };
 
@@ -461,7 +516,9 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            qrCodeId
+            qrCodeId,
+            keyId: barSettings?.razorpay_key_id,
+            keySecret: barSettings?.razorpay_key_secret
           })
         });
 
@@ -523,6 +580,23 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
 
   return (
     <div className="table-pos">
+      {notice && (
+        <div className={`pos-notice pos-notice-${notice.type}`}>
+          <div className="pos-notice-bar" />
+          <div className="pos-notice-content" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '12px 16px' }}>
+            {notice.message === "success" || notice.message === "error" ? (
+              <strong style={{ fontSize: '15px', color: notice.type === "success" ? "#166534" : "#b91c1c", textTransform: 'uppercase', margin: 0 }}>
+                {notice.message}
+              </strong>
+            ) : (
+              <>
+                <strong>{notice.type === "success" ? "Success" : "Error"}</strong>
+                <span>{notice.message}</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       <div className="pos-header">
         <div className="header-left">
           <button className="btn btn-secondary" onClick={onBack}>
@@ -552,14 +626,14 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
 
       <div className="pos-layout">
         {/* Left Panel - Product Search and Selection */}
-        <div className="product-panel">
-          <div className="search-section">
+        <div className={`product-panel ${activeTab === 'cart' ? 'mobile-hidden' : ''}`}>
+          <div className="pos-header-minimal">
             <div className="search-input-container">
-              <Search size={20} />
+              <Search size={16} />
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search products by name, SKU, or barcode..."
+                placeholder="Search products..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -567,32 +641,25 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
               />
             </div>
           </div>
-
-          <div className="products-grid">
+        <div className="products-grid">
             {filteredProducts.slice(0, 12).map((product) => (
               <div
                 key={product.id}
-                className="product-card"
+                className="minimal-product-card"
                 onClick={() => addToCart(product)}
               >
-                <div className="product-card-image-container">
+                <div className="minimal-card-image-wrapper">
                   {product.image ? (
-                    <img src={product.image} alt={product.name} className="product-card-image" />
+                    <img src={product.image} alt={product.name} loading="lazy" />
                   ) : (
-                    <div className="product-card-placeholder">
-                      <Package size={36} />
+                    <div className="minimal-card-placeholder">
+                      <Package size={32} />
                     </div>
                   )}
                 </div>
-                <div className="product-info">
-                  <h3>{product.name}</h3>
-                  {product.variant && (
-                    <p className="product-variant">{product.variant}</p>
-                  )}
-                  <p className="product-sku">{product.sku}</p>
-                  <div className="product-card-footer">
-                    <span className="product-price">₹{product.price.toFixed(2)}</span>
-                  </div>
+                <div className="minimal-card-info">
+                  <h4 className="minimal-card-name" title={product.name}>{product.name}</h4>
+                  <p className="minimal-card-price">₹{product.price.toFixed(2)}</p>
                 </div>
               </div>
             ))}
@@ -600,136 +667,124 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         </div>
 
         {/* Right Panel - Cart and Billing */}
-        <div className="cart-panel">
-          <div className="customer-section">
-            <h3>
-              <User size={20} /> Customer Information
-            </h3>
-            <div className="form-row">
+        <div className={`cart-panel cart-panel-minimal ${activeTab === 'menu' ? 'mobile-hidden' : ''}`}>
+          <div className="cart-section" style={{ paddingTop: '16px' }}>
+            <div className="cart-header-row" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', gap: '8px' }}>
+              <button 
+                type="button" 
+                className="mobile-back-btn" 
+                onClick={() => setActiveTab("menu")}
+              >
+                ← Menu
+              </button>
+              <h3 style={{ margin: 0 }}><ShoppingCart size={18} style={{ marginRight: '8px', display: 'inline' }} /> Order ({cart.length} items)</h3>
+            </div>
+            
+            <div className="form-row" style={{ marginTop: '16px', marginBottom: '16px' }}>
               <input
                 type="text"
                 placeholder="Customer Name"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 className="form-input"
+                style={{ padding: '8px 12px', fontSize: '13px' }}
               />
               <input
                 type="tel"
-                placeholder="Phone Number (10 digits)"
+                placeholder="Phone Number"
                 value={customerPhone}
+                ref={phoneInputRef}
                 onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+                  const value = e.target.value.replace(/\D/g, "");
                   if (value.length <= 10) {
                     setCustomerPhone(value);
                   }
                 }}
                 className="form-input"
+                style={{ padding: '8px 12px', fontSize: '13px' }}
                 maxLength="10"
               />
             </div>
-          </div>
 
           <div className="cart-section">
-            <h3>
-              <ShoppingCart size={20} /> Order ({cart.length} items)
-            </h3>
-
             <div className="cart-items">
               {cart.length === 0 ? (
-                <p className="empty-cart">Cart is empty</p>
+                <div className="empty-cart" style={{ padding: '40px 0' }}>
+                  <ShoppingCart size={32} color="#adb5bd" />
+                  <p style={{ color: '#6c757d', marginTop: '12px' }}>Cart is empty</p>
+                </div>
               ) : (
                 cart.map((item) => (
-                  <div key={item.id} className="cart-item">
-                    <div className="item-info">
-                      <h4>{item.name}</h4>
-                      <p>₹{item.price.toFixed(2)} each</p>
+                  <div key={item.id} className="cart-item-minimal">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h4 style={{ margin: 0, flex: 1, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</h4>
+                        <div className="quantity-controls" style={{ transform: 'scale(0.8)', transformOrigin: 'center' }}>
+                          <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="qty-btn"><Minus size={14} /></button>
+                          <span style={{ margin: '0 8px', fontWeight: 'bold' }}>{item.quantity}</span>
+                          <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="qty-btn"><Plus size={14} /></button>
+                        </div>
+                        <div className="item-total" style={{ minWidth: '60px', textAlign: 'right', fontWeight: 'bold' }}>
+                          {formatCurrency(item.price * item.quantity)}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <p className="cart-item-minimal-unit-price" style={{ margin: 0, fontSize: '11px', color: '#6c757d' }}>{formatCurrency(item.price)} each</p>
+                        <button
+                          onClick={() => removeFromCart(item.id)}
+                          className="remove-btn"
+                          style={{ padding: '0', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="quantity-controls">
-                      <button
-                        onClick={() =>
-                          updateQuantity(item.id, item.quantity - 1)
-                        }
-                        className="qty-btn"
-                      >
-                        <Minus size={16} />
-                      </button>
-                      <input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          updateQuantity(item.id, parseInt(e.target.value) || 0)
-                        }
-                        className="qty-input"
-                        min="1"
-                        max={item.maxStock}
-                      />
-                      <button
-                        onClick={() =>
-                          updateQuantity(item.id, item.quantity + 1)
-                        }
-                        className="qty-btn"
-                      >
-                        <Plus size={16} />
-                      </button>
-                    </div>
-                    <div className="item-total">
-                      ₹{(item.price * item.quantity).toFixed(2)}
-                    </div>
-                    <button
-                      onClick={() => removeFromCart(item.id)}
-                      className="remove-btn"
-                    >
-                      <Trash2 size={16} />
-                    </button>
                   </div>
                 ))
               )}
             </div>
 
           </div>
-
           <div className="billing-section">
-            <div className="billing-controls">
-              <div className="form-row">
-                <label>
-                  Discount (%)
-                  <input
-                    type="number"
-                    value={discount}
-                    onChange={(e) =>
-                      setDiscount(parseFloat(e.target.value) || 0)
-                    }
-                    min="0"
-                    max="100"
-                    className="form-input small"
-                  />
-                </label>
-                <label>
-                  Tax (%)
-                  <input
-                    type="number"
-                    value={tax}
-                    onChange={(e) => setTax(parseFloat(e.target.value) || 0)}
-                    min="0"
-                    max="100"
-                    className="form-input small"
-                  />
-                </label>
+            <div className="billing-controls" style={{ padding: '12px 10px', borderTop: '1px solid #f1f3f5' }}>
+              <div className="payment-method-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <button
+                    type="button"
+                    style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #e9ecef', background: showDiscountInput ? '#f8f9fa' : 'transparent' }}
+                    onClick={() => setShowDiscountInput((prev) => !prev)}
+                  >
+                    % Disc
+                  </button>
+                  {showDiscountInput && (
+                    <input
+                      type="number"
+                      value={discount === 0 ? "" : discount}
+                      onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                      min="0"
+                      className="form-input"
+                      placeholder="Amt"
+                      style={{ width: '60px', padding: '4px 8px', fontSize: '11px' }}
+                    />
+                  )}
+                </div>
+                <div className="payment-method-grid" style={{ flex: 1, display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', margin: 0 }}>
+                    Method:
+                    <select
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="form-input"
+                      style={{ padding: '4px 8px', fontSize: '12px', width: 'auto' }}
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="card">Card</option>
+                      <option value="upi">UPI</option>
+                      <option value="cheque">Cheque</option>
+                    </select>
+                  </label>
+                </div>
               </div>
-
-              <label>
-                Payment Method
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="form-input"
-                >
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="upi">UPI</option>
-                  <option value="cheque">Cheque</option>
-                </select>
-              </label>
             </div>
 
             <div className="bill-summary">
@@ -797,6 +852,38 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
             </div>
           </div>
         </div>
+
+        {/* Sticky Bottom Mobile Navigation */}
+        <div className="mobile-nav-bar">
+          <button 
+            className={activeTab === "menu" ? "active" : ""} 
+            onClick={() => setActiveTab("menu")}
+          >
+            <Package size={20} />
+            <span>Menu</span>
+          </button>
+          <button 
+            className={activeTab === "cart" ? "active" : ""} 
+            onClick={() => setActiveTab("cart")}
+          >
+            <ShoppingCart size={20} />
+            <span>Cart ({totalCartItems})</span>
+          </button>
+        </div>
+
+        {/* Floating Cart Banner for Mobile */}
+        {totalCartItems > 0 && activeTab === "menu" && (
+          <div className="mobile-cart-floating-bar" onClick={() => setActiveTab("cart")}>
+            <div className="bar-info">
+              <ShoppingCart size={20} />
+              <span>{totalCartItems} {totalCartItems === 1 ? 'item' : 'items'} | {formatCurrency(calculateTotal())}</span>
+            </div>
+            <div className="bar-action">
+              <span>View Cart</span>
+              <ArrowRight size={18} />
+            </div>
+          </div>
+        )}
       </div>
 
       {paymentModalOpen && (
@@ -810,7 +897,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          zIndex: 1000,
+          zIndex: 9999,
           padding: "20px"
         }}>
           <div style={{
@@ -860,7 +947,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                 <div style={{ fontSize: "3rem", margin: "0 0 15px 0" }}>✗</div>
                 <p style={{ margin: 0, fontWeight: "bold" }}>Payment Failed</p>
                 <p style={{ margin: "10px 0 0 0" }}>
-                  <button onClick={startRazorpayPayment} className="btn btn-secondary" style={{ padding: "8px 15px" }}>Retry QR Code</button>
+                  <button onClick={() => startRazorpayPayment()} className="btn btn-secondary" style={{ padding: "8px 15px" }}>Retry QR Code</button>
                 </p>
               </div>
             )}
