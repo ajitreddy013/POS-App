@@ -353,6 +353,24 @@ app.post("/payment/status", async (req, res) => {
   }
 });
 
+// ─── Device License Verification ─────────────────────────────────────────────
+// Set ALLOWED_DEVICES env var in Render as a comma-separated list of Device IDs
+// e.g. ALLOWED_DEVICES=abc123,xyz789
+app.post("/device/verify", (req, res) => {
+  const { deviceId } = req.body;
+  if (!deviceId) {
+    return res.status(400).json({ authorized: false, error: "No device ID provided" });
+  }
+  const allowedDevices = (process.env.ALLOWED_DEVICES || "")
+    .split(",")
+    .map(id => id.trim())
+    .filter(Boolean);
+
+  const authorized = allowedDevices.includes(deviceId);
+  console.log(`Device verify: ${deviceId} → ${authorized ? "AUTHORIZED" : "DENIED"}`);
+  res.json({ authorized });
+});
+
 // Create Razorpay Order for Standard Checkout
 app.post("/payment/create-order", async (req, res) => {
   const { amount, orderId, keyId, keySecret } = req.body;
