@@ -565,7 +565,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         currency: "INR",
         name: barSettings?.bar_name || "Malabar Waffle",
         description: `Order #${orderId}`,
-        order_id: data.razorpayOrderId,
+        order_id: data.orderId,
         handler: async function (response) {
           // Payment succeeded
           await executeSaleWrite(selectedMethod);
