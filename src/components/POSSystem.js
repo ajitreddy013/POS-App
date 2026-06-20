@@ -543,77 +543,51 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       const orderId = await generateSaleNumber();
       const amount = calculateTotal();
 
-      setLoading(true);
-      setUpiQrStatus("Creating Razorpay QR...");
-      const response = await fetch(`${relayUrl}/payment/create-qr`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount,
-          orderId
-        })
-      });
-
-      let data = {};
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        data = {};
-      }
-      setLoading(false);
-
-      if (response.status === 404) {
-        setUpiQrStatus("");
-        alert(
-          `Razorpay QR endpoint is missing on the relay server.\n\n` +
-          `Deploy the latest whatsapp-relay server to:\n${relayUrl}\n\n` +
-          `Required endpoint: POST /payment/create-qr`
-        );
+      if (!window.Razorpay) {
+        alert("Razorpay SDK failed to load. Please check your internet connection.");
         return;
       }
 
-      if (data.success) {
-        setUpiQrPayment({
-          orderId,
-          amount,
-          qrCodeId: data.qrCodeId,
-          qrImageUrl: data.qrImageUrl,
-          selectedMethod
-        });
-        setUpiQrStatus("Waiting for UPI payment...");
+      setLoading(true);
+      const response = await fetch(`${relayUrl}/payment/create-order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, orderId })
+      });
+      const data = await response.json();
+      setLoading(false);
 
-        if (qrPollIntervalRef.current) {
-          clearInterval(qrPollIntervalRef.current);
+      if (!data.success) throw new Error(data.error || "Unknown error creating order.");
+
+      const options = {
+        key: data.keyId,
+        amount: data.amount,
+        currency: "INR",
+        name: barSettings?.bar_name || "Malabar Waffle",
+        description: `Order #${orderId}`,
+        order_id: data.razorpayOrderId,
+        handler: async function (response) {
+          // Payment succeeded
+          await executeSaleWrite(selectedMethod);
+        },
+        prefill: {
+          contact: customerPhone || ""
+        },
+        theme: {
+          color: "#1C5C3A"
         }
+      };
 
-        qrPollIntervalRef.current = window.setInterval(async () => {
-          try {
-            const statusResponse = await fetch(`${relayUrl}/payment/status`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ qrCodeId: data.qrCodeId })
-            });
-            const statusData = await statusResponse.json();
+      const rzp = new window.Razorpay(options);
+      
+      rzp.on("payment.failed", function (response) {
+        alert(`Payment Failed: ${response.error.description}`);
+      });
 
-            if (statusData.success && statusData.paid) {
-              clearInterval(qrPollIntervalRef.current);
-              qrPollIntervalRef.current = null;
-              setUpiQrStatus("Payment received. Saving order...");
-              setUpiQrPayment(null);
-              await executeSaleWrite(selectedMethod);
-            }
-          } catch (statusError) {
-            setUpiQrStatus("Still waiting for payment confirmation...");
-          }
-        }, 2500);
-      } else {
-        setUpiQrStatus("");
-        alert(`Failed to create Razorpay QR: ${data.error}`);
-      }
+      rzp.open();
     } catch (err) {
       setLoading(false);
-      setUpiQrStatus("");
-      alert(`Cannot reach relay server at:\n${relayUrl}\n\nError: ${err.message}`);
+      alert(`Cannot create payment order at:\n${relayUrl}\n\nError: ${err.message}`);
     }
   };
 
