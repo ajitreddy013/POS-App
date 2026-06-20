@@ -1,6 +1,6 @@
-require("dotenv").config();
-const path = require("path");
-process.env.PUPPETEER_CACHE_DIR = path.join(__dirname, ".cache/puppeteer");
+require('dotenv').config();
+const path = require('path');
+process.env.PUPPETEER_CACHE_DIR = path.join(__dirname, '.cache/puppeteer');
 
 // Intercept console logs to expose them via endpoint for easy debugging on Render
 const logEntries = [];
@@ -9,19 +9,25 @@ const originalError = console.error;
 const originalWarn = console.warn;
 
 console.log = (...args) => {
-  logEntries.push(`[${new Date().toISOString()}] [INFO] ${args.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(" ")}`);
+  logEntries.push(
+    `[${new Date().toISOString()}] [INFO] ${args.map((x) => (typeof x === 'object' ? JSON.stringify(x) : x)).join(' ')}`
+  );
   if (logEntries.length > 500) logEntries.shift();
   originalLog.apply(console, args);
 };
 
 console.error = (...args) => {
-  logEntries.push(`[${new Date().toISOString()}] [ERROR] ${args.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(" ")}`);
+  logEntries.push(
+    `[${new Date().toISOString()}] [ERROR] ${args.map((x) => (typeof x === 'object' ? JSON.stringify(x) : x)).join(' ')}`
+  );
   if (logEntries.length > 500) logEntries.shift();
   originalError.apply(console, args);
 };
 
 console.warn = (...args) => {
-  logEntries.push(`[${new Date().toISOString()}] [WARN] ${args.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(" ")}`);
+  logEntries.push(
+    `[${new Date().toISOString()}] [WARN] ${args.map((x) => (typeof x === 'object' ? JSON.stringify(x) : x)).join(' ')}`
+  );
   if (logEntries.length > 500) logEntries.shift();
   originalWarn.apply(console, args);
 };
@@ -33,67 +39,84 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-const express = require("express");
-const cors = require("cors");
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require("@whiskeysockets/baileys");
-const pino = require("pino");
-const QRCode = require("qrcode");
-const fs = require("fs");
-const https = require("https");
+const express = require('express');
+const cors = require('cors');
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+} = require('@whiskeysockets/baileys');
+const pino = require('pino');
+const QRCode = require('qrcode');
+const fs = require('fs');
+const https = require('https');
 
 // Initialize Firebase Admin SDK
-const admin = require("firebase-admin");
-const serviceAccountPath = path.join(__dirname, "service-account.json");
+const admin = require('firebase-admin');
+const serviceAccountPath = path.join(__dirname, 'service-account.json');
 
 if (fs.existsSync(serviceAccountPath)) {
-  console.log("Initializing Firebase Admin SDK using local service-account.json...");
+  console.log(
+    'Initializing Firebase Admin SDK using local service-account.json...'
+  );
   try {
     const serviceAccount = require(serviceAccountPath);
     admin.initializeApp({
-      credential: admin.cert(serviceAccount)
+      credential: admin.cert(serviceAccount),
     });
-    console.log("Firebase Admin SDK initialized successfully.");
+    console.log('Firebase Admin SDK initialized successfully.');
   } catch (err) {
-    console.error("Failed to initialize Firebase Admin SDK using service-account.json:", err);
+    console.error(
+      'Failed to initialize Firebase Admin SDK using service-account.json:',
+      err
+    );
   }
-} else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
-  console.log("Initializing Firebase Admin SDK using Environment Variables...");
+} else if (
+  process.env.FIREBASE_PROJECT_ID &&
+  process.env.FIREBASE_PRIVATE_KEY
+) {
+  console.log('Initializing Firebase Admin SDK using Environment Variables...');
   try {
     admin.initializeApp({
       credential: admin.cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      })
+      }),
     });
-    console.log("Firebase Admin SDK initialized successfully.");
+    console.log('Firebase Admin SDK initialized successfully.');
   } catch (err) {
-    console.error("Failed to initialize Firebase Admin SDK:", err);
+    console.error('Failed to initialize Firebase Admin SDK:', err);
   }
 } else {
-  console.warn("Firebase credentials not found (no service-account.json or environment variables). Cloud integrations disabled.");
+  console.warn(
+    'Firebase credentials not found (no service-account.json or environment variables). Cloud integrations disabled.'
+  );
 }
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = "2026-06-21-razorpay-qr-v2";
+const relayVersion = '2026-06-21-razorpay-qr-v2';
 
 app.use(cors());
 app.use(express.json());
 
 // Global State
-let connectionStatus = "INITIALIZING"; // INITIALIZING, QR_READY, CONNECTED, DISCONNECTED
+let connectionStatus = 'INITIALIZING'; // INITIALIZING, QR_READY, CONNECTED, DISCONNECTED
 let activeQrCode = null; // Store QR code data URI
 let sock = null;
 
 // Initialize WhatsApp Client (Baileys)
 async function initializeClient() {
-  console.log("Initializing WhatsApp Client (Baileys)...");
-  connectionStatus = "INITIALIZING";
+  console.log('Initializing WhatsApp Client (Baileys)...');
+  connectionStatus = 'INITIALIZING';
   activeQrCode = null;
 
   try {
-    const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, ".auth_info_baileys"));
+    const { state, saveCreds } = await useMultiFileAuthState(
+      path.join(__dirname, '.auth_info_baileys')
+    );
     const { version } = await fetchLatestBaileysVersion();
 
     sock = makeWASocket({
@@ -102,58 +125,62 @@ async function initializeClient() {
       auth: state,
       logger: pino({ level: 'silent' }), // Prevent huge memory logs
       browser: ['CounterFlow POS', 'MacOS', '1.0.0'], // Identify as MacOS device
-      syncFullHistory: false // Reduce memory footprint further
+      syncFullHistory: false, // Reduce memory footprint further
     });
 
     // Save credentials whenever they are updated
-    sock.ev.on("creds.update", saveCreds);
+    sock.ev.on('creds.update', saveCreds);
 
     // Handle connection updates
-    sock.ev.on("connection.update", async (update) => {
+    sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
-        console.log("QR Code received, converting to Data URI...");
+        console.log('QR Code received, converting to Data URI...');
         try {
           activeQrCode = await QRCode.toDataURL(qr);
-          connectionStatus = "QR_READY";
+          connectionStatus = 'QR_READY';
         } catch (err) {
-          console.error("Failed to generate QR Data URI:", err);
+          console.error('Failed to generate QR Data URI:', err);
         }
       }
 
-      if (connection === "close") {
+      if (connection === 'close') {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-        
-        console.log("WhatsApp connection closed. Reason:", statusCode, "Reconnect:", shouldReconnect);
-        
-        connectionStatus = "DISCONNECTED";
+
+        console.log(
+          'WhatsApp connection closed. Reason:',
+          statusCode,
+          'Reconnect:',
+          shouldReconnect
+        );
+
+        connectionStatus = 'DISCONNECTED';
         activeQrCode = null;
 
         if (shouldReconnect) {
-          console.log("Reconnecting in 3 seconds...");
+          console.log('Reconnecting in 3 seconds...');
           setTimeout(initializeClient, 3000);
         } else {
-          console.log("User logged out. Session is invalid.");
+          console.log('User logged out. Session is invalid.');
           cleanupSession();
         }
-      } else if (connection === "open") {
-        console.log("WhatsApp Client is READY and CONNECTED!");
-        connectionStatus = "CONNECTED";
+      } else if (connection === 'open') {
+        console.log('WhatsApp Client is READY and CONNECTED!');
+        connectionStatus = 'CONNECTED';
         activeQrCode = null;
       }
     });
-
   } catch (err) {
-    console.error("Error during Baileys initialization:", err);
-    connectionStatus = "DISCONNECTED";
+    console.error('Error during Baileys initialization:', err);
+    connectionStatus = 'DISCONNECTED';
   }
 }
 
 // Helper to destroy client and delete local auth files
 async function cleanupSession() {
-  connectionStatus = "DISCONNECTED";
+  connectionStatus = 'DISCONNECTED';
   activeQrCode = null;
 
   if (sock) {
@@ -161,18 +188,18 @@ async function cleanupSession() {
       sock.ev.removeAllListeners();
       sock = null;
     } catch (err) {
-      console.error("Error destroying client:", err);
+      console.error('Error destroying client:', err);
     }
   }
 
   // Delete auth folder to ensure a fresh scan next time
-  const authPath = path.join(__dirname, ".auth_info_baileys");
+  const authPath = path.join(__dirname, '.auth_info_baileys');
   if (fs.existsSync(authPath)) {
     try {
       fs.rmSync(authPath, { recursive: true, force: true });
-      console.log("Deleted .auth_info_baileys session folder.");
+      console.log('Deleted .auth_info_baileys session folder.');
     } catch (err) {
-      console.error("Failed to delete session folder:", err);
+      console.error('Failed to delete session folder:', err);
     }
   }
 
@@ -185,53 +212,53 @@ async function cleanupSession() {
 // --- EXPRESS ENDPOINTS ---
 
 // Health / deployment diagnostics
-app.get("/health", (req, res) => {
+app.get('/health', (req, res) => {
   res.json({
     success: true,
-    service: "whatsapp-relay",
+    service: 'whatsapp-relay',
     version: relayVersion,
-    razorpayQrCreatePath: "/v1/payments/qr_codes",
-    razorpayQrStatusPath: "/v1/payments/qr_codes/:id",
+    razorpayQrCreatePath: '/v1/payments/qr_codes',
+    razorpayQrStatusPath: '/v1/payments/qr_codes/:id',
     hasRazorpayKeyId: !!process.env.RAZORPAY_KEY_ID,
-    hasRazorpayKeySecret: !!process.env.RAZORPAY_KEY_SECRET
+    hasRazorpayKeySecret: !!process.env.RAZORPAY_KEY_SECRET,
   });
 });
 
 // Check Status
-app.get("/status", (req, res) => {
+app.get('/status', (req, res) => {
   res.json({
     status: connectionStatus,
-    qrCode: activeQrCode
+    qrCode: activeQrCode,
   });
 });
 
 // View Deployed Logs
-app.get("/logs", (req, res) => {
-  res.setHeader("Content-Type", "text/plain");
-  res.send(logEntries.join("\n"));
+app.get('/logs', (req, res) => {
+  res.setHeader('Content-Type', 'text/plain');
+  res.send(logEntries.join('\n'));
 });
 
 // Send WhatsApp Receipt
-app.post("/send", async (req, res) => {
+app.post('/send', async (req, res) => {
   const { to, message } = req.body;
 
-  if (connectionStatus !== "CONNECTED") {
+  if (connectionStatus !== 'CONNECTED') {
     return res.status(400).json({
       success: false,
-      error: "WhatsApp Client is not connected. Scan the QR code in settings."
+      error: 'WhatsApp Client is not connected. Scan the QR code in settings.',
     });
   }
 
   if (!to || !message) {
     return res.status(400).json({
       success: false,
-      error: "Missing fields: 'to' and 'message' are required."
+      error: "Missing fields: 'to' and 'message' are required.",
     });
   }
 
   // Format phone number to WhatsApp format (e.g. 919876543210@s.whatsapp.net)
-  let cleanNumber = to.replace(/\D/g, "");
-  if (!cleanNumber.endsWith("@s.whatsapp.net")) {
+  let cleanNumber = to.replace(/\D/g, '');
+  if (!cleanNumber.endsWith('@s.whatsapp.net')) {
     cleanNumber = `${cleanNumber}@s.whatsapp.net`;
   }
 
@@ -240,28 +267,28 @@ app.post("/send", async (req, res) => {
     const response = await sock.sendMessage(cleanNumber, { text: message });
     res.json({
       success: true,
-      messageId: response?.key?.id
+      messageId: response?.key?.id,
     });
   } catch (err) {
     console.error(`Failed to send message to ${cleanNumber}:`, err);
     res.status(500).json({
       success: false,
-      error: err.message || "Failed to send message."
+      error: err.message || 'Failed to send message.',
     });
   }
 });
 
 // Logout / Disconnect WhatsApp Link
-app.post("/logout", async (req, res) => {
-  console.log("Logging out and unlinking WhatsApp...");
+app.post('/logout', async (req, res) => {
+  console.log('Logging out and unlinking WhatsApp...');
   try {
-    if (sock && connectionStatus === "CONNECTED") {
+    if (sock && connectionStatus === 'CONNECTED') {
       await sock.logout();
     }
     cleanupSession();
-    res.json({ success: true, message: "Logged out successfully" });
+    res.json({ success: true, message: 'Logged out successfully' });
   } catch (err) {
-    console.error("Error during logout:", err);
+    console.error('Error during logout:', err);
     cleanupSession();
     res.status(500).json({ success: false, error: err.message });
   }
@@ -272,27 +299,27 @@ app.post("/logout", async (req, res) => {
 // Helper to make authenticated requests to Razorpay
 function razorpayRequest(method, path, body, keyId, keySecret) {
   return new Promise((resolve, reject) => {
-    const data = body ? JSON.stringify(body) : "";
-    const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+    const data = body ? JSON.stringify(body) : '';
+    const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
 
     const options = {
-      hostname: "api.razorpay.com",
+      hostname: 'api.razorpay.com',
       port: 443,
       path: path,
       method: method,
       headers: {
-        "Authorization": `Basic ${auth}`,
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(data)
-      }
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data),
+      },
     };
 
     const req = https.request(options, (res) => {
-      let responseBody = "";
-      res.on("data", (chunk) => {
+      let responseBody = '';
+      res.on('data', (chunk) => {
         responseBody += chunk;
       });
-      res.on("end", () => {
+      res.on('end', () => {
         try {
           const parsed = JSON.parse(responseBody);
           if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -305,11 +332,13 @@ function razorpayRequest(method, path, body, keyId, keySecret) {
                   parsed.error.field && `field=${parsed.error.field}`,
                   parsed.error.source && `source=${parsed.error.source}`,
                   parsed.error.step && `step=${parsed.error.step}`,
-                  parsed.error.reason && `reason=${parsed.error.reason}`
-                ].filter(Boolean).join(" | ")
-              : "";
+                  parsed.error.reason && `reason=${parsed.error.reason}`,
+                ]
+                  .filter(Boolean)
+                  .join(' | ')
+              : '';
             const errorMessage = parsed.error
-              ? `${razorpayErrorDetails || "Razorpay API error"} (HTTP ${res.statusCode})`
+              ? `${razorpayErrorDetails || 'Razorpay API error'} (HTTP ${res.statusCode})`
               : `HTTP Error ${res.statusCode}: ${responseBody}`;
             reject(new Error(errorMessage));
           }
@@ -323,7 +352,7 @@ function razorpayRequest(method, path, body, keyId, keySecret) {
       });
     });
 
-    req.on("error", (err) => {
+    req.on('error', (err) => {
       reject(err);
     });
 
@@ -335,96 +364,174 @@ function razorpayRequest(method, path, body, keyId, keySecret) {
 }
 
 // Create Razorpay Dynamic QR Code
-app.post("/payment/create-qr", async (req, res) => {
+app.post('/payment/create-qr', async (req, res) => {
   const { amount, orderId } = req.body;
   const rzpKeyId = process.env.RAZORPAY_KEY_ID;
   const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET;
-  const shopName = process.env.SHOP_NAME || "Malabar Waffle";
+  const shopName = process.env.SHOP_NAME || 'Malabar Waffle';
 
   if (!amount || !orderId || !rzpKeyId || !rzpKeySecret) {
     return res.status(400).json({
       success: false,
-      error: "Missing required fields: amount and orderId must be provided, and Razorpay credentials must be configured on the server."
+      error:
+        'Missing required fields: amount and orderId must be provided, and Razorpay credentials must be configured on the server.',
+    });
+  }
+
+  // Razorpay expects amount in paise (e.g. ₹150.00 is 15000 paise)
+  const amountInPaise = Math.round(parseFloat(amount) * 100);
+  if (!Number.isFinite(amountInPaise) || amountInPaise < 100) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid amount. Razorpay QR amount must be at least ₹1.',
     });
   }
 
   try {
-    // Razorpay expects amount in paise (e.g. ₹150.00 is 15000 paise)
-    const amountInPaise = Math.round(parseFloat(amount) * 100);
-    if (!Number.isFinite(amountInPaise) || amountInPaise < 100) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid amount. Razorpay QR amount must be at least ₹1."
-      });
-    }
-    
     // Set expiration to 10 minutes from now (600 seconds)
     const expireTimestamp = Math.floor(Date.now() / 1000) + 600;
 
     const payload = {
-      type: "upi_qr",
+      type: 'upi_qr',
       name: shopName,
-      usage: "single_use",
+      usage: 'single_use',
       fixed_amount: true,
       payment_amount: amountInPaise,
       description: `Payment for Order #${orderId}`,
       close_by: expireTimestamp,
       notes: {
         order_id: String(orderId),
-        source: "pos_app"
-      }
+        source: 'pos_app',
+      },
     };
 
-    console.log(`Creating Razorpay QR Code for Order #${orderId}, Amount: ${amountInPaise} paise`);
-    console.log("Razorpay QR request path: /v1/payments/qr_codes");
-    const response = await razorpayRequest("POST", "/v1/payments/qr_codes", payload, rzpKeyId, rzpKeySecret);
-    
+    console.log(
+      `Creating Razorpay QR Code for Order #${orderId}, Amount: ${amountInPaise} paise`
+    );
+    console.log('Razorpay QR request path: /v1/payments/qr_codes');
+    const response = await razorpayRequest(
+      'POST',
+      '/v1/payments/qr_codes',
+      payload,
+      rzpKeyId,
+      rzpKeySecret
+    );
+
     res.json({
       success: true,
       qrCodeId: response.id,
       qrImageUrl: response.image_url,
-      status: response.status
+      status: response.status,
+      provider: 'razorpay_qr',
     });
   } catch (err) {
-    console.error("Razorpay QR creation failed:", err.message);
-    res.status(500).json({
-      success: false,
-      error: err.message || "Failed to create QR code."
-    });
+    console.error('Razorpay QR creation failed:', err.message);
+
+    try {
+      console.log(
+        `Falling back to Razorpay Payment Link QR for Order #${orderId}`
+      );
+      const paymentLinkPayload = {
+        amount: amountInPaise,
+        currency: 'INR',
+        description: `Payment for Order #${orderId}`,
+        reference_id: String(orderId),
+        notes: {
+          order_id: String(orderId),
+          source: 'pos_app',
+        },
+      };
+
+      const linkResponse = await razorpayRequest(
+        'POST',
+        '/v1/payment_links',
+        paymentLinkPayload,
+        rzpKeyId,
+        rzpKeySecret
+      );
+      const qrImageUrl = await QRCode.toDataURL(linkResponse.short_url, {
+        errorCorrectionLevel: 'M',
+        margin: 2,
+        scale: 6,
+      });
+
+      res.json({
+        success: true,
+        paymentLinkId: linkResponse.id,
+        paymentLinkUrl: linkResponse.short_url,
+        qrImageUrl,
+        status: linkResponse.status,
+        provider: 'razorpay_payment_link',
+      });
+    } catch (fallbackErr) {
+      res.status(500).json({
+        success: false,
+        error: `${err.message || 'Failed to create QR code.'} Fallback payment link also failed: ${fallbackErr.message || fallbackErr}`,
+      });
+    }
   }
 });
 
 // Check Razorpay QR Payment Status
-app.post("/payment/status", async (req, res) => {
-  const { qrCodeId } = req.body;
+app.post('/payment/status', async (req, res) => {
+  const { qrCodeId, paymentLinkId } = req.body;
   const rzpKeyId = process.env.RAZORPAY_KEY_ID;
   const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET;
 
-  if (!qrCodeId || !rzpKeyId || !rzpKeySecret) {
+  if ((!qrCodeId && !paymentLinkId) || !rzpKeyId || !rzpKeySecret) {
     return res.status(400).json({
       success: false,
-      error: "Missing required fields: qrCodeId must be provided, and Razorpay credentials must be configured on the server."
+      error:
+        'Missing required fields: qrCodeId or paymentLinkId must be provided, and Razorpay credentials must be configured on the server.',
     });
   }
 
   try {
-    console.log(`Checking Razorpay status for QR: ${qrCodeId}`);
-    const response = await razorpayRequest("GET", `/v1/payments/qr_codes/${qrCodeId}`, null, rzpKeyId, rzpKeySecret);
-    
-    // If status is closed or payments_count_received > 0, it's paid
-    const isPaid = response.status === "closed" || response.payments_count_received > 0;
-    
+    if (qrCodeId) {
+      console.log(`Checking Razorpay status for QR: ${qrCodeId}`);
+      const response = await razorpayRequest(
+        'GET',
+        `/v1/payments/qr_codes/${qrCodeId}`,
+        null,
+        rzpKeyId,
+        rzpKeySecret
+      );
+
+      // If status is closed or payments_count_received > 0, it's paid
+      const isPaid =
+        response.status === 'closed' || response.payments_count_received > 0;
+
+      res.json({
+        success: true,
+        paid: isPaid,
+        status: response.status,
+        paymentsCount: response.payments_count_received,
+        provider: 'razorpay_qr',
+      });
+      return;
+    }
+
+    console.log(`Checking Razorpay status for Payment Link: ${paymentLinkId}`);
+    const response = await razorpayRequest(
+      'GET',
+      `/v1/payment_links/${paymentLinkId}`,
+      null,
+      rzpKeyId,
+      rzpKeySecret
+    );
+    const isPaid = response.status === 'paid';
+
     res.json({
       success: true,
       paid: isPaid,
       status: response.status,
-      paymentsCount: response.payments_count_received
+      provider: 'razorpay_payment_link',
     });
   } catch (err) {
-    console.error("Razorpay status check failed:", err.message);
+    console.error('Razorpay status check failed:', err.message);
     res.status(500).json({
       success: false,
-      error: err.message || "Failed to fetch QR status."
+      error: err.message || 'Failed to fetch QR status.',
     });
   }
 });
@@ -432,23 +539,27 @@ app.post("/payment/status", async (req, res) => {
 // ─── Device License Verification ─────────────────────────────────────────────
 // Set ALLOWED_DEVICES env var in Render as a comma-separated list of Device IDs
 // e.g. ALLOWED_DEVICES=abc123,xyz789
-app.post("/device/verify", (req, res) => {
+app.post('/device/verify', (req, res) => {
   const { deviceId } = req.body;
   if (!deviceId) {
-    return res.status(400).json({ authorized: false, error: "No device ID provided" });
+    return res
+      .status(400)
+      .json({ authorized: false, error: 'No device ID provided' });
   }
-  const allowedDevices = (process.env.ALLOWED_DEVICES || "")
-    .split(",")
-    .map(id => id.trim())
+  const allowedDevices = (process.env.ALLOWED_DEVICES || '')
+    .split(',')
+    .map((id) => id.trim())
     .filter(Boolean);
 
   const authorized = allowedDevices.includes(deviceId);
-  console.log(`Device verify: ${deviceId} → ${authorized ? "AUTHORIZED" : "DENIED"}`);
+  console.log(
+    `Device verify: ${deviceId} → ${authorized ? 'AUTHORIZED' : 'DENIED'}`
+  );
   res.json({ authorized });
 });
 
 // Create Razorpay Order for Standard Checkout
-app.post("/payment/create-order", async (req, res) => {
+app.post('/payment/create-order', async (req, res) => {
   const { amount, orderId } = req.body;
   const rzpKeyId = process.env.RAZORPAY_KEY_ID;
   const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET;
@@ -456,7 +567,8 @@ app.post("/payment/create-order", async (req, res) => {
   if (!amount || !orderId || !rzpKeyId || !rzpKeySecret) {
     return res.status(400).json({
       success: false,
-      error: "Missing required fields: amount and orderId must be provided, and Razorpay credentials must be configured on the server."
+      error:
+        'Missing required fields: amount and orderId must be provided, and Razorpay credentials must be configured on the server.',
     });
   }
 
@@ -465,31 +577,39 @@ app.post("/payment/create-order", async (req, res) => {
 
     const payload = {
       amount: amountInPaise,
-      currency: "INR",
-      receipt: orderId
+      currency: 'INR',
+      receipt: orderId,
     };
 
-    console.log(`Creating Razorpay Order for Receipt #${orderId}, Amount: ${amountInPaise} paise`);
-    const response = await razorpayRequest("POST", "/v1/orders", payload, rzpKeyId, rzpKeySecret);
-    
+    console.log(
+      `Creating Razorpay Order for Receipt #${orderId}, Amount: ${amountInPaise} paise`
+    );
+    const response = await razorpayRequest(
+      'POST',
+      '/v1/orders',
+      payload,
+      rzpKeyId,
+      rzpKeySecret
+    );
+
     res.json({
       success: true,
       orderId: response.id,
       amount: response.amount,
       currency: response.currency,
-      keyId: rzpKeyId // Send the key back so frontend can initialize checkout
+      keyId: rzpKeyId, // Send the key back so frontend can initialize checkout
     });
   } catch (err) {
-    console.error("Razorpay Order creation failed:", err.message);
+    console.error('Razorpay Order creation failed:', err.message);
     res.status(500).json({
       success: false,
-      error: err.message || "Failed to create Order."
+      error: err.message || 'Failed to create Order.',
     });
   }
 });
 
 // Check Razorpay Payment Link Status
-app.post("/payment/link-status", async (req, res) => {
+app.post('/payment/link-status', async (req, res) => {
   const { paymentLinkId } = req.body;
   const rzpKeyId = process.env.RAZORPAY_KEY_ID;
   const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET;
@@ -497,48 +617,64 @@ app.post("/payment/link-status", async (req, res) => {
   if (!paymentLinkId || !rzpKeyId || !rzpKeySecret) {
     return res.status(400).json({
       success: false,
-      error: "Missing required fields: paymentLinkId must be provided, and Razorpay credentials must be configured on the server."
+      error:
+        'Missing required fields: paymentLinkId must be provided, and Razorpay credentials must be configured on the server.',
     });
   }
 
   try {
     console.log(`Checking Razorpay status for Payment Link: ${paymentLinkId}`);
-    const response = await razorpayRequest("GET", `/v1/payment_links/${paymentLinkId}`, null, rzpKeyId, rzpKeySecret);
-    
-    const isPaid = response.status === "paid";
-    
+    const response = await razorpayRequest(
+      'GET',
+      `/v1/payment_links/${paymentLinkId}`,
+      null,
+      rzpKeyId,
+      rzpKeySecret
+    );
+
+    const isPaid = response.status === 'paid';
+
     res.json({
       success: true,
       paid: isPaid,
-      status: response.status
+      status: response.status,
     });
   } catch (err) {
-    console.error("Razorpay Payment Link status check failed:", err.message);
+    console.error('Razorpay Payment Link status check failed:', err.message);
     res.status(500).json({
       success: false,
-      error: err.message || "Failed to fetch Payment Link status."
+      error: err.message || 'Failed to fetch Payment Link status.',
     });
   }
 });
 
 // Send Order Confirmation message on WhatsApp
-app.post("/payment/send-confirmation", async (req, res) => {
-  const { phone, name, orderNumber, tableNumber, totalAmount, paymentMethod } = req.body;
+app.post('/payment/send-confirmation', async (req, res) => {
+  const { phone, name, orderNumber, tableNumber, totalAmount, paymentMethod } =
+    req.body;
   if (!phone || !orderNumber) {
-    return res.status(400).json({ success: false, error: "Missing required fields: phone and orderNumber." });
+    return res
+      .status(400)
+      .json({
+        success: false,
+        error: 'Missing required fields: phone and orderNumber.',
+      });
   }
 
-  if (connectionStatus !== "CONNECTED" || !sock) {
+  if (connectionStatus !== 'CONNECTED' || !sock) {
     // If WhatsApp is disconnected, return success: false but don't crash
-    return res.json({ success: false, error: "WhatsApp client not connected." });
+    return res.json({
+      success: false,
+      error: 'WhatsApp client not connected.',
+    });
   }
 
-  let cleanNumber = phone.replace(/\D/g, "");
-  if (!cleanNumber.endsWith("@s.whatsapp.net")) {
+  let cleanNumber = phone.replace(/\D/g, '');
+  if (!cleanNumber.endsWith('@s.whatsapp.net')) {
     cleanNumber = `${cleanNumber}@s.whatsapp.net`;
   }
 
-  const messageText = `*Malabar Waffle 🧇*\n\nHi *${name || "Customer"}*,\nWe have received your order *#${orderNumber}* for *Table ${tableNumber || "Takeaway"}*.\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}* (via ${paymentMethod.toUpperCase()}).\n\nPlease wait while the kitchen prepares your delicious waffle! 😋`;
+  const messageText = `*Malabar Waffle 🧇*\n\nHi *${name || 'Customer'}*,\nWe have received your order *#${orderNumber}* for *Table ${tableNumber || 'Takeaway'}*.\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}* (via ${paymentMethod.toUpperCase()}).\n\nPlease wait while the kitchen prepares your delicious waffle! 😋`;
 
   try {
     console.log(`Sending order confirmation WhatsApp to: ${cleanNumber}`);
@@ -551,50 +687,63 @@ app.post("/payment/send-confirmation", async (req, res) => {
 });
 
 // Razorpay Webhook Endpoint
-app.post("/payment/webhook", async (req, res) => {
+app.post('/payment/webhook', async (req, res) => {
   const payload = req.body;
 
   // Process payment successful captured event
-  if (payload.event === "payment.captured") {
+  if (payload.event === 'payment.captured') {
     const payment = payload.payload.payment.entity;
     const orderNumber = payment.receipt;
     const razorpayOrderId = payment.order_id;
 
-    console.log(`Razorpay Webhook: Payment captured for Order #${orderNumber}, Razorpay Order ID: ${razorpayOrderId}`);
+    console.log(
+      `Razorpay Webhook: Payment captured for Order #${orderNumber}, Razorpay Order ID: ${razorpayOrderId}`
+    );
 
     // Query Firestore using admin SDK and update paymentStatus
     if (admin.apps.length > 0) {
       try {
         const db = admin.firestore();
-        const ordersRef = db.collection("orders");
-        const snapshot = await ordersRef.where("orderNumber", "==", orderNumber).get();
+        const ordersRef = db.collection('orders');
+        const snapshot = await ordersRef
+          .where('orderNumber', '==', orderNumber)
+          .get();
 
         if (snapshot.empty) {
-          console.warn(`No Firestore order found with orderNumber: ${orderNumber}`);
+          console.warn(
+            `No Firestore order found with orderNumber: ${orderNumber}`
+          );
         } else {
           snapshot.forEach(async (doc) => {
             await doc.ref.update({
-              paymentStatus: "paid"
+              paymentStatus: 'paid',
             });
-            console.log(`Updated Firestore Order ID: ${doc.id} paymentStatus to "paid"`);
+            console.log(
+              `Updated Firestore Order ID: ${doc.id} paymentStatus to "paid"`
+            );
           });
         }
       } catch (dbErr) {
-        console.error("Failed to update Firestore order status from webhook:", dbErr);
+        console.error(
+          'Failed to update Firestore order status from webhook:',
+          dbErr
+        );
       }
     } else {
-      console.warn("Firebase Admin SDK not initialized. Cannot update paymentStatus in Firestore.");
+      console.warn(
+        'Firebase Admin SDK not initialized. Cannot update paymentStatus in Firestore.'
+      );
     }
   }
 
   // Always return 200 OK to Razorpay
-  res.json({ status: "ok" });
+  res.json({ status: 'ok' });
 });
 
 // Start Server
 app.listen(port, () => {
   console.log(`WhatsApp Cloud-Relay Server running on port ${port}`);
   console.log(`Relay version: ${relayVersion}`);
-  console.log("Razorpay QR API path: /v1/payments/qr_codes");
+  console.log('Razorpay QR API path: /v1/payments/qr_codes');
   initializeClient();
 });

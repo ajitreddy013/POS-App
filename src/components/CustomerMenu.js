@@ -198,6 +198,7 @@ const CustomerMenu = () => {
             orderId: orderNumber,
             amount: totalAmount,
             qrImageUrl: data.qrImageUrl,
+            paymentLinkId: data.paymentLinkId || null,
           });
           setUpiQrStatus('Waiting for customer payment...');
 
@@ -210,7 +211,10 @@ const CustomerMenu = () => {
               const statusResponse = await fetch(`${relayUrl}/payment/status`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ qrCodeId: data.qrCodeId }),
+                body: JSON.stringify({
+                  qrCodeId: data.qrCodeId || null,
+                  paymentLinkId: data.paymentLinkId || null,
+                }),
               });
 
               const statusData = await statusResponse.json();

@@ -157,18 +157,6 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard">
-      <div
-        className="page-header dashboard-page-header"
-        style={{
-          minHeight: '100px',
-          padding: '24px 30px',
-          background: '#ffffff',
-          borderBottom: '2px solid #f3f4f6',
-        }}
-      >
-        <div className="dashboard-header-copy"></div>
-      </div>
-
       {/* Summary Cards */}
       <div className="summary-cards">
         <div className="summary-card card-teal">
