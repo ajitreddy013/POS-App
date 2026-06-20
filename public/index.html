@@ -3,7 +3,21 @@
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <script>
+      (function() {
+        var zoom = Number(localStorage.getItem('cf_zoom_level') || '100');
+        document.documentElement.style.zoom = zoom / 100;
+        // Use dvw/dvh (dynamic viewport units) so the root element fills the
+        // full screen on Android WebView, which miscalculates 100vw/100vh by
+        // excluding system bars.  Fall back to vw/vh on browsers that don't
+        // support dynamic viewport units (older WebViews / desktop).
+        var pct = (10000 / zoom).toFixed(4);
+        var supportsD = CSS && CSS.supports && CSS.supports('width', '1dvw');
+        document.documentElement.style.width  = supportsD ? pct + 'dvw' : pct + 'vw';
+        document.documentElement.style.height = supportsD ? pct + 'dvh' : pct + 'vh';
+      })();
+    </script>
     <meta name="theme-color" content="#000000" />
     <meta
       name="description"

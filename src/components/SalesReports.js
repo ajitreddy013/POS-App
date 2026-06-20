@@ -1,23 +1,87 @@
 import { dbService } from "../services/dbService";
 import React, { useState, useEffect, useCallback } from "react";
-import { BarChart3, Mail, DollarSign, FileText, X, Download, Eye } from "lucide-react";
+import { format } from "date-fns";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import { Capacitor } from "@capacitor/core";
+import { Filesystem, Directory } from "@capacitor/filesystem";
+import { FileOpener } from "@capawesome-team/capacitor-file-opener";
+import { BarChart3, Mail, DollarSign, FileText, X, Download, Eye, ChevronDown } from "lucide-react";
 import { 
   getLocalDateString,
   formatDateForDisplay,
   getStartOfDay,
-  getEndOfDay
+  getEndOfDay,
+  formatDateToYMD,
+  getPreviousDay
 } from "../utils/dateUtils";
+import useBarSettings from "../utils/useBarSettings";
 
 const SalesReports = () => {
+  const { barSettings } = useBarSettings();
   const [sales, setSales] = useState([]);
   const [spendings, setSpendings] = useState([]);
-  const [counterBalances, setCounterBalances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [emailLoading, setEmailLoading] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
+  const [startDate, setStartDate] = useState(getLocalDateString());
+  const [endDate, setEndDate] = useState(getLocalDateString());
+
+  const handlePresetSelect = (preset) => {
+    const todayStr = getLocalDateString();
+    let start = todayStr;
+    let end = todayStr;
+
+    if (preset === "today") {
+      start = todayStr;
+      end = todayStr;
+    } else if (preset === "yesterday") {
+      const yst = getPreviousDay(todayStr);
+      start = yst;
+      end = yst;
+    } else if (preset === "thisMonth") {
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      start = formatDateToYMD(firstDay);
+      end = todayStr;
+    } else if (preset === "lastMonth") {
+      const now = new Date();
+      const firstDayLast = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDayLast = new Date(now.getFullYear(), now.getMonth(), 0);
+      start = formatDateToYMD(firstDayLast);
+      end = formatDateToYMD(lastDayLast);
+    }
+
+    setStartDate(start);
+    setEndDate(end);
+  };
+
+  const getActivePreset = () => {
+    const todayStr = getLocalDateString();
+    const yst = getPreviousDay(todayStr);
+    
+    const now = new Date();
+    const firstDayThisMonth = formatDateToYMD(new Date(now.getFullYear(), now.getMonth(), 1));
+    const firstDayLastMonth = formatDateToYMD(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    const lastDayLastMonth = formatDateToYMD(new Date(now.getFullYear(), now.getMonth(), 0));
+
+    if (startDate === todayStr && endDate === todayStr) {
+      return "today";
+    } else if (startDate === yst && endDate === yst) {
+      return "yesterday";
+    } else if (startDate === firstDayThisMonth && endDate === todayStr) {
+      return "thisMonth";
+    } else if (startDate === firstDayLastMonth && endDate === lastDayLastMonth) {
+      return "lastMonth";
+    }
+    return "custom";
+  };
   const [selectedBill, setSelectedBill] = useState(null);
   const [showBillModal, setShowBillModal] = useState(false);
   const [billGenerating, setBillGenerating] = useState(false);
+  const [openSections, setOpenSections] = useState({
+    sales: true,
+    spendings: false,
+  });
 
   const normalizeSales = (salesList) => {
     if (!salesList) return [];
@@ -85,50 +149,31 @@ const SalesReports = () => {
     }));
   };
 
-  const normalizeCounterBalances = (balancesList) => {
-    if (!balancesList) return [];
-    return balancesList.map(b => ({
-      ...b,
-      balance_date: b.balance_date || b.balanceDate || "",
-      opening_balance: b.opening_balance !== undefined ? Number(b.opening_balance) : (b.openingBalance ? Number(b.openingBalance) : 0),
-      closing_balance: b.closing_balance !== undefined ? Number(b.closing_balance) : (b.closingBalance ? Number(b.closingBalance) : 0),
-    }));
-  };
-
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
       
-      // Create proper date range with start/end times for the selected date
-      // Load sales data with details (cost price, sale price, profit)
       const salesData = await dbService.getSalesWithDetails({
-        start: getStartOfDay(selectedDate),
-        end: getEndOfDay(selectedDate),
+        start: getStartOfDay(startDate),
+        end: getEndOfDay(endDate),
       });
       if (salesData) {
         salesData.sort((a, b) => new Date(b.saleDate || b.sale_date) - new Date(a.saleDate || a.sale_date));
       }
       setSales(normalizeSales(salesData));
 
-      // Load spendings data
       const spendingsData = await dbService.getSpendings({
-        start: getStartOfDay(selectedDate),
-        end: getEndOfDay(selectedDate),
+        start: getStartOfDay(startDate),
+        end: getEndOfDay(endDate),
       });
       setSpendings(normalizeSpendings(spendingsData));
 
-      // Load counter balance data
-      const counterBalanceData = await dbService.getCounterBalances({
-        start: getStartOfDay(selectedDate),
-        end: getEndOfDay(selectedDate),
-      });
-      setCounterBalances(normalizeCounterBalances(counterBalanceData));
     } catch (error) {
       // Failed to load reports data
     } finally {
       setLoading(false);
     }
-  }, [selectedDate]);
+  }, [startDate, endDate]);
 
   useEffect(() => {
     loadData();
@@ -139,55 +184,70 @@ const SalesReports = () => {
     return formatDateForDisplay(dateString);
   };
 
-  const sendEmailReport = async () => {
-    try {
-      setEmailLoading(true);
-      const result = await dbService.sendEmailReportWithPdfs(selectedDate);
-      if (result.success) {
-        alert("Email report with PDF attachments sent successfully!");
-      } else {
-        alert(`Failed to send email report: ${result.error}`);
-      }
-    } catch (error) {
-      alert("Failed to send email report");
-    } finally {
-      setEmailLoading(false);
-    }
-  };
+
 
   const exportSalesReportPDF = async () => {
     try {
-      const result = await dbService.exportSalesReport(sales, selectedDate);
-      if (result.success) {
-        alert(`PDF saved at ${result.filePath}`);
+      const doc = new jsPDF();
+      let reportDate = "All Time";
+      if (startDate === endDate) {
+        reportDate = formatDateForDisplay(startDate);
       } else {
-        alert('Failed to save PDF: ' + result.error);
+        reportDate = `${formatDateForDisplay(startDate)} to ${formatDateForDisplay(endDate)}`;
       }
-    } catch (error) {
-      alert('Failed to export PDF');
-    }
-  };
-
-  const exportFinancialReportPDF = async () => {
-    try {
-      const reportData = {
-        sales,
-        spendings,
-        counterBalances,
-        totalRevenue,
-        totalSpendings,
-        netIncome,
-        totalOpeningBalance,
-        totalBalance
-      };
-      const result = await dbService.exportFinancialReport(reportData, selectedDate);
-      if (result.success) {
-        alert(`PDF saved at ${result.filePath}`);
+      
+      doc.setFontSize(18);
+      doc.text("Sales Report", 14, 22);
+      
+      doc.setFontSize(11);
+      doc.setTextColor(100);
+      doc.text(`Date: ${reportDate}`, 14, 30);
+      
+      const tableColumn = ["Sale Number", "Customer", "Date", "Payment", "Total Amount"];
+      const tableRows = [];
+      
+      sales.forEach(sale => {
+        const saleData = [
+          sale.sale_number || sale.saleNumber,
+          sale.customer_name || sale.customerName || "Walk-in",
+          formatDateForDisplay(sale.sale_date || sale.saleDate),
+          (sale.payment_method || sale.paymentMethod || "").toUpperCase(),
+          `Rs ${parseFloat(sale.total_amount || sale.totalAmount || 0).toFixed(2)}`
+        ];
+        tableRows.push(saleData);
+      });
+      
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 40,
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [41, 128, 185] }
+      });
+      
+      const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : 40;
+      doc.text(`Total Sales Revenue: Rs ${totalRevenue.toFixed(2)}`, 14, finalY + 15);
+      
+      const fileName = `Report-${startDate}-to-${endDate}.pdf`;
+      
+      if (Capacitor.isNativePlatform()) {
+        const pdfBase64 = doc.output('datauristring').split(',')[1];
+        const result = await Filesystem.writeFile({
+          path: fileName,
+          data: pdfBase64,
+          directory: Directory.Cache
+        });
+        
+        await FileOpener.openFile({
+          path: result.uri,
+          mimeType: 'application/pdf'
+        });
       } else {
-        alert('Failed to save PDF: ' + result.error);
+        doc.save(fileName);
       }
+      
     } catch (error) {
-      alert('Failed to export PDF');
+      alert('Failed to generate PDF: ' + error.message + '\n' + error.stack);
     }
   };
 
@@ -200,15 +260,6 @@ const SalesReports = () => {
   const netIncome = totalRevenue - totalSpendings;
   const totalTransactions = sales.length;
   const totalSpendingEntries = spendings.length;
-
-  // Calculate opening balance totals
-  const totalOpeningBalance = counterBalances.reduce(
-    (sum, balance) => sum + balance.opening_balance,
-    0
-  );
-
-  // Calculate total balance (net income + opening balance)
-  const totalBalance = netIncome + totalOpeningBalance;
 
   // Handle viewing individual bill
   const handleViewBill = async (sale) => {
@@ -289,267 +340,278 @@ const SalesReports = () => {
     setShowBillModal(false);
   };
 
+  const toggleSection = (section) => {
+    setOpenSections((current) => ({
+      ...current,
+      [section]: !current[section],
+    }));
+  };
+
   return (
     <div className="sales-reports">
       <div className="page-header">
-        <h1>
-          <BarChart3 size={24} /> Sales & Financial Reports
-        </h1>
-        <button
-          onClick={sendEmailReport}
-          disabled={emailLoading}
-          className="btn btn-primary"
-          style={{ display: "flex", alignItems: "center", gap: "8px" }}
-        >
-          <Mail size={16} />
-          {emailLoading ? "Sending..." : "Email Report with PDFs"}
-        </button>
+        <div>
+          <h1 style={{ margin: 0 }}>
+            <BarChart3 size={24} style={{ marginRight: '8px' }} />
+            {barSettings?.bar_name || 'Sales Reports'}
+          </h1>
+          {barSettings?.bar_name && (
+            <p className="page-subtitle" style={{ margin: "4px 0 0 32px", fontSize: "0.85rem", opacity: 0.8 }}>
+              Reports for {barSettings.bar_name} {barSettings.address && `| 📍 ${barSettings.address}`}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Date Selection */}
-      <div className="form-row" style={{ padding: "20px 30px" }}>
-        <div className="form-group">
-          <label>
-            Select Date:
+      <div className="reports-toolbar-section">
+        {/* Preset Selector */}
+        <div className="reports-presets-container">
+          <button
+            type="button"
+            className={`reports-preset-btn ${getActivePreset() === "yesterday" ? "active" : ""}`}
+            onClick={() => handlePresetSelect("yesterday")}
+          >
+            Yesterday
+          </button>
+          <button
+            type="button"
+            className={`reports-preset-btn ${getActivePreset() === "today" ? "active" : ""}`}
+            onClick={() => handlePresetSelect("today")}
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            className={`reports-preset-btn ${getActivePreset() === "thisMonth" ? "active" : ""}`}
+            onClick={() => handlePresetSelect("thisMonth")}
+          >
+            This Month
+          </button>
+          <button
+            type="button"
+            className={`reports-preset-btn ${getActivePreset() === "lastMonth" ? "active" : ""}`}
+            onClick={() => handlePresetSelect("lastMonth")}
+          >
+            Last Month
+          </button>
+        </div>
+
+        {/* Custom Date Fields */}
+        <div className="reports-date-fields">
+          <div className="reports-date-field">
+            <span className="reports-date-label">Start Date</span>
             <input
               type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="form-input"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="reports-date-input"
             />
-          </label>
+          </div>
+          <div className="reports-date-field">
+            <span className="reports-date-label">End Date</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="reports-date-input"
+            />
+          </div>
         </div>
-        <button
-          onClick={loadData}
-          className="btn btn-primary"
-          style={{ marginLeft: "15px", alignSelf: "flex-end" }}
-        >
-          Generate Report
-        </button>
-        <button
-          onClick={exportSalesReportPDF}
-          className="btn btn-secondary"
-          style={{ marginLeft: "10px", alignSelf: "flex-end" }}
-          disabled={sales.length === 0}
-        >
-          Export Sales PDF
-        </button>
-        <button
-          onClick={exportFinancialReportPDF}
-          className="btn btn-secondary"
-          style={{ marginLeft: "10px", alignSelf: "flex-end" }}
-          disabled={sales.length === 0 && spendings.length === 0}
-        >
-          Export Financial PDF
-        </button>
+
+        {/* Action Buttons */}
+        <div className="reports-action-buttons">
+          <button
+            onClick={loadData}
+            className="reports-btn-primary"
+          >
+            Generate Report
+          </button>
+          <button
+            onClick={exportSalesReportPDF}
+            className="reports-btn-secondary"
+            disabled={sales.length === 0}
+          >
+            <Download size={16} style={{ marginRight: '6px' }} />
+            Download
+          </button>
+        </div>
       </div>
 
       {/* Financial Summary */}
-      <div className="summary-cards" style={{ margin: "0 30px 20px 30px" }}>
+      <div className="summary-cards" style={{ margin: "0 12px 20px 12px" }}>
         <div className="summary-card">
-          <div className="card-icon">
-            <BarChart3 size={24} />
+          <div className="card-header">
+            <h3>Total Sales</h3>
+            <div className="card-icon"><BarChart3 size={16} /></div>
           </div>
-          <div className="card-content">
-            <h3>Total Revenue</h3>
-            <p className="amount">₹{totalRevenue.toFixed(2)}</p>
-            <small>{totalTransactions} transactions</small>
+          <div className="value">₹{totalRevenue.toFixed(0)}</div>
+          <div className="card-subtext" style={{ fontSize: '11px', color: '#7f766a', fontWeight: '600', marginTop: '4px' }}>
+            {totalTransactions} transactions
           </div>
         </div>
+
         <div className="summary-card">
-          <div className="card-icon">
-            <DollarSign size={24} />
-          </div>
-          <div className="card-content">
+          <div className="card-header">
             <h3>Total Spendings</h3>
-            <p className="amount">₹{totalSpendings.toFixed(2)}</p>
-            <small>{totalSpendingEntries} entries</small>
+            <div className="card-icon"><DollarSign size={16} /></div>
+          </div>
+          <div className="value">₹{totalSpendings.toFixed(0)}</div>
+          <div className="card-subtext" style={{ fontSize: '11px', color: '#7f766a', fontWeight: '600', marginTop: '4px' }}>
+            {totalSpendingEntries} entries
           </div>
         </div>
+
         <div className="summary-card">
-          <div className="card-icon">
-            <BarChart3 size={24} />
-          </div>
-          <div className="card-content">
+          <div className="card-header">
             <h3>Net Income</h3>
-            <p className={`amount ${netIncome >= 0 ? "positive" : "negative"}`}>
-              ₹{netIncome.toFixed(2)}
-            </p>
-            <small>{netIncome >= 0 ? "Profit" : "Loss"}</small>
+            <div className="card-icon"><BarChart3 size={16} /></div>
           </div>
-        </div>
-        <div className="summary-card">
-          <div className="card-icon">
-            <DollarSign size={24} />
+          <div className={`value ${netIncome >= 0 ? 'positive' : 'negative'}`}>
+            ₹{netIncome.toFixed(0)}
           </div>
-          <div className="card-content">
-            <h3>Opening Balance</h3>
-            <p className="amount">₹{totalOpeningBalance.toFixed(2)}</p>
-            <small>Total opening balances</small>
-          </div>
-        </div>
-        <div className="summary-card">
-          <div className="card-icon">
-            <BarChart3 size={24} />
-          </div>
-          <div className="card-content">
-            <h3>Total Balance</h3>
-            <p
-              className={`amount ${
-                totalBalance >= 0 ? "positive" : "negative"
-              }`}
-            >
-              ₹{totalBalance.toFixed(2)}
-            </p>
-            <small>Net Income + Opening Balance</small>
+          <div className="card-subtext" style={{ fontSize: '11px', color: '#7f766a', fontWeight: '600', marginTop: '4px' }}>
+            Revenue - Spendings
           </div>
         </div>
       </div>
 
       {/* Sales Reports Table */}
-      <div className="table-container">
-        <h3 style={{ margin: "0 30px 20px 30px" }}>Sales Details</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Sale Number</th>
-              <th>Customer</th>
-              <th>Items</th>
-              <th>Amount</th>
-              <th>Payment</th>
-              <th>Date</th>
-              <th>Bill</th>
-            </tr>
-          </thead>
-          {loading ? (
-            <tbody>
+      <div className="table-container reports-collapse-card">
+        <button
+          type="button"
+          className="reports-collapse-header"
+          onClick={() => toggleSection("sales")}
+        >
+          <div>
+            <h3>Sales Details</h3>
+            <span>{totalTransactions} transactions</span>
+          </div>
+          <ChevronDown className={openSections.sales ? "open" : ""} size={20} />
+        </button>
+        {openSections.sales && (
+          <table className="reports-table">
+            <thead>
               <tr>
-                <td
-                  colSpan="10"
-                  style={{ textAlign: "center", padding: "40px" }}
-                >
-                  Loading...
-                </td>
+                <th>Sale Number</th>
+                <th>Customer</th>
+                <th>Items</th>
+                <th>Amount</th>
+                <th>Payment</th>
+                <th>Date</th>
+                <th>Bill</th>
               </tr>
-            </tbody>
-          ) : sales.length === 0 ? (
-            <tbody>
-              <tr>
-                <td
-                  colSpan="10"
-                  style={{
-                    textAlign: "center",
-                    padding: "40px",
-                    color: "#7f8c8d",
-                  }}
-                >
-                  No sales found for the selected date
-                </td>
-              </tr>
-            </tbody>
-          ) : (
-            <tbody>
-              {sales.map((sale) => (
-                <tr key={sale.id}>
-                  <td>{sale.sale_number}</td>
-                  <td>{sale.customer_name || "Walk-in Customer"}</td>
-                  <td>{sale.item_count}</td>
-                  <td>₹{(sale.total_sale_price || sale.total_amount).toFixed(2)}</td>
-                  <td>
-                    <span
-                      style={{
-                        textTransform: "uppercase",
-                        fontWeight: "600",
-                        letterSpacing: "0.5px",
-                        background: (sale.payment_method || sale.paymentMethod) === "upi" ? "rgba(102, 126, 234, 0.15)" : "rgba(39, 174, 96, 0.15)",
-                        color: (sale.payment_method || sale.paymentMethod) === "upi" ? "#667eea" : "#27ae60",
-                        padding: "4px 10px",
-                        borderRadius: "20px",
-                        fontSize: "0.75rem",
-                      }}
-                    >
-                      {sale.payment_method || sale.paymentMethod || "cash"}
-                    </span>
-                  </td>
-                  <td>{formatDate(sale.sale_date)}</td>
-                  <td>
-<button onClick={() => handleViewBill(sale)} className="btn btn-secondary" aria-label="View Bill">
-  <Eye size={16} />
-</button>
+            </thead>
+            {loading ? (
+              <tbody>
+                <tr>
+                  <td colSpan="10" style={{ textAlign: "center", padding: "40px" }}>
+                    Loading...
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          )}
-        </table>
+              </tbody>
+            ) : sales.length === 0 ? (
+              <tbody>
+                <tr>
+                  <td
+                    colSpan="10"
+                    style={{
+                      textAlign: "center",
+                      padding: "40px",
+                      color: "#7f8c8d",
+                    }}
+                  >
+                    No sales found for the selected date
+                  </td>
+                </tr>
+              </tbody>
+            ) : (
+              <tbody>
+                {sales.map((sale) => (
+                  <tr key={sale.id}>
+                    <td>{sale.sale_number}</td>
+                    <td>{sale.customer_name || "Walk-in Customer"}</td>
+                    <td>{sale.item_count}</td>
+                    <td>₹{(sale.total_sale_price || sale.total_amount).toFixed(2)}</td>
+                    <td>
+                      <span
+                        style={{
+                          textTransform: "uppercase",
+                          fontWeight: "600",
+                          letterSpacing: "0.5px",
+                          background: (sale.payment_method || sale.paymentMethod) === "upi" ? "rgba(102, 126, 234, 0.15)" : "rgba(39, 174, 96, 0.15)",
+                          color: (sale.payment_method || sale.paymentMethod) === "upi" ? "#667eea" : "#27ae60",
+                          padding: "4px 10px",
+                          borderRadius: "20px",
+                          fontSize: "0.75rem",
+                        }}
+                      >
+                        {sale.payment_method || sale.paymentMethod || "cash"}
+                      </span>
+                    </td>
+                    <td>{formatDate(sale.sale_date)}</td>
+                    <td>
+                      <button onClick={() => handleViewBill(sale)} className="btn btn-secondary" aria-label="View Bill">
+                        <Eye size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            )}
+          </table>
+        )}
       </div>
 
       {/* Spendings Table */}
       {spendings.length > 0 && (
-        <div className="table-container" style={{ marginTop: "30px" }}>
-          <h3 style={{ margin: "0 30px 20px 30px" }}>Spendings Details</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Description</th>
-                <th>Category</th>
-                <th>Amount</th>
-                <th>Payment Method</th>
-                <th>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {spendings.map((spending) => (
-                <tr key={spending.id}>
-                  <td>{formatDate(spending.spending_date)}</td>
-                  <td>{spending.description}</td>
-                  <td>
-                    <span className="category-tag">{spending.category}</span>
-                  </td>
-                  <td>₹{spending.amount.toFixed(2)}</td>
-                  <td>
-                    <span
-                      className={`payment-method ${spending.payment_method}`}
-                    >
-                      {spending.payment_method.replace("_", " ").toUpperCase()}
-                    </span>
-                  </td>
-                  <td>{spending.notes || "-"}</td>
+        <div className="table-container reports-collapse-card" style={{ marginTop: "30px" }}>
+          <button
+            type="button"
+            className="reports-collapse-header"
+            onClick={() => toggleSection("spendings")}
+          >
+            <div>
+              <h3>Spendings Details</h3>
+              <span>{totalSpendingEntries} entries</span>
+            </div>
+            <ChevronDown className={openSections.spendings ? "open" : ""} size={20} />
+          </button>
+          {openSections.spendings && (
+            <table className="spendings-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th>Category</th>
+                  <th>Amount</th>
+                  <th>Payment Method</th>
+                  <th>Notes</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {spendings.map((spending) => (
+                  <tr key={spending.id}>
+                    <td>{formatDate(spending.spending_date)}</td>
+                    <td>{spending.description}</td>
+                    <td>
+                      <span className="category-tag">{spending.category}</span>
+                    </td>
+                    <td>₹{spending.amount.toFixed(2)}</td>
+                    <td>
+                      <span className={`payment-method ${spending.payment_method}`}>
+                        {spending.payment_method.replace("_", " ").toUpperCase()}
+                      </span>
+                    </td>
+                    <td>{spending.notes || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 
-      {/* Opening Balance Table */}
-      {counterBalances.length > 0 && (
-        <div className="table-container" style={{ marginTop: "30px" }}>
-          <h3 style={{ margin: "0 30px 20px 30px" }}>
-            Opening Balance Details
-          </h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Opening Balance</th>
-                <th>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {counterBalances.map((balance) => (
-                <tr key={balance.id}>
-                  <td>{formatDate(balance.balance_date)}</td>
-                  <td>₹{balance.opening_balance.toFixed(2)}</td>
-                  <td>{balance.notes || "-"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      
       {/* Bill Preview Modal */}
       {showBillModal && selectedBill && (
         <div className="modal-overlay" onClick={closeBillModal}>
@@ -567,6 +629,29 @@ const SalesReports = () => {
             <div className="modal-content">
               <div className="bill-preview" style={{ padding: "10px 20px", background: "#fff", color: "#333", width: "100%", boxSizing: "border-box" }}>
                 
+                {/* Shop Details Header */}
+                <div style={{ textAlign: "center", marginBottom: "20px" }}>
+                  <h2 style={{ margin: "0 0 5px 0", fontSize: "1.5rem", fontWeight: "bold", color: "#111" }}>
+                    {barSettings?.bar_name || "CounterFlow POS"}
+                  </h2>
+                  {barSettings?.address && (
+                    <p style={{ margin: "2px 0", fontSize: "0.9rem", color: "#6c757d" }}>
+                      📍 {barSettings.address}
+                    </p>
+                  )}
+                  {barSettings?.contact_number && (
+                    <p style={{ margin: "2px 0", fontSize: "0.9rem", color: "#6c757d" }}>
+                      📞 {barSettings.contact_number}
+                    </p>
+                  )}
+                  {barSettings?.gst_number && (
+                    <p style={{ margin: "2px 0", fontSize: "0.9rem", color: "#6c757d", fontWeight: "500" }}>
+                      GSTIN: {barSettings.gst_number}
+                    </p>
+                  )}
+                </div>
+                <hr style={{ borderTop: "1px dashed #000", margin: "10px 0" }} />
+
                 {/* Bill Details Grid */}
                 <div className="bill-details" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "25px", padding: "15px", background: "#f8f9fa", borderRadius: "10px", border: "1px solid #e9ecef" }}>
                   <div>
@@ -655,6 +740,11 @@ const SalesReports = () => {
                     <span>Total</span>
                     <span>₹{selectedBill.totalAmount?.toFixed(2)}</span>
                   </div>
+                </div>
+
+                {/* Thank You Message */}
+                <div style={{ textAlign: "center", marginTop: "20px", padding: "10px", fontSize: "0.95rem", fontStyle: "italic", color: "#6c757d", borderTop: "1px dashed #000" }}>
+                  {barSettings?.thank_you_message || "Thank you for visiting! Please visit again."}
                 </div>
               </div>
             </div>

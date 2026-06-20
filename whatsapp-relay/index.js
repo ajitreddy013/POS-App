@@ -41,6 +41,39 @@ const QRCode = require("qrcode");
 const fs = require("fs");
 const https = require("https");
 
+// Initialize Firebase Admin SDK
+const admin = require("firebase-admin");
+const serviceAccountPath = path.join(__dirname, "service-account.json");
+
+if (fs.existsSync(serviceAccountPath)) {
+  console.log("Initializing Firebase Admin SDK using local service-account.json...");
+  try {
+    const serviceAccount = require(serviceAccountPath);
+    admin.initializeApp({
+      credential: admin.cert(serviceAccount)
+    });
+    console.log("Firebase Admin SDK initialized successfully.");
+  } catch (err) {
+    console.error("Failed to initialize Firebase Admin SDK using service-account.json:", err);
+  }
+} else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
+  console.log("Initializing Firebase Admin SDK using Environment Variables...");
+  try {
+    admin.initializeApp({
+      credential: admin.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      })
+    });
+    console.log("Firebase Admin SDK initialized successfully.");
+  } catch (err) {
+    console.error("Failed to initialize Firebase Admin SDK:", err);
+  }
+} else {
+  console.warn("Firebase credentials not found (no service-account.json or environment variables). Cloud integrations disabled.");
+}
+
 const app = express();
 const port = process.env.PORT || 8080;
 
@@ -272,14 +305,14 @@ function razorpayRequest(method, path, body, keyId, keySecret) {
 
 // Create Razorpay Dynamic QR Code
 app.post("/payment/create-qr", async (req, res) => {
-  const { amount, orderId, keyId, keySecret } = req.body;
-  const rzpKeyId = keyId || process.env.RAZORPAY_KEY_ID;
-  const rzpKeySecret = keySecret || process.env.RAZORPAY_KEY_SECRET;
+  const { amount, orderId } = req.body;
+  const rzpKeyId = process.env.RAZORPAY_KEY_ID;
+  const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET;
 
   if (!amount || !orderId || !rzpKeyId || !rzpKeySecret) {
     return res.status(400).json({
       success: false,
-      error: "Missing required fields: amount, orderId, and Razorpay credentials (keyId/keySecret) must be configured."
+      error: "Missing required fields: amount and orderId must be provided, and Razorpay credentials must be configured on the server."
     });
   }
 
@@ -320,14 +353,14 @@ app.post("/payment/create-qr", async (req, res) => {
 
 // Check Razorpay QR Payment Status
 app.post("/payment/status", async (req, res) => {
-  const { qrCodeId, keyId, keySecret } = req.body;
-  const rzpKeyId = keyId || process.env.RAZORPAY_KEY_ID;
-  const rzpKeySecret = keySecret || process.env.RAZORPAY_KEY_SECRET;
+  const { qrCodeId } = req.body;
+  const rzpKeyId = process.env.RAZORPAY_KEY_ID;
+  const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET;
 
   if (!qrCodeId || !rzpKeyId || !rzpKeySecret) {
     return res.status(400).json({
       success: false,
-      error: "Missing required fields: qrCodeId and Razorpay credentials must be configured."
+      error: "Missing required fields: qrCodeId must be provided, and Razorpay credentials must be configured on the server."
     });
   }
 
@@ -373,14 +406,14 @@ app.post("/device/verify", (req, res) => {
 
 // Create Razorpay Order for Standard Checkout
 app.post("/payment/create-order", async (req, res) => {
-  const { amount, orderId, keyId, keySecret } = req.body;
-  const rzpKeyId = keyId || process.env.RAZORPAY_KEY_ID;
-  const rzpKeySecret = keySecret || process.env.RAZORPAY_KEY_SECRET;
+  const { amount, orderId } = req.body;
+  const rzpKeyId = process.env.RAZORPAY_KEY_ID;
+  const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET;
 
   if (!amount || !orderId || !rzpKeyId || !rzpKeySecret) {
     return res.status(400).json({
       success: false,
-      error: "Missing required fields: amount, orderId, and Razorpay credentials must be configured."
+      error: "Missing required fields: amount and orderId must be provided, and Razorpay credentials must be configured on the server."
     });
   }
 
@@ -414,14 +447,14 @@ app.post("/payment/create-order", async (req, res) => {
 
 // Check Razorpay Payment Link Status
 app.post("/payment/link-status", async (req, res) => {
-  const { paymentLinkId, keyId, keySecret } = req.body;
-  const rzpKeyId = keyId || process.env.RAZORPAY_KEY_ID;
-  const rzpKeySecret = keySecret || process.env.RAZORPAY_KEY_SECRET;
+  const { paymentLinkId } = req.body;
+  const rzpKeyId = process.env.RAZORPAY_KEY_ID;
+  const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET;
 
   if (!paymentLinkId || !rzpKeyId || !rzpKeySecret) {
     return res.status(400).json({
       success: false,
-      error: "Missing required fields: paymentLinkId and Razorpay credentials must be configured."
+      error: "Missing required fields: paymentLinkId must be provided, and Razorpay credentials must be configured on the server."
     });
   }
 
@@ -443,6 +476,76 @@ app.post("/payment/link-status", async (req, res) => {
       error: err.message || "Failed to fetch Payment Link status."
     });
   }
+});
+
+// Send Order Confirmation message on WhatsApp
+app.post("/payment/send-confirmation", async (req, res) => {
+  const { phone, name, orderNumber, tableNumber, totalAmount, paymentMethod } = req.body;
+  if (!phone || !orderNumber) {
+    return res.status(400).json({ success: false, error: "Missing required fields: phone and orderNumber." });
+  }
+
+  if (connectionStatus !== "CONNECTED" || !sock) {
+    // If WhatsApp is disconnected, return success: false but don't crash
+    return res.json({ success: false, error: "WhatsApp client not connected." });
+  }
+
+  let cleanNumber = phone.replace(/\D/g, "");
+  if (!cleanNumber.endsWith("@s.whatsapp.net")) {
+    cleanNumber = `${cleanNumber}@s.whatsapp.net`;
+  }
+
+  const messageText = `*Malabar Waffle 🧇*\n\nHi *${name || "Customer"}*,\nWe have received your order *#${orderNumber}* for *Table ${tableNumber || "Takeaway"}*.\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}* (via ${paymentMethod.toUpperCase()}).\n\nPlease wait while the kitchen prepares your delicious waffle! 😋`;
+
+  try {
+    console.log(`Sending order confirmation WhatsApp to: ${cleanNumber}`);
+    await sock.sendMessage(cleanNumber, { text: messageText });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(`Failed to send order confirmation to ${cleanNumber}:`, err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Razorpay Webhook Endpoint
+app.post("/payment/webhook", async (req, res) => {
+  const payload = req.body;
+
+  // Process payment successful captured event
+  if (payload.event === "payment.captured") {
+    const payment = payload.payload.payment.entity;
+    const orderNumber = payment.receipt;
+    const razorpayOrderId = payment.order_id;
+
+    console.log(`Razorpay Webhook: Payment captured for Order #${orderNumber}, Razorpay Order ID: ${razorpayOrderId}`);
+
+    // Query Firestore using admin SDK and update paymentStatus
+    if (admin.apps.length > 0) {
+      try {
+        const db = admin.firestore();
+        const ordersRef = db.collection("orders");
+        const snapshot = await ordersRef.where("orderNumber", "==", orderNumber).get();
+
+        if (snapshot.empty) {
+          console.warn(`No Firestore order found with orderNumber: ${orderNumber}`);
+        } else {
+          snapshot.forEach(async (doc) => {
+            await doc.ref.update({
+              paymentStatus: "paid"
+            });
+            console.log(`Updated Firestore Order ID: ${doc.id} paymentStatus to "paid"`);
+          });
+        }
+      } catch (dbErr) {
+        console.error("Failed to update Firestore order status from webhook:", dbErr);
+      }
+    } else {
+      console.warn("Firebase Admin SDK not initialized. Cannot update paymentStatus in Firestore.");
+    }
+  }
+
+  // Always return 200 OK to Razorpay
+  res.json({ status: "ok" });
 });
 
 // Start Server

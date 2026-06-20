@@ -35,7 +35,7 @@
 
 // React core imports
 import React, { useState } from "react";
-import { HashRouter as Router, Routes, Route, Link, useLocation } from "react-router-dom";
+import { HashRouter as Router, Routes, Route, Link, useLocation, Navigate, useNavigate } from "react-router-dom";
 
 // Icon imports for navigation menu
 import {
@@ -46,12 +46,16 @@ import {
   Menu,            // Menu open icon
   X,               // Menu close icon
   DollarSign,      // Spendings icon
-  Wallet,          // Counter balance icon
-  Clock,           // Pending bills icon
+  Lock,            // Lock/Admin icon
+  Store,            // Store/admin console icon
 } from "lucide-react";
 
 // Application styles
 import "./App.css";
+
+// Malabar Waffle brand logo (real PNG)
+import malabarLogo from "./assets/malabar-waffle-logo.png";
+
 
 // Business component imports
 import Dashboard from "./components/Dashboard";                   // Main dashboard
@@ -60,8 +64,10 @@ import POSSystem from "./components/POSSystem";                   // Point of sa
 import SalesReports from "./components/SalesReports";             // Sales reporting
 import Settings from "./components/Settings";                     // App settings
 import Spendings from "./components/Spendings";                   // Expense tracking
-import CounterBalance from "./components/CounterBalance";         // Cash management
-import PendingBills from "./components/PendingBills";             // Saved bills
+import CustomerMenu from "./components/CustomerMenu";             // Customer self-ordering menu
+
+import { dbService } from "./services/dbService";
+import { playErrorFeedback } from "./utils/feedbackUtils";
 
 /**
  * APP CONTENT COMPONENT
@@ -71,20 +77,20 @@ import PendingBills from "./components/PendingBills";             // Saved bills
  * - Route-based component rendering
  * - Table selection and management
  * - Global application state
- * 
- * State Management:
- * - sidebarOpen: Controls sidebar visibility
- * - currentUser: Current user information (Admin by default)
- * - selectedTable: Currently selected table for POS operations
- * - location: Current route location from React Router
+ * - Admin Kiosk mode password protection
  */
 function AppContent() {
-  // UI State
-  const [sidebarOpen, setSidebarOpen] = useState(true);  // Sidebar collapsed/expanded state
-  const [currentUser] = useState("Admin");                // Current user (future: from authentication)
-  
+  // Global App State
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [currentUser] = useState("Admin");
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [unlockPassword, setUnlockPassword] = useState("");
+  const [unlockError, setUnlockError] = useState("");
+
   // Router state
-  const location = useLocation(); // Current route location
+  const location = useLocation();
+  const navigate = useNavigate();
 
   /**
    * Toggle sidebar visibility
@@ -92,6 +98,10 @@ function AppContent() {
    */
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
+  };
+
+  const closeSidebar = () => {
+    setSidebarOpen(false);
   };
 
   /**
@@ -106,9 +116,47 @@ function AppContent() {
     console.log(`Navigation clicked: ${path}`);
     // eslint-disable-next-line no-console
     console.log(`Current location: ${location.pathname}`);
-    
-    // Let the Link component handle the navigation naturally
-    // Don't prevent default or use navigate() to avoid conflicts
+  };
+
+  const verifyAndUnlock = async (passwordToVerify) => {
+    try {
+      const settings = await dbService.getBarSettings();
+      const actualPassword = settings?.admin_password || "123456";
+      
+      // eslint-disable-next-line no-console
+      console.log("Admin unlock verification:", {
+        entered: passwordToVerify,
+        expected: actualPassword
+      });
+
+      if (passwordToVerify.trim() === String(actualPassword).trim()) {
+        setIsAdminUnlocked(true);
+        setShowUnlockModal(false);
+        setUnlockPassword("");
+        setUnlockError("");
+        navigate("/dashboard");
+      } else {
+        setUnlockError("Incorrect password");
+        playErrorFeedback();
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Unlock error details:", err);
+      setUnlockError(`Failed to verify password: ${err.message || err}`);
+    }
+  };
+
+  const handleUnlock = (e) => {
+    if (e) e.preventDefault();
+    verifyAndUnlock(unlockPassword);
+  };
+
+  const handlePasswordChange = (e) => {
+    const val = e.target.value.replace(/\D/g, "");
+    setUnlockPassword(val);
+    if (val.trim().length === 6) {
+      verifyAndUnlock(val);
+    }
   };
 
   /**
@@ -116,88 +164,199 @@ function AppContent() {
    * 
    * Defines all navigation items with their routes, names, and icons.
    * Each item corresponds to a major business module.
-   * 
-   * Menu Structure:
-   * - Dashboard: Business overview and key metrics
-   * - Tables: Restaurant/bar table management
-   * - Products: Product catalog management
-   * - Inventory: Stock level monitoring
-   * - Daily Transfer: Stock movement operations
-   * - POS: Point of sale transactions
-   * - Reports: Sales analysis and reporting
-   * - Spendings: Business expense tracking
-   * - Counter Balance: Daily cash management
-   * - Pending Bills: Saved bills management
-   * - Settings: Application configuration
    */
   const menuItems = [
     { path: "/dashboard", name: "Dashboard", icon: BarChart3 },     // Dashboard (first)
-    { path: "/", name: "POS", icon: ShoppingCart },                // Point of sale
+    { path: "/", name: "Cart", icon: ShoppingCart },                // Point of sale
     { path: "/products", name: "Products", icon: Package },        // Product catalog
     { path: "/reports", name: "Reports", icon: BarChart3 },         // Sales reports
     { path: "/spendings", name: "Spendings", icon: DollarSign },   // Expense tracking
-    { path: "/counter-balance", name: "Counter Balance", icon: Wallet }, // Cash management
-    { path: "/pending-bills", name: "Pending Bills", icon: Clock }, // Saved bills
     { path: "/settings", name: "Settings", icon: SettingsIcon },   // Configuration
   ];
 
+  const activeMenuItem = menuItems.find((item) => item.path === location.pathname) || menuItems[0];
+  const ActiveIcon = activeMenuItem.icon;
+
   return (
-    <div className="app">
-      {/* Sidebar */}
-      <div className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
-        <div className="sidebar-header">
-          {sidebarOpen && <h2>CounterFlow POS</h2>}
-          <button onClick={toggleSidebar} className="toggle-btn">
-            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+    <div className={`app ${isAdminUnlocked ? "admin-unlocked" : "kiosk-locked"}`}>
+      {isAdminUnlocked && sidebarOpen && (
+        <button
+          type="button"
+          className="sidebar-backdrop"
+          aria-label="Close navigation menu"
+          onClick={closeSidebar}
+        />
+      )}
+
+      {/* Sidebar - only visible if admin is unlocked */}
+      {isAdminUnlocked && (
+        <div className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
+          <div className="sidebar-header">
+            <div className="logo-container">
+              <img
+                src={malabarLogo}
+                alt="Malabar Waffle"
+                className="sidebar-logo-img"
+              />
+              <div className="sidebar-brand-copy">
+                <strong>Admin Console</strong>
+                <span>{currentUser}</span>
+              </div>
+            </div>
+            <button onClick={toggleSidebar} className="toggle-btn" aria-label="Close navigation menu">
+              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
+
+          <nav className="sidebar-nav">
+            {menuItems.map((item) => {
+              const IconComponent = item.icon;
+              const isActive = location.pathname === item.path;
+              return (
+                <Link 
+                  key={item.path} 
+                  to={item.path} 
+                  className={`nav-item ${isActive ? "active" : ""}`}
+                  onClick={(event) => {
+                    handleNavItemClick(event, item.path);
+                    closeSidebar();
+                  }}
+                >
+                  <IconComponent size={20} />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          <button 
+            className="nav-item lock-console-btn"
+            onClick={() => {
+              setIsAdminUnlocked(false);
+              closeSidebar();
+              navigate("/");
+            }}
+          >
+            <Lock size={20} />
+            <span>Lock Console</span>
           </button>
-        </div>
 
-        <nav className="sidebar-nav">
-          {menuItems.map((item) => {
-            const IconComponent = item.icon;
-            const isActive = location.pathname === item.path;
-            return (
-              <Link 
-                key={item.path} 
-                to={item.path} 
-                className={`nav-item ${isActive ? "active" : ""}`}
-                onClick={(event) => handleNavItemClick(event, item.path)}
-              >
-                <IconComponent size={20} />
-                {sidebarOpen && <span>{item.name}</span>}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {sidebarOpen && (
           <div className="sidebar-footer">
             <div className="user-info">
-              <span>Welcome, {currentUser}</span>
-              <br />
-              <span className="current-tab">Current: {location.pathname}</span>
+              <span className="user-label">Current Page</span>
+              <span className="current-user">{activeMenuItem.name}</span>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div
         className={`main-content ${
-          sidebarOpen ? "with-sidebar" : "full-width"
+          isAdminUnlocked && sidebarOpen ? "with-sidebar" : "full-width"
         }`}
       >
+        {isAdminUnlocked && (
+          <header className="mobile-admin-topbar">
+            <button
+              type="button"
+              className="mobile-menu-button"
+              onClick={toggleSidebar}
+              aria-label="Open navigation menu"
+            >
+              <Menu size={21} />
+            </button>
+            <div className="mobile-admin-title">
+              <span>Malabar Waffle</span>
+              <strong>
+                <ActiveIcon size={18} />
+                {activeMenuItem.name}
+              </strong>
+            </div>
+            <div className="mobile-admin-mark" aria-hidden="true">
+              <Store size={18} />
+            </div>
+          </header>
+        )}
         <Routes>
-          <Route path="/" element={<POSSystem />} />
-          <Route path="/products" element={<ProductManagement />} />
-          <Route path="/reports" element={<SalesReports />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/spendings" element={<Spendings />} />
-          <Route path="/counter-balance" element={<CounterBalance />} />
-          <Route path="/pending-bills" element={<PendingBills />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/menu" element={<CustomerMenu />} />
+          <Route path="/" element={<POSSystem isKiosk={!isAdminUnlocked} onOpenUnlockModal={() => setShowUnlockModal(true)} />} />
+          {isAdminUnlocked ? (
+            <>
+              <Route path="/products" element={<ProductManagement />} />
+              <Route path="/reports" element={<SalesReports />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/spendings" element={<Spendings />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+            </>
+          ) : (
+            <Route path="*" element={<Navigate to="/" replace />} />
+          )}
         </Routes>
       </div>
+
+      {/* Mobile Bottom Navigation Bar removed to only show options in hamburger menu */}
+
+      {/* Unlock Modal */}
+      {showUnlockModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '30px',
+            borderRadius: '16px',
+            width: '400px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            textAlign: 'center'
+          }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', color: '#1A4050', fontFamily: 'Inter, sans-serif' }}>Admin Authentication</h3>
+            <p style={{ margin: '0 0 20px 0', fontSize: '14px', color: '#7f8c8d' }}>Please enter the 6-digit admin password to unlock the admin console.</p>
+            <form onSubmit={handleUnlock}>
+              <input
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="Enter password"
+                value={unlockPassword}
+                onChange={handlePasswordChange}
+                maxLength={6}
+                autoFocus
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  fontSize: '18px',
+                  letterSpacing: '4px',
+                  textAlign: 'center',
+                  borderRadius: '8px',
+                  border: '2px solid #e2e8f0',
+                  outline: 'none',
+                  marginBottom: '10px'
+                }}
+              />
+              {unlockError && <div style={{ color: '#e74c3c', fontSize: '13px', marginBottom: '15px' }}>{unlockError}</div>}
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '15px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowUnlockModal(false); setUnlockPassword(""); setUnlockError(""); }} style={{ padding: '8px 20px' }}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" style={{ padding: '8px 24px', background: '#1C5C3A' }}>
+                  Unlock
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

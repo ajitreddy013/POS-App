@@ -2,5 +2,7 @@ node_modules/
 .wwebjs_auth/
 .wwebjs_cache/
 .cache/
+.auth_info_baileys/
 .env
+service-account.json
 *.log

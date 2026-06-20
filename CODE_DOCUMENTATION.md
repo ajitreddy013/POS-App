@@ -1,4 +1,4 @@
-# Code Documentation - Inventory POS Application
+ # Code Documentation - Inventory POS Application
 
 ## Overview
 This is a comprehensive Point of Sale (POS) and Inventory Management system built with Electron, React, and SQLite. The application is designed for restaurants/bars with both table service and takeaway orders.

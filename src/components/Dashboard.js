@@ -1,15 +1,18 @@
 import { dbService } from "../services/dbService";
 import React, { useState, useEffect } from "react";
 import {
-  BarChart3,
-  RefreshCw,
+  Package,
+  Activity,
+  Wallet,
+  History,
+  Landmark,
+  Banknote
 } from "lucide-react";
 import { 
   getLocalDateString,
   formatDateForDisplay,
   getStartOfDay,
   getEndOfDay,
-  formatDateTimeToString
 } from "../utils/dateUtils";
 
 const Dashboard = () => {
@@ -22,10 +25,10 @@ const Dashboard = () => {
     netIncome: 0,
     openingBalance: 0,
     totalBalance: 0,
+    todayCash: 0,
+    todayUpi: 0,
     recentSales: [],
   });
-  const [loading, setLoading] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -50,8 +53,6 @@ const Dashboard = () => {
 
   const loadDashboardData = async () => {
     try {
-      setLoading(true);
-
       // Get inventory data
       const inventory = await dbService.getInventory() || [];
       const lowStockItems = inventory.filter(
@@ -76,6 +77,14 @@ const Dashboard = () => {
         (sum, sale) => sum + Number(sale.totalAmount || sale.total_amount || 0),
         0
       );
+
+      const todayCash = todaySales
+        .filter(s => s.paymentMethod === 'cash' || s.payment_method === 'cash')
+        .reduce((sum, sale) => sum + Number(sale.totalAmount || sale.total_amount || 0), 0);
+
+      const todayUpi = todaySales
+        .filter(s => s.paymentMethod === 'upi' || s.payment_method === 'upi')
+        .reduce((sum, sale) => sum + Number(sale.totalAmount || sale.total_amount || 0), 0);
 
       // Get today's spendings
       const todaySpendings = Number(await dbService.getDailySpendingTotal(todayDate) || 0);
@@ -103,15 +112,14 @@ const Dashboard = () => {
         netIncome: Number(netIncome || 0),
         openingBalance: Number(openingBalance || 0),
         totalBalance: Number(totalBalance || 0),
+        todayCash: Number(todayCash || 0),
+        todayUpi: Number(todayUpi || 0),
         recentSales: recentSales.slice(0, 10),
       });
 
-      setLastUpdated(formatDateTimeToString(new Date()));
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error("Failed to load dashboard data:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -119,77 +127,87 @@ const Dashboard = () => {
     return formatDateForDisplay(dateString);
   };
 
+  const totalAmount = dashboardData.todayCash + dashboardData.todayUpi + dashboardData.openingBalance - dashboardData.todaySpendings;
 
   return (
     <div className="dashboard">
-      <div className="page-header">
-        <h1>
-          <BarChart3 size={24} /> Dashboard
-        </h1>
-        <button
-          onClick={loadDashboardData}
-          disabled={loading}
-          className="btn btn-secondary"
-          style={{ marginLeft: "auto" }}
-        >
-          <RefreshCw size={16} style={{ marginRight: "8px" }} />
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
+      <div className="page-header dashboard-page-header">
+        <div className="dashboard-header-copy">
+          <h1>Dashboard</h1>
+        </div>
       </div>
 
       {/* Summary Cards */}
       <div className="summary-cards">
-        <div className="summary-card">
-          <h3>Total Products</h3>
-          <div className="value">{dashboardData.totalProducts}</div>
-        </div>
-        <div className="summary-card">
-          <h3>Today&apos;s Sales</h3>
+        <div className="summary-card card-teal">
+          <div className="card-header">
+            <h3>Today&apos;s Sales</h3>
+            <div className="card-icon"><Activity size={16} /></div>
+          </div>
           <div className="value">{dashboardData.todaySales}</div>
         </div>
-        <div className="summary-card">
-          <h3>Today&apos;s Revenue</h3>
-          <div className="value">₹{dashboardData.totalRevenue.toFixed(2)}</div>
+
+        <div className="summary-card card-blue">
+          <div className="card-header">
+            <h3>Total Products</h3>
+            <div className="card-icon"><Package size={16} /></div>
+          </div>
+          <div className="value">{dashboardData.totalProducts}</div>
         </div>
-        <div className="summary-card">
-          <h3>Today&apos;s Spendings</h3>
-          <div className="value">
-            ₹{dashboardData.todaySpendings.toFixed(2)}
+
+        <div className="summary-card card-mauve">
+          <div className="card-header">
+            <h3>Today&apos;s Spendings</h3>
+            <div className="card-icon"><Wallet size={16} /></div>
+          </div>
+          <div className="value">₹{dashboardData.todaySpendings.toFixed(0)}</div>
+        </div>
+
+        <div className="summary-card card-slate">
+          <div className="card-header">
+            <h3>Opening Balance</h3>
+            <div className="card-icon"><History size={16} /></div>
+          </div>
+          <div className="value">₹{dashboardData.openingBalance.toFixed(0)}</div>
+        </div>
+        
+        <div className="summary-card card-purple">
+          <div className="card-header">
+            <h3>Payment Methods</h3>
+            <div className="card-icon"><Wallet size={16} /></div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', marginTop: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', fontSize: '0.85rem', fontWeight: '600' }}>
+              <span>Cash:</span>
+              <span style={{ fontWeight: '800', fontSize: '1.05rem' }}>₹{dashboardData.todayCash.toFixed(0)}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', fontSize: '0.85rem', fontWeight: '600' }}>
+              <span>UPI:</span>
+              <span style={{ fontWeight: '800', fontSize: '1.05rem' }}>₹{dashboardData.todayUpi.toFixed(0)}</span>
+            </div>
           </div>
         </div>
-        <div className="summary-card">
-          <h3>Net Income</h3>
-          <div className="value">
-            ₹{dashboardData.netIncome.toFixed(2)}
+
+        <div className="summary-card card-mint">
+          <div className="card-header">
+            <h3>Total Sales</h3>
+            <div className="card-icon"><Banknote size={16} /></div>
           </div>
+          <div className="value">₹{(dashboardData.todayCash + dashboardData.todayUpi).toFixed(0)}</div>
         </div>
-        <div className="summary-card">
-          <h3>Opening Balance</h3>
-          <div className="value">
-            ₹{dashboardData.openingBalance.toFixed(2)}
+
+        <div className="summary-card card-sunset">
+          <div className="card-header">
+            <h3>Total Amount</h3>
+            <div className="card-icon"><Landmark size={16} /></div>
           </div>
-        </div>
-        <div className="summary-card">
-          <h3>Total Balance</h3>
-          <div className="value positive">₹{dashboardData.totalBalance.toFixed(2)}</div>
+          <div className={`value ${totalAmount >= 0 ? 'positive' : 'negative'}`}>
+            ₹{totalAmount.toFixed(0)}
+          </div>
         </div>
       </div>
 
-      {/* Last Updated Info */}
-      {lastUpdated && (
-        <div
-          style={{
-            textAlign: "center",
-            margin: "20px 0",
-            color: "#7f8c8d",
-            fontSize: "0.9rem",
-          }}
-        >
-          Last updated: {lastUpdated}
-        </div>
-      )}
 
-      {/* Alerts */}
 
       {/* Recent Sales */}
       <div className="table-container">

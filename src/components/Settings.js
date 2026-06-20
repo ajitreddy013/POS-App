@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle, MessageCircle, Wifi, WifiOff, CreditCard } from 'lucide-react';
+import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Wifi, WifiOff, CreditCard, Lock, CloudLightning } from 'lucide-react';
 import { dbService } from '../services/dbService';
 import { whatsappService } from '../services/whatsappService';
 import { APP_CONFIG } from '../config';
+import { getFirebaseDb } from '../firebase';
+import { doc, writeBatch } from 'firebase/firestore';
 
 const Settings = () => {
   const [barSettings, setBarSettings] = useState({
@@ -16,7 +18,9 @@ const Settings = () => {
     whatsapp_relay_url: '',
     whatsapp_template_name: 'counterflow_pos_receipt',
     whatsapp_language_code: 'en',
-    whatsapp_default_country_code: '91'
+    whatsapp_default_country_code: '91',
+    admin_password: '123456',
+    firebase_config: ''
   });
   const [emailSettings, setEmailSettings] = useState({
     host: '',
@@ -31,17 +35,32 @@ const Settings = () => {
   const [isEditingEmailInfo, setIsEditingEmailInfo] = useState(false);
   const [isEditingWhatsappInfo, setIsEditingWhatsappInfo] = useState(false);
   const [isEditingRazorpayInfo, setIsEditingRazorpayInfo] = useState(false);
+  const [isEditingSecurity, setIsEditingSecurity] = useState(false);
   const [loading, setLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [securityLoading, setSecurityLoading] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
   const [closeSellLoading, setCloseSellLoading] = useState(false);
+  
+  const [currentPasswordInput, setCurrentPasswordInput] = useState('');
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
 
   const [whatsappStatus, setWhatsappStatus] = useState('DISCONNECTED');
   const [whatsappQr, setWhatsappQr] = useState(null);
   const [whatsappError, setWhatsappError] = useState(null);
   const [whatsappLoading, setWhatsappLoading] = useState(false);
+
+  useEffect(() => {
+    if (whatsappError) {
+      const timer = setTimeout(() => {
+        setWhatsappError(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [whatsappError]);
 
   useEffect(() => {
     loadBarSettings();
@@ -115,6 +134,46 @@ const Settings = () => {
     }
   };
 
+  const [syncingMenu, setSyncingMenu] = useState(false);
+
+  const syncMenuToCloud = async () => {
+    try {
+      setSyncingMenu(true);
+      const db = getFirebaseDb();
+      if (!db) {
+        alert("Firebase is not configured! Please configure your credentials inside src/firebase.js first.");
+        return;
+      }
+
+      const products = await dbService.getProducts();
+      if (!products || products.length === 0) {
+        alert("No products found in local database to sync.");
+        return;
+      }
+
+      const batch = writeBatch(db);
+      products.forEach((p) => {
+        const docRef = doc(db, "products", String(p.id));
+        batch.set(docRef, {
+          id: String(p.id),
+          name: p.name,
+          price: Number(p.price) || 0,
+          category: p.category || "General",
+          image: p.image || "",
+          available: true
+        });
+      });
+
+      await batch.commit();
+      alert(`Menu synchronized successfully! ${products.length} products uploaded to the cloud.`);
+    } catch (err) {
+      console.error("Failed to sync menu:", err);
+      alert(`Sync failed: ${err.message || err}`);
+    } finally {
+      setSyncingMenu(false);
+    }
+  };
+
   const loadEmailSettings = async () => {
     try {
       const settings = await dbService.getEmailSettings();
@@ -139,7 +198,53 @@ const Settings = () => {
       setLoading(false);
     }
   };
+  const handlePasswordChange = async () => {
+    if (!currentPasswordInput || !newPasswordInput || !confirmPasswordInput) {
+      alert('All fields are required.');
+      return;
+    }
 
+    if (newPasswordInput.length < 6) {
+      alert('New password must be at least 6 characters/digits.');
+      return;
+    }
+
+    if (newPasswordInput !== confirmPasswordInput) {
+      alert('New passwords do not match.');
+      return;
+    }
+
+    setSecurityLoading(true);
+    try {
+      const currentPassword = barSettings.admin_password || "123456";
+      if (currentPasswordInput !== currentPassword) {
+        alert('Incorrect current password.');
+        setSecurityLoading(false);
+        return;
+      }
+
+      const updatedSettings = {
+        ...barSettings,
+        admin_password: newPasswordInput
+      };
+      
+      const res = await dbService.saveBarSettings(updatedSettings);
+      if (res.success) {
+        setBarSettings(updatedSettings);
+        alert('Admin password updated successfully!');
+        setIsEditingSecurity(false);
+        setCurrentPasswordInput('');
+        setNewPasswordInput('');
+        setConfirmPasswordInput('');
+      } else {
+        alert('Failed to save updated password.');
+      }
+    } catch (err) {
+      alert(`Error updating password: ${err.message}`);
+    } finally {
+      setSecurityLoading(false);
+    }
+  };
   const saveEmailSettings = async () => {
     try {
       setEmailLoading(true);
@@ -282,11 +387,10 @@ const Settings = () => {
           whatsapp_template_name: 'counterflow_pos_receipt',
           whatsapp_language_code: 'en',
           whatsapp_default_country_code: '91',
-          razorpay_key_id: '',
-          razorpay_key_secret: ''
+          admin_password: '123456'
         });
         
-        alert('Application reset completed successfully!\n\nAll data has been cleared and sample data has been restored.\n\nPlease restart the application for best results.');
+        alert('Application reset completed successfully!\n\nAll data has been cleared and default settings have been initialized.\n\nPlease restart the application for best results.');
         setShowResetConfirm(false);
         setResetConfirmText('');
         
@@ -453,7 +557,7 @@ const Settings = () => {
           </div>
         </div>
 
-        {/* Email Settings Section */}
+        {/* Security Settings Section */}
         <div className="table-container" style={{ marginBottom: '30px' }}>
           <div style={{ 
             display: 'flex', 
@@ -463,201 +567,79 @@ const Settings = () => {
             borderBottom: '1px solid #e9ecef'
           }}>
             <h2 style={{ margin: 0 }}>
-              <Mail size={20} style={{ marginRight: '10px' }} />
-              Email Settings
+              <Lock size={20} style={{ marginRight: '10px' }} />
+              Security Settings
             </h2>
             <button 
-              onClick={() => setIsEditingEmailInfo(!isEditingEmailInfo)}
+              onClick={() => {
+                setIsEditingSecurity(!isEditingSecurity);
+                setCurrentPasswordInput('');
+                setNewPasswordInput('');
+                setConfirmPasswordInput('');
+              }}
               className="btn btn-secondary"
             >
               <Edit size={16} />
-              {isEditingEmailInfo ? 'Cancel' : 'Edit'}
+              {isEditingSecurity ? 'Cancel' : 'Change Password'}
             </button>
           </div>
           
           <div style={{ padding: '20px' }}>
-            {isEditingEmailInfo ? (
-              <div className="email-settings-form">
+            {isEditingSecurity ? (
+              <div className="bar-settings-form">
                 <div className="form-row">
-                  <label>
-                    Enable Daily Email Reports:
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    Current Password:
                     <input
-                      type="checkbox"
-                      checked={emailSettings.enabled}
-                      onChange={(e) => handleEmailSettingsChange('enabled', e.target.checked)}
-                      style={{ marginLeft: '10px' }}
+                      type="password"
+                      value={currentPasswordInput}
+                      onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                      className="form-input"
+                      placeholder="Enter current password"
+                    />
+                  </label>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    New Password (6-digit):
+                    <input
+                      type="password"
+                      value={newPasswordInput}
+                      onChange={(e) => setNewPasswordInput(e.target.value.substring(0, 10))}
+                      className="form-input"
+                      placeholder="Enter new password"
+                    />
+                  </label>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    Confirm New Password:
+                    <input
+                      type="password"
+                      value={confirmPasswordInput}
+                      onChange={(e) => setConfirmPasswordInput(e.target.value.substring(0, 10))}
+                      className="form-input"
+                      placeholder="Confirm new password"
                     />
                   </label>
                 </div>
-                
-                {emailSettings.enabled && (
-                  <>
-                    <div className="form-row">
-                      <label>
-                        SMTP Host:
-                        <input
-                          type="text"
-                          value={emailSettings.host}
-                          onChange={(e) => handleEmailSettingsChange('host', e.target.value)}
-                          className="form-input"
-                          placeholder="smtp.gmail.com"
-                        />
-                      </label>
-                      <label>
-                        Port:
-                        <input
-                          type="number"
-                          value={emailSettings.port}
-                          onChange={(e) => handleEmailSettingsChange('port', parseInt(e.target.value))}
-                          className="form-input"
-                          placeholder="587"
-                        />
-                      </label>
-                    </div>
-                    <div className="form-row">
-                      <label>
-                        Email Address:
-                        <input
-                          type="email"
-                          value={emailSettings.auth.user}
-                          onChange={(e) => handleEmailSettingsChange('auth.user', e.target.value)}
-                          className="form-input"
-                          placeholder="your.email@gmail.com"
-                        />
-                      </label>
-                      <label>
-                        App Password:
-                        <input
-                          type="password"
-                          value={emailSettings.auth.pass}
-                          onChange={(e) => handleEmailSettingsChange('auth.pass', e.target.value)}
-                          className="form-input"
-                          placeholder="App-specific password"
-                        />
-                      </label>
-                    </div>
-                    <div className="form-row">
-                      <label>
-                        From Address:
-                        <input
-                          type="email"
-                          value={emailSettings.from}
-                          onChange={(e) => handleEmailSettingsChange('from', e.target.value)}
-                          className="form-input"
-                          placeholder="sender@example.com"
-                        />
-                      </label>
-                      <label>
-                        To Address (Owner):
-                        <input
-                          type="email"
-                          value={emailSettings.to}
-                          onChange={(e) => handleEmailSettingsChange('to', e.target.value)}
-                          className="form-input"
-                          placeholder="owner@example.com"
-                        />
-                      </label>
-                    </div>
-                    <div className="form-row">
-                      <label>
-                        Use SSL/TLS:
-                        <input
-                          type="checkbox"
-                          checked={emailSettings.secure}
-                          onChange={(e) => handleEmailSettingsChange('secure', e.target.checked)}
-                          style={{ marginLeft: '10px' }}
-                        />
-                      </label>
-                    </div>
-                  </>
-                )}
-                
-                <div className="form-actions">
+                <div className="form-actions" style={{ marginTop: '20px' }}>
                   <button 
-                    onClick={saveEmailSettings}
-                    disabled={emailLoading}
+                    onClick={handlePasswordChange}
+                    disabled={securityLoading}
                     className="btn btn-primary"
                   >
-                    <Save size={16} />
-                    {emailLoading ? 'Saving...' : 'Save Settings'}
+                    <Save size={16} style={{ marginRight: '8px' }} />
+                    {securityLoading ? 'Saving...' : 'Update Password'}
                   </button>
-                  
-                  {emailSettings.enabled && (
-                    <>
-                      <button 
-                        onClick={testEmailConnection}
-                        disabled={emailLoading}
-                        className="btn btn-secondary"
-                        style={{ marginLeft: '10px' }}
-                      >
-                        <TestTube size={16} />
-                        Test Connection
-                      </button>
-                      
-                      <button 
-                        onClick={sendTestEmail}
-                        disabled={emailLoading}
-                        className="btn btn-secondary"
-                        style={{ marginLeft: '10px' }}
-                      >
-                        <Send size={16} />
-                        Send Test Email
-                      </button>
-                    </>
-                  )}
                 </div>
               </div>
             ) : (
-              <div className="email-settings-display">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div className="bar-settings-display">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
                   <div>
-                    <h4>Email Reports</h4>
-                    <p>{emailSettings.enabled ? '✓ Enabled' : '✗ Disabled'}</p>
-                    {emailSettings.enabled && (
-                      <>
-                        <h4>SMTP Host</h4>
-                        <p>{emailSettings.host || 'Not set'}</p>
-                        <h4>From Address</h4>
-                        <p>{emailSettings.from || 'Not set'}</p>
-                      </>
-                    )}
-                  </div>
-                  <div>
-                    {emailSettings.enabled && (
-                      <>
-                        <h4>To Address (Owner)</h4>
-                        <p>{emailSettings.to || 'Not set'}</p>
-                        <h4>Port</h4>
-                        <p>{emailSettings.port || 587}</p>
-                        <h4>Security</h4>
-                        <p>{emailSettings.secure ? 'SSL/TLS' : 'STARTTLS'}</p>
-                        
-                        <div style={{ marginTop: '20px' }}>
-                          <button 
-                            onClick={sendDailyEmailNow}
-                            disabled={emailLoading}
-                            className="btn btn-primary"
-                          >
-                            <Send size={16} />
-                            Send Daily Report Now
-                          </button>
-                        </div>
-                      </>
-                    )}
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '15px' }}>Admin Console Protection</h4>
+                    <p style={{ margin: 0, color: '#7f8c8d', fontSize: '13px', lineHeight: '1.5' }}>
+                      Kiosk Mode is active by default. Access to the admin dashboard, reports, products, and settings is protected by a 6-digit password. Click &quot;Change Password&quot; to update it.
+                    </p>
                   </div>
                 </div>
-                
-                {emailSettings.enabled && (
-                  <div style={{ 
-                    background: '#e8f5e8', 
-                    border: '1px solid #4caf50', 
-                    borderRadius: '6px', 
-                    padding: '15px', 
-                    marginTop: '20px' 
-                  }}>
-                    <strong>Daily Reports Schedule:</strong> Reports are automatically sent every day at 11:59 PM.
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -803,7 +785,7 @@ const Settings = () => {
                       onChange={(e) => handleBarSettingsChange('razorpay_enabled', e.target.checked ? 1 : 0)}
                       style={{ marginRight: '10px' }}
                     />
-                    Enable Automated UPI Checkout (Uses Render environment variables)
+                    Enable Razorpay UPI QR (Uses Render environment variables)
                   </label>
                 </div>
                 
@@ -825,9 +807,9 @@ const Settings = () => {
                     <h4>Integration Status</h4>
                     <p style={{ margin: 0 }}>
                       {barSettings.razorpay_enabled === 1 ? (
-                        <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✓ Enabled (Automated UPI Checkout active using Render credentials)</span>
+                        <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✓ Enabled (Razorpay UPI QR active using Render credentials)</span>
                       ) : (
-                        <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>✗ Disabled (UPI Payments will be manual)</span>
+                        <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>✗ Disabled (UPI payments will be manual)</span>
                       )}
                     </p>
                   </div>
@@ -837,73 +819,56 @@ const Settings = () => {
           </div>
         </div>
 
-        {/* Close Sell Section */}
-        <div className="table-container" style={{ marginBottom: '30px', border: '2px solid #27ae60' }}>
+
+
+        {/* Cloud Sync & Firebase Configuration Section */}
+        <div className="table-container" style={{ marginBottom: '30px' }}>
           <div style={{ 
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center',
             padding: '20px',
-            borderBottom: '1px solid #27ae60',
-            backgroundColor: '#f0f8f0'
+            borderBottom: '1px solid #e9ecef'
           }}>
-            <h2 style={{ margin: 0, color: '#27ae60' }}>
-              <Archive size={20} style={{ marginRight: '10px' }} />
-              Close Sell
+            <h2 style={{ margin: 0 }}>
+              <CloudLightning size={20} style={{ marginRight: '10px' }} />
+              Firebase Cloud Sync
             </h2>
           </div>
           
           <div style={{ padding: '20px' }}>
-            <div style={{ 
-              background: '#e8f5e8', 
-              border: '1px solid #27ae60', 
-              borderRadius: '6px', 
-              padding: '15px', 
-              marginBottom: '20px' 
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                <Archive size={16} style={{ marginRight: '8px', color: '#27ae60' }} />
-                <strong style={{ color: '#27ae60' }}>Close Sell Operation</strong>
+            <div className="cloud-settings-display">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px', marginBottom: '20px' }}>
+                <div>
+                  <h4>Cloud Connection Status</h4>
+                  <p style={{ margin: 0 }}>
+                    {getFirebaseDb() ? (
+                      <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✓ Configured & Connected (Firestore live sync is active)</span>
+                    ) : (
+                      <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>✗ Not Configured (Please add your Firebase web app credentials in src/firebase.js)</span>
+                    )}
+                  </p>
+                </div>
               </div>
-              <p style={{ margin: '0', color: '#27ae60', fontSize: '0.9rem' }}>
-                This operation will generate all PDF reports, create database backups, and compress them into a ZIP file for easy access.
-              </p>
-              <ul style={{ margin: '10px 0 0 0', paddingLeft: '20px', color: '#27ae60', fontSize: '0.9rem' }}>
-                <li>🗄️ Create complete database backup</li>
-                <li>📊 Generate daily comprehensive report</li>
-                <li>💰 Generate sales report</li>
-                <li>📈 Generate financial report</li>
-                <li>📦 Generate inventory report</li>
-                <li>📋 Generate pending bills report</li>
-                <li>🗜️ Compress all PDFs into a ZIP file</li>
-                <li>💾 Save backups to local backup directories</li>
-                <li>📧 Automatically send ZIP file to owner via email</li>
-                <li>🗃️ Preserve all historical data permanently</li>
-              </ul>
+
+              {getFirebaseDb() && (
+                <div style={{ borderTop: '1px solid #eaecf0', paddingTop: '20px' }}>
+                  <h4>Manual Operations</h4>
+                  <p style={{ color: '#667085', fontSize: '0.9rem', margin: '0 0 15px 0' }}>
+                    Push your local product catalog and categories to the cloud Firestore database so customers can see them on the website.
+                  </p>
+                  <button 
+                    onClick={syncMenuToCloud}
+                    disabled={syncingMenu}
+                    className="btn btn-primary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#1C5C3A' }}
+                  >
+                    <CloudLightning size={16} />
+                    {syncingMenu ? 'Synchronizing...' : 'Sync Menu to Cloud'}
+                  </button>
+                </div>
+              )}
             </div>
-            
-            <button 
-              onClick={handleCloseSell}
-              disabled={closeSellLoading}
-              className="btn"
-              style={{
-                backgroundColor: '#27ae60',
-                color: 'white',
-                border: 'none',
-                padding: '12px 20px',
-                borderRadius: '6px',
-                cursor: closeSellLoading ? 'not-allowed' : 'pointer',
-                opacity: closeSellLoading ? 0.6 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '16px',
-                fontWeight: 'bold'
-              }}
-            >
-              <Archive size={16} />
-              {closeSellLoading ? 'Processing Close Sell...' : 'Close Sell'}
-            </button>
           </div>
         </div>
 
@@ -939,14 +904,14 @@ const Settings = () => {
                 Resetting the application will permanently delete all data including:
               </p>
               <ul style={{ margin: '10px 0 0 0', paddingLeft: '20px', color: '#856404', fontSize: '0.9rem' }}>
-                <li>All products and inventory</li>
+                <li>All products</li>
                 <li>All sales records and transactions</li>
-                <li>All pending bills and table orders</li>
-                <li>All spendings and counter balance records</li>
+                <li>All table orders</li>
+                <li>All spendings records</li>
                 <li>All settings and configurations</li>
               </ul>
               <p style={{ margin: '10px 0 0 0', color: '#856404', fontSize: '0.9rem' }}>
-                Sample data will be restored after reset.
+                Default tables and settings will be restored after reset.
               </p>
             </div>
             
@@ -1050,100 +1015,43 @@ const Settings = () => {
         </div>
 
         <div className="summary-cards">
-          <div className="summary-card">
+          <div className="summary-card" style={{ overflow: 'visible', minHeight: 'unset' }}>
             <h3><Info size={20} style={{ marginRight: '10px' }} />Application Info</h3>
-            <div style={{ textAlign: 'left', fontSize: '0.9rem', width: '100%' }}>
-              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Version:</strong> 
-                <span>1.0.0</span>
+            <div style={{ textAlign: 'left', fontSize: '0.85rem', width: '100%', marginTop: '10px' }}>
+              <p style={{ margin: '6px 0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '4px' }}>
+                <strong>Version:</strong>
+                <span>2.0.0</span>
               </p>
-              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Database:</strong> 
-                <span>SQLite</span>
+              <p style={{ margin: '6px 0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '4px' }}>
+                <strong>Database:</strong>
+                <span style={{ wordBreak: 'break-word', textAlign: 'right' }}>{typeof window !== "undefined" && !!window.electronAPI ? 'SQLite' : 'IndexedDB (Dexie)'}</span>
               </p>
-              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Platform:</strong> 
-                <span>Electron</span>
+              <p style={{ margin: '6px 0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '4px' }}>
+                <strong>Platform:</strong>
+                <span style={{ wordBreak: 'break-word', textAlign: 'right' }}>{typeof window !== "undefined" && !!window.electronAPI ? 'Electron (Desktop)' : 'Android / Web'}</span>
               </p>
             </div>
           </div>
 
-          <div className="summary-card">
+          <div className="summary-card" style={{ overflow: 'visible', minHeight: 'unset' }}>
             <h3><HelpCircle size={20} style={{ marginRight: '10px' }} />Support</h3>
-            <div style={{ textAlign: 'left', fontSize: '0.9rem', width: '100%' }}>
-              <p style={{ margin: '8px 0', fontWeight: '600', color: '#2c3e50' }}>For technical support:</p>
-              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Email:</strong> 
-                <span>ajitreddy013@gmail.com</span>
+            <div style={{ textAlign: 'left', fontSize: '0.85rem', width: '100%', marginTop: '10px' }}>
+              <p style={{ margin: '6px 0', fontWeight: '600', color: '#2c3e50' }}>For technical support:</p>
+              <p style={{ margin: '6px 0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '4px' }}>
+                <strong>Email:</strong>
+                <span style={{ wordBreak: 'break-all', textAlign: 'right' }}>ajitreddy013@gmail.com</span>
               </p>
-              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Phone:</strong> 
+              <p style={{ margin: '6px 0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '4px' }}>
+                <strong>Phone:</strong>
                 <span>+91 7517323121</span>
               </p>
             </div>
           </div>
         </div>
 
-        <div className="table-container" style={{ marginTop: '30px' }}>
-          <h2 style={{ padding: '20px', margin: 0, borderBottom: '1px solid #e9ecef' }}>
-            System Requirements
-          </h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Component</th>
-                <th>Requirement</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Operating System</td>
-                <td>Windows 10 or later</td>
-                <td><span style={{ color: '#27ae60' }}>✓ Compatible</span></td>
-              </tr>
-              <tr>
-                <td>Database</td>
-                <td>SQLite (included)</td>
-                <td><span style={{ color: '#27ae60' }}>✓ Active</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
 
-        <div className="table-container" style={{ marginTop: '30px' }}>
-          <h2 style={{ padding: '20px', margin: 0, borderBottom: '1px solid #e9ecef' }}>
-            Printer Setup Guide
-          </h2>
-          <div style={{ padding: '20px' }}>
-            <h3>For USB Connection:</h3>
-            <ol style={{ marginLeft: '20px', lineHeight: '1.6' }}>
-              <li>Connect the Epson TM-T82II printer to your computer via USB cable</li>
-              <li>Install the printer drivers from Epson&apos;s official website</li>
-              <li>Set the printer to ESC/POS mode</li>
-              <li>Restart the application to detect the printer</li>
-            </ol>
-            
-            <h3 style={{ marginTop: '20px' }}>For Network Connection:</h3>
-            <ol style={{ marginLeft: '20px', lineHeight: '1.6' }}>
-              <li>Connect the printer to your network</li>
-              <li>Note down the printer&apos;s IP address</li>
-              <li>Configure the network settings in the printer service</li>
-              <li>Test the connection using the &quot;Check Status&quot; button above</li>
-            </ol>
 
-            <div style={{ 
-              background: '#fff3cd', 
-              border: '1px solid #ffeaa7', 
-              borderRadius: '6px', 
-              padding: '15px', 
-              marginTop: '20px' 
-            }}>
-              <strong>Note:</strong> The application will automatically search for compatible printers on common ports. 
-              If your printer is not detected, ensure it&apos;s properly connected and powered on.
-            </div>
-          </div>
-        </div>
+
       </div>
     </div>
   );

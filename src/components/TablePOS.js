@@ -79,10 +79,8 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const loadBarSettings = async () => {
     try {
       const settings = await dbService.getBarSettings();
+      // No setSendWhatsapp state exists, so we just set settings
       setBarSettings(settings);
-      if (settings && settings.whatsapp_enabled === 1) {
-        setSendWhatsapp(true);
-      }
       
       // Check if WhatsApp is linked and active
       try {
@@ -483,9 +481,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount,
-          orderId,
-          keyId: barSettings?.razorpay_key_id,
-          keySecret: barSettings?.razorpay_key_secret
+          orderId
         })
       });
 
@@ -516,9 +512,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            qrCodeId,
-            keyId: barSettings?.razorpay_key_id,
-            keySecret: barSettings?.razorpay_key_secret
+            qrCodeId
           })
         });
 
@@ -603,10 +597,17 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
             <ArrowLeft size={20} />
             Back to Tables
           </button>
-          <h1>
-            <ShoppingCart size={24} />
-            {table.name} - {table.area === "restaurant" ? "Restaurant" : "Bar"}
-          </h1>
+          <div>
+            <h1 style={{ margin: 0 }}>
+              <ShoppingCart size={24} style={{ marginRight: '8px' }} />
+              {table.name} - {table.area === "restaurant" ? "Restaurant" : "Bar"}
+            </h1>
+            {barSettings?.bar_name && (
+              <p className="pos-shop-subtitle" style={{ margin: "4px 0 0 32px", fontSize: "0.85rem", opacity: 0.8 }}>
+                {barSettings.bar_name} {barSettings.address && `| 📍 ${barSettings.address}`}
+              </p>
+            )}
+          </div>
         </div>
         <div className="header-right">
           <div className="table-status">

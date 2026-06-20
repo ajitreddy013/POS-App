@@ -1,17 +1,22 @@
 import { getLocalDateTimeString } from "../utils/dateUtils";
 
 export const whatsappService = {
-  // Check the connection status of the WhatsApp Cloud-Relay
   getStatus: async (relayUrl) => {
     if (!relayUrl) return { status: "DISCONNECTED", error: "Relay URL not configured" };
     try {
       const cleanUrl = relayUrl.replace(/\/$/, ""); // Remove trailing slash
-      const response = await fetch(`${cleanUrl}/status`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      
+      const response = await fetch(`${cleanUrl}/status`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      
       if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
       return await response.json();
     } catch (err) {
       console.error("Failed to check WhatsApp relay status:", err);
-      return { status: "DISCONNECTED", error: err.message };
+      return { status: "DISCONNECTED", error: err.name === "AbortError" ? "Request timed out" : err.message };
     }
   },
 
@@ -46,42 +51,63 @@ export const whatsappService = {
       phone = `${defaultCountryCode}${phone}`;
     }
 
-    // Format receipt items list
-    const itemsHeader = `*Qty  Item Name           Price*`;
+    // Format receipt items list in a monospaced block for perfect alignment on WhatsApp
+    // Total width = 24 characters to prevent wrapping on narrow mobile screens
+    const itemsHeader = `Item         Qty   Amt\n------------------------`;
     const itemsList = billData.items.map(item => {
-      const qtyStr = `${item.quantity}x`.padEnd(5);
-      const nameStr = item.name.substring(0, 18).padEnd(19);
-      const priceStr = `₹${(item.unitPrice * item.quantity).toFixed(2)}`;
-      return `${qtyStr}${nameStr}${priceStr}`;
+      const nameStr = item.name.substring(0, 12).padEnd(12);
+      const qtyStr = item.quantity.toString().padStart(2);
+      const amtStr = (item.unitPrice * item.quantity).toFixed(2).padStart(8);
+      return `${nameStr} ${qtyStr} ${amtStr}`;
     }).join("\n");
-
-    const divider = `------------------------------------`;
-    const headerTitle = `🍔 *${settings.bar_name || "CounterFlow Food Truck"}* 🍔`;
-    const billNo = `Bill No: ${billData.billNumber || billData.saleNumber}`;
-    const dateStr = `Date: ${billData.saleDate || getLocalDateTimeString()}`;
-
-    let summaryStr = `Subtotal: ₹${billData.subtotal.toFixed(2)}`;
+    
+    // Add Subtotal and Total inside the code block so they align with the Amount column
+    let summaryList = `------------------------\n`;
+    summaryList += "Subtotal:".padStart(15) + " " + billData.subtotal.toFixed(2).padStart(8);
+    
     if (billData.discountAmount > 0) {
-      summaryStr += `\nDiscount: -₹${billData.discountAmount.toFixed(2)}`;
+      summaryList += "\n" + "Discount:".padStart(15) + " " + ("-" + billData.discountAmount.toFixed(2)).padStart(8);
     }
     if (billData.taxAmount > 0) {
-      summaryStr += `\nTax: ₹${billData.taxAmount.toFixed(2)}`;
+      summaryList += "\n" + "Tax:".padStart(15) + " " + billData.taxAmount.toFixed(2).padStart(8);
     }
-    summaryStr += `\n*Total: ₹${billData.totalAmount.toFixed(2)}*`;
+    summaryList += "\n" + "Total:".padStart(15) + " " + ("₹" + billData.totalAmount.toFixed(2)).padStart(8);
+
+    // Triple backticks force WhatsApp to use a monospaced font
+    const receiptTable = "```\n" + itemsHeader + "\n" + itemsList + "\n" + summaryList + "\n```";
+
+    const divider = `------------------------------------`;
+    let headerTitle = `🍔 *${settings.bar_name || "CounterFlow Food Truck"}* 🍔`;
+    if (settings.address) {
+      headerTitle += `\n📍 ${settings.address}`;
+    }
+    if (settings.contact_number) {
+      headerTitle += `\n📞 ${settings.contact_number}`;
+    }
+    if (settings.gst_number) {
+      headerTitle += `\nGSTIN: ${settings.gst_number}`;
+    }
+
+    const billNo = `Bill No: ${billData.billNumber || billData.saleNumber}`;
+    const dateStr = `Date: ${billData.saleDate || getLocalDateTimeString()}`;
 
     const paymentStr = `Payment: ${billData.paymentMethod.toUpperCase()}`;
     const footerStr = settings.thank_you_message || "Thank you for visiting! Please visit again.";
 
+    const isCash = billData.paymentMethod.toLowerCase() === "cash";
+    const paymentHeader = isCash 
+      ? `*🔴 CASH PAYMENT - PAY AT COUNTER 🔴*\n`
+      : `*🟢 PAID VIA UPI (ONLINE) 🟢*\n`;
+
     // Assemble the complete message
-    const message = `${headerTitle}
+    const message = `${paymentHeader}
+${headerTitle}
 ${divider}
 ${billNo}
 ${dateStr}
-${divider}
-${itemsHeader}
-${itemsList}
-${divider}
-${summaryStr}
+
+${receiptTable}
+
 ${paymentStr}
 ${divider}
 ${footerStr}`;

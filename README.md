@@ -14,7 +14,7 @@ CounterFlow POS is a comprehensive, production-ready business management solutio
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Web-lightgrey)
 ![Rebranded](https://img.shields.io/badge/rebrand-2025-yellow)
 ![License](https://img.shields.io/badge/license-Proprietary-red)
 
@@ -54,14 +54,12 @@ CounterFlow POS is a comprehensive, production-ready business management solutio
 
 ## ✨ Key Highlights
 
-- 🖥️ **Cross-Platform Desktop Application** - Windows, macOS, Linux support
-- 🔐 **Secure Architecture** - Electron with secure IPC communication and enhanced security patterns
+- 📱 **Cross-Platform Mobile Application** - Native Android and Web support via Capacitor
 - 📊 **Real-time Business Analytics** - Live dashboards and automated reports
 - 🖨️ **Professional Hardware Integration** - ESC/POS thermal printer support
 - 📧 **Enhanced Email System** - Automated daily reports with improved settings management
-- 💾 **Robust Database** - Better-SQLite3 for improved performance and reliability
-- 🎯 **Production Ready** - Comprehensive error handling, logging, and rebuild support
-- 🔄 **Modern Build System** - Enhanced Electron builder with automatic dependency rebuilding
+- 💾 **Robust Offline Database** - Dexie (IndexedDB) for reliable browser and mobile storage
+- 🎯 **Production Ready** - Comprehensive error handling, logging, and mobile compatibility
 
 ## 🚀 Core Features
 
@@ -210,20 +208,20 @@ Thank you for visiting!
 ## Technology Stack
 
 - **Frontend**: React 18 with Lucide React icons
-- **Backend**: Electron 28 with Node.js
-- **Database**: Better-SQLite3 for enhanced performance and reliability
+- **Platform Layer**: Capacitor 8 (Mobile App wrapper)
+- **Database**: Dexie.js (IndexedDB wrapper) for reliable local client-side storage
 - **PDF Generation**: jsPDF with AutoTable for professional reports
 - **Styling**: Custom CSS with responsive design
-- **Build System**: React Scripts with Electron Builder 24
-- **Development Tools**: ESLint, Prettier, TypeScript-ESLint for code quality
-- **Email**: Nodemailer with enhanced configuration management
+- **Development Tools**: ESLint, Prettier for code quality
+- **Email**: Nodemailer with config management
 - **Scheduling**: Node-cron for automated tasks
 
 ## Installation & Setup
 
 ### Prerequisites
-- Node.js (v14 or higher)
+- Node.js (v18 or higher)
 - npm or yarn package manager
+- Android Studio (for compiling the Android app)
 
 ### Installation Steps
 
@@ -238,45 +236,33 @@ Thank you for visiting!
    npm install
    ```
 
-3. **Rebuild native dependencies** (if needed)
+3. **Start the development server**
    ```bash
-   npm run electron-rebuild
+   npm start
    ```
+   This will start the React development server in your default browser.
 
-4. **Start the development server**
+4. **Sync with Android platform**
    ```bash
-   npm run dev
-   ```
-   This will start both the React development server and Electron app.
-
-5. **For production build**
-   ```bash
+   # Build the React application
    npm run build
-   npm run dist
+   
+   # Sync assets and plugins with Android project
+   npm run android:sync
    ```
 
-6. **For Windows builds**
+5. **Open Android Studio**
    ```bash
-   npm run dist-win          # Windows installer
-   npm run dist-win-portable # Portable executable
+   npm run android:open
    ```
-
-### Sample Data
-
-The application automatically initializes with sample data on first run, including:
-- Various beer variants (Kingfisher 330ml, 650ml)
-- Food items (Chicken Tikka, Paneer Butter Masala, Naan)
-- Beverages (Whiskey variants)
-- Rice dishes
-
-The sample data includes realistic pricing and stock levels to help you test all features immediately.
+   From Android Studio, you can run the app on a connected physical device or emulator, or build a release APK/AAB.
 
 ## Usage Guide
 
 ### Getting Started
 
 1. **Dashboard**: Overview of key metrics and quick access to all modules
-2. **Products**: Add and manage your product catalog
+2. **Products**: Add and manage your product catalog manually (Menu starts empty)
 3. **Inventory**: View and manage stock levels
 4. **Daily Transfer**: Transfer stock from godown to counter
 5. **POS**: Process sales and generate bills
@@ -299,41 +285,15 @@ The sample data includes realistic pricing and stock levels to help you test all
    - Check remaining stock levels
    - Plan next day's transfers
 
-### Key Features in Detail
-
-#### Product Management
-- Add products with variants (e.g., different bottle sizes)
-- Set cost and selling prices
-- Organize by categories
-- Track in different units (bottles, plates, glasses, etc.)
-
-#### Stock Management
-- **Godown Stock**: Bulk storage from suppliers
-- **Counter Stock**: Ready-to-sell inventory
-- **Transfer System**: Move stock as needed
-- **Automatic Deduction**: Stock reduces on each sale
-
-#### Sales Processing
-- **Quick Search**: Find products by name, SKU, or barcode
-- **Cart Management**: Add multiple items, adjust quantities
-- **Customer Details**: Optional customer information
-- **Multiple Payment Types**: Support various payment methods
-- **Bill Generation**: Professional PDF bills
-
-#### Reporting
-- **Real-time Data**: Always up-to-date information
-- **Date Range Filtering**: View reports for specific periods
-- **Export Options**: Save reports as needed
-- **Stock Alerts**: Visual warnings for low inventory
-
 ## Database Schema
 
-The application uses SQLite with the following main tables:
-- **products**: Product catalog with variants
+The application uses IndexedDB (via Dexie) with the following main stores:
+- **products**: Product catalog
 - **inventory**: Stock levels tracking
 - **sales**: Sales transactions
-- **sale_items**: Individual items in each sale
-- **stock_movements**: Complete audit trail
+- **spendings**: Business expenses
+- **tables**: Area and table status management
+- **bar_settings**: Business and printer configurations
 
 ## File Structure
 
@@ -347,25 +307,14 @@ src/
 │   ├── POSSystem.js
 │   ├── SalesReports.js
 │   └── ...
-├── database.js          # SQLite database operations
-├── main.js             # Electron main process
-├── preload.js          # Electron preload script
+├── services/
+│   ├── dbService.js     # Unified Dexie IndexedDB access layer
+│   └── whatsappService.js
 ├── pdf-service.js      # PDF generation
 ├── printer-service.js  # Printing functionality
-├── init-sample-data.js # Sample data initialization
-└── App.css            # Styling
+├── App.css            # Styling
+└── index.js           # Entry point
 ```
-
-## Future Enhancements
-
-- **Dealer/Supplier Management**: Track suppliers and purchase orders
-- **Mobile Interface**: Remote access for reports and monitoring
-- **Multi-device Sync**: Real-time synchronization across devices
-- **Email/SMS Receipts**: Digital receipt delivery
-- **Advanced Analytics**: Detailed business intelligence
-- **Barcode Scanning**: Hardware barcode scanner integration
-- **KOT Printing**: Kitchen Order Ticket printing
-- **User Management**: Multiple user roles and permissions
 
 ## Support
 
@@ -377,14 +326,12 @@ For technical support or feature requests, please contact the development team.
 
 ## Recent Updates
 
-### Version 1.0.0 - CounterFlow POS Rebrand (2025)
-- 🎉 **Complete rebrand** to CounterFlow POS with enhanced branding
+### Version 1.0.0 - Android/Capacitor Migration (2026)
+- 📱 **Migrated platform** from Electron desktop to Android mobile and web app via Capacitor
+- 💾 **Adopted IndexedDB (Dexie)** as the primary offline storage engine
+- 🗑️ **Removed Electron dependencies** and native SQLite3 bindings to reduce build size and increase performance
 - 🔧 **Enhanced email settings** with improved reset functionality
-- 🛠️ **Added electron-rebuild** script for better native dependency management
-- 🔒 **Enhanced security** with comprehensive .gitignore patterns
-- 🏗️ **Improved build system** with better Windows support
-- 📦 **Updated dependencies** including Better-SQLite3 for improved performance
-- 🧹 **Code quality improvements** with ESLint fixes and better project organization
+- 🧹 **Code quality improvements** and dynamic environment detection in UI settings
 
 ## ⚠️ IMPORTANT LEGAL NOTICE
 
@@ -407,4 +354,4 @@ See the [LICENSE](LICENSE) file for detailed terms and restrictions.
 
 **Built with ❤️ for Ajit Wines | Powered by CounterFlow POS**
 
-*Last updated: August 3, 2025*
+*Last updated: June 18, 2026*

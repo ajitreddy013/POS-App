@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#EDE4CA</color>
+    <color name="colorPrimaryDark">#EDE4CA</color>
+    <color name="colorAccent">#C8860A</color>
+    <color name="statusBarColor">#EDE4CA</color>
+</resources>

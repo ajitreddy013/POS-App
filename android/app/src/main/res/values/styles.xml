@@ -13,10 +13,22 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Status bar: opaque cream background, dark icons -->
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
+        <item name="android:statusBarColor">@color/statusBarColor</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/statusBarColor</item>
+        <item name="windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <!-- Opaque window so the app does not draw behind the status bar -->
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowBackground">@color/statusBarColor</item>
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:statusBarColor">@color/statusBarColor</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>

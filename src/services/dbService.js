@@ -8,7 +8,7 @@ const isElectron = typeof window !== "undefined" && !!window.electronAPI;
 let db = null;
 if (!isElectron) {
   db = new Dexie("CounterFlowPOS");
-  db.version(1).stores({
+  db.version(2).stores({
     products: "++id, name, variant, sku, barcode, price, cost, category, counter_stock, godown_stock, min_stock_level, max_stock_level",
     sales: "++id, saleNumber, saleType, tableNumber, customerName, customerPhone, subtotal, taxAmount, discountAmount, totalAmount, paymentMethod, saleDate",
     spendings: "++id, description, amount, category, spending_date, payment_method, notes",
@@ -20,23 +20,13 @@ if (!isElectron) {
     bar_settings: "id"
   });
 
-  // Seed sample products if the browser database is empty
+  // Seed sample tables and default bar settings if the browser database is empty
   db.on("ready", async () => {
-    const count = await db.products.count();
-    if (count === 0) {
-      const sampleProducts = [
-        { name: "Margherita Pizza", variant: "Regular", sku: "PIZ-MARG-REG", barcode: "1001", price: 180, cost: 90, category: "Food", counter_stock: 50, godown_stock: 100, min_stock_level: 10, max_stock_level: 200 },
-        { name: "Double Cheese Burger", variant: "Single Patty", sku: "BGR-DBLCHSE", barcode: "1002", price: 150, cost: 70, category: "Food", counter_stock: 40, godown_stock: 80, min_stock_level: 10, max_stock_level: 150 },
-        { name: "Paneer Tikka Roll", variant: "Spicy", sku: "ROL-PANEER", barcode: "1003", price: 120, cost: 50, category: "Food", counter_stock: 30, godown_stock: 60, min_stock_level: 5, max_stock_level: 100 },
-        { name: "French Fries", variant: "Large", sku: "APP-FF-LRG", barcode: "1004", price: 100, cost: 35, category: "Appetizers", counter_stock: 60, godown_stock: 120, min_stock_level: 15, max_stock_level: 200 },
-        { name: "Cappuccino", variant: "Hot", sku: "BEV-CAPPU", barcode: "1005", price: 90, cost: 30, category: "Beverages", counter_stock: 100, godown_stock: 200, min_stock_level: 20, max_stock_level: 500 },
-        { name: "Masala Chai", variant: "Cutting", sku: "BEV-CHAI", barcode: "1006", price: 30, cost: 10, category: "Beverages", counter_stock: 200, godown_stock: 500, min_stock_level: 50, max_stock_level: 1000 },
-        { name: "Diet Coke", variant: "300ml Can", sku: "BEV-DCOKE", barcode: "1007", price: 40, cost: 20, category: "Beverages", counter_stock: 80, godown_stock: 150, min_stock_level: 10, max_stock_level: 250 },
-        { name: "Chocolate Brownie", variant: "With Ice Cream", sku: "DES-BROWNIE", barcode: "1008", price: 140, cost: 60, category: "Desserts", counter_stock: 25, godown_stock: 50, min_stock_level: 5, max_stock_level: 100 }
-      ];
-      await db.products.bulkAdd(sampleProducts);
-
-      // Seed sample tables
+    if (localStorage.getItem("db_seeded_v2") === "true") {
+      return;
+    }
+    const tableCount = await db.table("tables").count();
+    if (tableCount === 0) {
       const sampleTables = [
         { name: "T1", capacity: 4, area: "Indoor", status: "available" },
         { name: "T2", capacity: 4, area: "Indoor", status: "available" },
@@ -44,9 +34,11 @@ if (!isElectron) {
         { name: "T4", capacity: 6, area: "Outdoor", status: "available" },
         { name: "T5", capacity: 4, area: "Outdoor", status: "available" }
       ];
-      await db.tables.bulkAdd(sampleTables);
+      await db.table("tables").bulkAdd(sampleTables);
+    }
 
-      // Seed default bar settings
+    const settingsCount = await db.bar_settings.count();
+    if (settingsCount === 0) {
       await db.bar_settings.add({
         id: 1,
         bar_name: "CounterFlow Food Truck",
@@ -60,10 +52,10 @@ if (!isElectron) {
         whatsapp_template_name: "counterflow_pos_receipt",
         whatsapp_language_code: "en",
         whatsapp_default_country_code: "91",
-        razorpay_key_id: "",
-        razorpay_key_secret: ""
+        admin_password: "123456"
       });
     }
+    localStorage.setItem("db_seeded_v2", "true");
   });
 }
 
@@ -197,10 +189,14 @@ export const dbService = {
   // --- SETTINGS OPERATIONS ---
   getBarSettings: async () => {
     if (isElectron) return await window.electronAPI.getBarSettings();
-    const settings = await db.bar_settings.get(1);
+    let settings = await db.bar_settings.get(1);
     if (settings) {
       if (settings.razorpay_enabled === undefined) {
         settings.razorpay_enabled = 1;
+      }
+      if (!settings.admin_password) {
+        settings.admin_password = "123456";
+        await db.bar_settings.put(settings);
       }
       return settings;
     }
@@ -217,13 +213,13 @@ export const dbService = {
       whatsapp_language_code: "en",
       whatsapp_default_country_code: "91",
       razorpay_enabled: 1,
-      razorpay_key_id: "",
-      razorpay_key_secret: ""
+      admin_password: "123456"
     };
   },
 
   saveBarSettings: async (settings) => {
     if (isElectron) return await window.electronAPI.saveBarSettings(settings);
+    const existing = await db.bar_settings.get(1) || {};
     await db.bar_settings.put({
       id: 1,
       bar_name: settings.bar_name || settings.barName,
@@ -237,8 +233,7 @@ export const dbService = {
       whatsapp_template_name: settings.whatsapp_template_name || "counterflow_pos_receipt",
       whatsapp_language_code: settings.whatsapp_language_code || "en",
       whatsapp_default_country_code: settings.whatsapp_default_country_code || "91",
-      razorpay_key_id: settings.razorpay_key_id || "",
-      razorpay_key_secret: settings.razorpay_key_secret || ""
+      admin_password: settings.admin_password || existing.admin_password || "123456"
     });
     return { success: true };
   },
@@ -246,12 +241,12 @@ export const dbService = {
   // --- TABLES OPERATIONS ---
   getTables: async () => {
     if (isElectron) return await window.electronAPI.getTables();
-    return await db.tables.toArray();
+    return await db.table("tables").toArray();
   },
 
   addTable: async (table) => {
     if (isElectron) return await window.electronAPI.addTable(table);
-    const id = await db.tables.add({
+    const id = await db.table("tables").add({
       ...table,
       status: table.status || "available"
     });
@@ -260,13 +255,13 @@ export const dbService = {
 
   updateTable: async (id, table) => {
     if (isElectron) return await window.electronAPI.updateTable(id, table);
-    await db.tables.update(Number(id), table);
+    await db.table("tables").update(Number(id), table);
     return { success: true };
   },
 
   deleteTable: async (id) => {
     if (isElectron) return await window.electronAPI.deleteTable(id);
-    await db.tables.delete(Number(id));
+    await db.table("tables").delete(Number(id));
     return { success: true };
   },
 
@@ -498,6 +493,7 @@ export const dbService = {
   },
   resetApplication: async () => {
     if (isElectron) return await window.electronAPI.resetApplication();
+    localStorage.removeItem("db_seeded_v2");
     await db.delete();
     window.location.reload();
   },
