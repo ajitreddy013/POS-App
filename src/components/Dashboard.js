@@ -133,7 +133,6 @@ const Dashboard = () => {
     <div className="dashboard">
       <div className="page-header dashboard-page-header">
         <div className="dashboard-header-copy">
-          <h1>Dashboard</h1>
         </div>
       </div>
 

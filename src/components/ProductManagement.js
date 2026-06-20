@@ -398,23 +398,17 @@ const ProductManagement = () => {
 
   return (
     <div className="product-management">
-      <div className="page-header" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-        <div>
-          <h1 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-            <Package size={24} /> 
-            {barSettings?.bar_name || 'Product Management'}
-            <span style={{ fontSize: '1rem', color: '#64748b', fontWeight: 'normal', marginLeft: '10px' }}>
-              ({products.length} total)
-            </span>
-          </h1>
-          {barSettings?.bar_name && (
-            <p className="page-subtitle" style={{ margin: "4px 0 0 32px", fontSize: "0.85rem", opacity: 0.8 }}>
-              Products catalog for {barSettings.bar_name} {barSettings.address && `| 📍 ${barSettings.address}`}
-            </p>
-          )}
-        </div>
+      <div className="page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '15px', padding: '12px 20px' }}>
+        <button 
+          onClick={() => setShowModal(true)}
+          className="btn btn-primary"
+          style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
+          <Plus size={20} />
+          Add Product
+        </button>
 
-        <div className="search-input-container" style={{ flex: 1, minWidth: '200px', maxWidth: '400px', margin: '0 auto' }}>
+        <div className="search-input-container" style={{ flex: 1, minWidth: '200px', maxWidth: '400px' }}>
           <Search size={20} />
           <input
             type="text"
@@ -424,14 +418,6 @@ const ProductManagement = () => {
             className="search-input"
           />
         </div>
-
-        <button 
-          onClick={() => setShowModal(true)}
-          className="btn btn-primary"
-          style={{ whiteSpace: 'nowrap' }}
-        >
-          <Plus size={16} /> Add Product
-        </button>
       </div>
 
       {/* Products Grid / Cards */}

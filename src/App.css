@@ -11803,182 +11803,7 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
     background: var(--admin-bg) !important;
   }
 
-  .app.admin-unlocked .pos-layout {
-    height: 100% !important;
-    min-height: 0 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    overflow: hidden !important;
-  }
 
-  .app.admin-unlocked .product-panel,
-  .app.admin-unlocked .cart-panel {
-    height: 100% !important;
-    min-height: 0 !important;
-    border: 1px solid var(--admin-border) !important;
-    border-radius: 18px !important;
-    background: var(--admin-surface) !important;
-    overflow: hidden !important;
-  }
-
-  .app.admin-unlocked .pos-header-minimal {
-    flex: 0 0 auto !important;
-    margin: 0 !important;
-    padding: 14px !important;
-    border-bottom: 1px solid var(--admin-border) !important;
-    background: var(--admin-surface) !important;
-  }
-
-  .app.admin-unlocked .pos-header-minimal h1 {
-    color: var(--admin-text) !important;
-    font-size: 1.02rem !important;
-  }
-
-  .app.admin-unlocked .pos-header-minimal p {
-    display: none !important;
-  }
-
-  .app.admin-unlocked .pos-products-grid {
-    flex: 1 1 auto !important;
-    min-height: 0 !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch;
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 10px !important;
-    padding: 12px 12px 86px !important;
-    align-content: start !important;
-  }
-
-  .app.admin-unlocked .minimal-product-card {
-    min-height: 174px !important;
-    border: 1px solid var(--admin-border) !important;
-    border-radius: 16px !important;
-    background: #ffffff !important;
-    box-shadow: none !important;
-    overflow: hidden !important;
-  }
-
-  .app.admin-unlocked .minimal-card-image-wrapper {
-    height: 106px !important;
-    min-height: 106px !important;
-    background: var(--admin-soft) !important;
-  }
-
-  .app.admin-unlocked .minimal-card-info {
-    padding: 10px 11px !important;
-  }
-
-  .app.admin-unlocked .minimal-card-name {
-    color: var(--admin-text) !important;
-    font-size: 0.83rem !important;
-    line-height: 1.2 !important;
-  }
-
-  .app.admin-unlocked .minimal-card-price {
-    color: var(--admin-accent) !important;
-    font-size: 0.92rem !important;
-  }
-
-  .app.admin-unlocked .cart-panel-minimal {
-    display: flex !important;
-    flex-direction: column !important;
-    background: var(--admin-surface) !important;
-  }
-
-  .app.admin-unlocked .cart-section {
-    flex: 1 1 auto !important;
-    min-height: 0 !important;
-    padding: 14px !important;
-    overflow: hidden !important;
-  }
-
-  .app.admin-unlocked .cart-items {
-    min-height: 0 !important;
-    max-height: none !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch;
-    padding: 0 0 10px !important;
-  }
-
-  .app.admin-unlocked .cart-item-minimal {
-    border: 1px solid var(--admin-border) !important;
-    border-radius: 16px !important;
-    background: #ffffff !important;
-    box-shadow: none !important;
-  }
-
-  .app.admin-unlocked .cart-item-minimal-layout {
-    gap: 9px !important;
-  }
-
-  .app.admin-unlocked .cart-item-minimal-name,
-  .app.admin-unlocked .cart-item-minimal-total {
-    color: var(--admin-text) !important;
-  }
-
-  .app.admin-unlocked .cart-item-minimal-qty {
-    transform: none !important;
-    border: 1px solid #efc6ba !important;
-    border-radius: 12px !important;
-    background: #fff3ef !important;
-  }
-
-  .app.admin-unlocked .qty-btn {
-    color: var(--admin-accent) !important;
-    background: transparent !important;
-  }
-
-  .app.admin-unlocked .billing-section {
-    flex: 0 0 auto !important;
-    padding: 12px 12px max(12px, var(--admin-safe-bottom)) !important;
-    border-top: 1px solid var(--admin-border) !important;
-    background: rgba(255, 253, 248, 0.98) !important;
-  }
-
-  .app.admin-unlocked .billing-section .action-buttons button {
-    height: 86px !important;
-    border: 1px solid var(--admin-border) !important;
-    border-radius: 16px !important;
-    background: #ffffff !important;
-    box-shadow: none !important;
-  }
-
-  .app.admin-unlocked .mobile-nav-bar {
-    display: flex !important;
-    position: absolute !important;
-    left: 22px !important;
-    right: 22px !important;
-    bottom: max(12px, var(--admin-safe-bottom)) !important;
-    height: 54px !important;
-    border: 1px solid var(--admin-border) !important;
-    border-radius: 999px !important;
-    background: rgba(255, 253, 248, 0.98) !important;
-    box-shadow: 0 8px 24px rgba(31, 19, 13, 0.11) !important;
-    overflow: hidden !important;
-  }
-
-  .app.admin-unlocked .mobile-nav-bar button {
-    color: var(--admin-muted) !important;
-  }
-
-  .app.admin-unlocked .mobile-nav-bar button.active {
-    color: var(--admin-accent) !important;
-    background: #fff3ef !important;
-  }
-
-  .app.admin-unlocked .mobile-cart-floating-bar {
-    left: 22px !important;
-    right: 22px !important;
-    bottom: calc(74px + var(--admin-safe-bottom)) !important;
-    width: auto !important;
-    max-width: none !important;
-    height: 52px !important;
-    border-radius: 999px !important;
-    background: var(--admin-accent) !important;
-    color: #ffffff !important;
-    box-shadow: 0 8px 24px rgba(182, 65, 44, 0.18) !important;
-  }
 }
 
 @media (max-width: 390px) and (orientation: portrait) {
@@ -12056,11 +11881,11 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
     padding-top: calc(var(--mobile-status-strip) + 10px) !important;
   }
 
-  .app.kiosk-locked .kiosk-header {
+  .kiosk-header {
     padding-top: calc(var(--mobile-status-strip) + 10px) !important;
   }
 
-  .app.kiosk-locked .mobile-cart-floating-bar {
+  .mobile-cart-floating-bar {
     left: auto !important;
     right: 24px !important;
     bottom: max(24px, var(--admin-safe-bottom)) !important;
