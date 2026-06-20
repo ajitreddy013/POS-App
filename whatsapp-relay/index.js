@@ -190,8 +190,8 @@ app.get("/health", (req, res) => {
     success: true,
     service: "whatsapp-relay",
     version: relayVersion,
-    razorpayQrCreatePath: "/v1/payments/qr_codes",
-    razorpayQrStatusPath: "/v1/payments/qr_codes/:id",
+    razorpayQrCreatePath: "/v1/qr_codes",
+    razorpayQrStatusPath: "/v1/qr_codes/:id",
     hasRazorpayKeyId: !!process.env.RAZORPAY_KEY_ID,
     hasRazorpayKeySecret: !!process.env.RAZORPAY_KEY_SECRET
   });
@@ -376,8 +376,8 @@ app.post("/payment/create-qr", async (req, res) => {
     };
 
     console.log(`Creating Razorpay QR Code for Order #${orderId}, Amount: ${amountInPaise} paise`);
-    console.log("Razorpay QR request path: /v1/payments/qr_codes");
-    const response = await razorpayRequest("POST", "/v1/payments/qr_codes", payload, rzpKeyId, rzpKeySecret);
+    console.log("Razorpay QR request path: /v1/qr_codes");
+    const response = await razorpayRequest("POST", "/v1/qr_codes", payload, rzpKeyId, rzpKeySecret);
     
     res.json({
       success: true,
@@ -409,7 +409,7 @@ app.post("/payment/status", async (req, res) => {
 
   try {
     console.log(`Checking Razorpay status for QR: ${qrCodeId}`);
-    const response = await razorpayRequest("GET", `/v1/payments/qr_codes/${qrCodeId}`, null, rzpKeyId, rzpKeySecret);
+    const response = await razorpayRequest("GET", `/v1/qr_codes/${qrCodeId}`, null, rzpKeyId, rzpKeySecret);
     
     // If status is closed or payments_count_received > 0, it's paid
     const isPaid = response.status === "closed" || response.payments_count_received > 0;
@@ -595,6 +595,6 @@ app.post("/payment/webhook", async (req, res) => {
 app.listen(port, () => {
   console.log(`WhatsApp Cloud-Relay Server running on port ${port}`);
   console.log(`Relay version: ${relayVersion}`);
-  console.log("Razorpay QR API path: /v1/payments/qr_codes");
+  console.log("Razorpay QR API path: /v1/qr_codes");
   initializeClient();
 });
