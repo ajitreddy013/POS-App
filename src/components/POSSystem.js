@@ -515,7 +515,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     const cleanedPhone = customerPhone.replace(/\D/g, "");
     if (!cleanedPhone || cleanedPhone.length !== 10) {
       setPhoneError("Enter a valid 10-digit phone number to continue.");
-      showNotice("error", "Enter a valid 10-digit phone number.", 6000);
       if (phoneInputRef.current) {
         phoneInputRef.current.focus({ preventScroll: true });
       }
@@ -645,7 +644,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               </strong>
             ) : (
               <>
-                <strong>{notice.type === "success" ? "Success" : "Error"}</strong>
+                <strong>
+                  {notice.type === "success"
+                    ? "Success"
+                    : notice.type === "warning"
+                      ? "Warning"
+                      : "Error"}
+                </strong>
                 <span>{notice.message}</span>
               </>
             )}

@@ -2488,8 +2488,8 @@ tr:hover {
 
 @media (max-width: 900px) {
   .pos-notice {
-    top: auto;
-    bottom: calc(24px + env(safe-area-inset-bottom));
+    top: calc(16px + env(safe-area-inset-top));
+    bottom: auto;
     right: 5%;
     left: 5%;
     width: auto;
@@ -12093,6 +12093,35 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
     left: 24px !important;
     right: auto !important;
   }
+
+  .app.kiosk-locked .pos-notice,
+  .app.admin-unlocked .pos-notice {
+    top: calc(var(--mobile-status-strip) + 78px) !important;
+    right: 14px !important;
+    bottom: auto !important;
+    left: 14px !important;
+    z-index: 13000 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    border-radius: 16px !important;
+    box-shadow: 0 16px 34px rgba(34, 31, 26, 0.18) !important;
+  }
+
+  .app.admin-unlocked .pos-notice {
+    top: calc(var(--admin-topbar-height) + 10px) !important;
+  }
+
+  .pos-notice-content {
+    min-width: 0 !important;
+    padding: 12px 14px !important;
+  }
+
+  .pos-notice-content span {
+    display: block !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+  }
 }
 
 @media (max-width: 390px) and (orientation: portrait) {
@@ -12132,6 +12161,10 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
 /* Razorpay QR payment and cart checkout polish */
 @media (max-width: 768px) and (orientation: portrait) {
   .cart-phone-row {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
     margin: 14px 0 12px !important;
     padding: 12px !important;
     border: 1px solid #e6ded3 !important;
@@ -12164,7 +12197,10 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
   }
 
   .cart-phone-error {
-    margin-top: 8px !important;
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
     padding: 9px 11px !important;
     border: 1px solid #efc6ba !important;
     border-radius: 12px !important;
