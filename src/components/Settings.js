@@ -550,186 +550,96 @@ const Settings = () => {
   const renderIntegrationsTab = () => (
     <>
       {/* WhatsApp Linked Devices Section */}
-      <div className="settings-card-modern">
+      <div className="settings-card-modern" style={{ marginBottom: '30px' }}>
         <div className="settings-card-hdr">
           <h2><MessageCircle size={20} style={{ color: '#25D366' }} /> WhatsApp Linked Devices</h2>
-          <button 
-            onClick={() => setIsEditingWhatsappInfo(!isEditingWhatsappInfo)}
-            className="btn-modern btn-modern-secondary"
-          >
-            <Edit size={16} />
-            {isEditingWhatsappInfo ? 'Cancel' : 'Edit WhatsApp Settings'}
-          </button>
         </div>
         <div className="settings-card-body-modern">
-          {isEditingWhatsappInfo ? (
-            <div className="form-grid-modern">
-              <div className="form-group-modern full-width">
-                <div 
-                  className="switch-wrapper" 
-                  onClick={() => handleBarSettingsChange('whatsapp_enabled', barSettings.whatsapp_enabled ? 0 : 1)}
+          <div className="display-grid">
+            <div>
+              <h4>Relay Status</h4>
+              <div style={{ marginTop: '10px' }}>
+                {whatsappStatus === 'CONNECTED' ? (
+                  <span className="status-badge connected">
+                    <Wifi size={16} /> Linked / Active
+                  </span>
+                ) : whatsappStatus === 'AUTHENTICATING' ? (
+                  <span className="status-badge authenticating">
+                    <RotateCcw size={16} className="spin" /> Syncing...
+                  </span>
+                ) : whatsappStatus === 'QR_READY' ? (
+                  <span className="status-badge qr-ready">
+                    <MessageCircle size={16} /> Scan QR Code
+                  </span>
+                ) : whatsappStatus === 'INITIALIZING' ? (
+                  <span className="status-badge initializing">
+                    <RotateCcw size={16} className="spin" /> Connecting...
+                  </span>
+                ) : (
+                  <span className="status-badge disconnected">
+                    <WifiOff size={16} /> Offline / Disabled
+                  </span>
+                )}
+              </div>
+
+              {whatsappStatus === 'CONNECTED' && (
+                <button
+                  onClick={handleWhatsappLogout}
+                  disabled={whatsappLoading}
+                  className="btn-modern btn-modern-secondary"
+                  style={{ marginTop: '24px', color: '#ef4444', borderColor: '#fca5a5' }}
                 >
-                  <div className={`switch-track ${barSettings.whatsapp_enabled ? 'active' : ''}`}>
-                    <div className="switch-thumb"></div>
-                  </div>
-                  <span className="switch-label">Enable WhatsApp POS Receipts</span>
-                </div>
-              </div>
-              <div className="form-group-modern full-width">
-                <label>WhatsApp Relay URL</label>
-                <input
-                  type="text"
-                  value={barSettings.whatsapp_relay_url}
-                  onChange={(e) => handleBarSettingsChange('whatsapp_relay_url', e.target.value)}
-                  className="input-modern"
-                  placeholder="e.g. http://localhost:8080 (Leaves empty for cloud default)"
-                />
-                <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0' }}>
-                  Current active URL: <code>{getActiveRelayUrl()}</code>
-                </p>
-              </div>
-              <div className="form-group-modern">
-                <label>Default Country Code</label>
-                <input
-                  type="text"
-                  value={barSettings.whatsapp_default_country_code}
-                  onChange={(e) => handleBarSettingsChange('whatsapp_default_country_code', e.target.value)}
-                  className="input-modern"
-                  placeholder="91"
-                />
-              </div>
-              <div className="form-group-modern">
-                <label>Template Name</label>
-                <input
-                  type="text"
-                  value={barSettings.whatsapp_template_name}
-                  onChange={(e) => handleBarSettingsChange('whatsapp_template_name', e.target.value)}
-                  className="input-modern"
-                  placeholder="counterflow_pos_receipt"
-                />
-              </div>
-              <div className="form-group-modern">
-                <label>Language Code</label>
-                <input
-                  type="text"
-                  value={barSettings.whatsapp_language_code}
-                  onChange={(e) => handleBarSettingsChange('whatsapp_language_code', e.target.value)}
-                  className="input-modern"
-                  placeholder="en"
-                />
-              </div>
-              <div className="form-group-modern full-width" style={{ marginTop: '10px' }}>
-                <button 
-                  onClick={saveBarSettings}
-                  disabled={loading}
-                  className="btn-modern btn-modern-primary"
-                  style={{ width: 'fit-content' }}
-                >
-                  <Save size={16} />
-                  {loading ? 'Saving...' : 'Save Settings'}
+                  <WifiOff size={16} />
+                  {whatsappLoading ? 'Unlinking...' : 'Unlink Device'}
                 </button>
-              </div>
+              )}
             </div>
-          ) : (
-            <div className="display-grid">
-              <div>
-                <h4>Relay Status</h4>
-                <div style={{ marginTop: '10px' }}>
-                  {whatsappStatus === 'CONNECTED' ? (
-                    <span className="status-badge connected">
-                      <Wifi size={16} /> Linked / Active
-                    </span>
-                  ) : whatsappStatus === 'AUTHENTICATING' ? (
-                    <span className="status-badge authenticating">
-                      <RotateCcw size={16} className="spin" /> Syncing...
-                    </span>
-                  ) : whatsappStatus === 'QR_READY' ? (
-                    <span className="status-badge qr-ready">
-                      <MessageCircle size={16} /> Scan QR Code
-                    </span>
-                  ) : whatsappStatus === 'INITIALIZING' ? (
-                    <span className="status-badge initializing">
-                      <RotateCcw size={16} className="spin" /> Connecting...
-                    </span>
-                  ) : (
-                    <span className="status-badge disconnected">
-                      <WifiOff size={16} /> Offline / Disabled
-                    </span>
-                  )}
-                </div>
 
-                <div style={{ marginTop: '24px' }}>
-                  <h4>Active Relay URL</h4>
-                  <p style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: '#475569', marginTop: '6px' }}>
-                    {getActiveRelayUrl()}
-                  </p>
-                </div>
-
-                {barSettings.whatsapp_enabled === 0 && (
-                  <div style={{ marginTop: '20px', padding: '12px', background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', color: '#b45309', fontSize: '0.85rem' }}>
-                    <strong>Note:</strong> WhatsApp receipts are disabled. Click &quot;Edit WhatsApp Settings&quot; above to enable them.
+            <div>
+              <div className="qr-card-container">
+                {whatsappStatus === 'QR_READY' && whatsappQr ? (
+                  <>
+                    <p style={{ margin: '0 0 14px 0', fontSize: '0.9rem', fontWeight: 'bold', color: '#1e293b' }}>
+                      Scan this QR code with WhatsApp Linked Devices:
+                    </p>
+                    <div style={{ background: '#ffffff', padding: '12px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                      <img src={whatsappQr} alt="WhatsApp QR Code" style={{ width: '180px', height: '180px', display: 'block' }} />
+                    </div>
+                  </>
+                ) : whatsappStatus === 'CONNECTED' ? (
+                  <div style={{ color: '#16a34a' }}>
+                    <MessageCircle size={48} style={{ margin: '0 auto 12px auto' }} />
+                    <p style={{ margin: 0, fontWeight: '700', fontSize: '1.1rem' }}>WhatsApp Linked!</p>
+                    <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#64748b', lineHeight: '1.4' }}>
+                      POS receipts will be sent automatically from your connected phone.
+                    </p>
+                  </div>
+                ) : whatsappStatus === 'AUTHENTICATING' ? (
+                  <div style={{ color: '#0288d1' }}>
+                    <RotateCcw size={48} className="spin" style={{ margin: '0 auto 12px auto' }} />
+                    <p style={{ margin: 0, fontWeight: '700' }}>Authenticated!</p>
+                    <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                      Syncing data. Please wait...
+                    </p>
+                  </div>
+                ) : whatsappStatus === 'INITIALIZING' ? (
+                  <div style={{ color: '#475569' }}>
+                    <RotateCcw size={48} className="spin" style={{ margin: '0 auto 12px auto' }} />
+                    <p style={{ margin: 0, fontWeight: '600' }}>Connecting to WhatsApp Session...</p>
+                    <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                      Preparing WhatsApp driver.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ color: '#64748b' }}>
+                    <WifiOff size={48} style={{ margin: '0 auto 12px auto' }} />
+                    <p style={{ margin: 0, fontWeight: '600' }}>Relay is offline or linking is waiting.</p>
+                    {whatsappError && <p style={{ fontSize: '0.8rem', color: '#ef4444', margin: '8px 0 0 0' }}>{whatsappError}</p>}
                   </div>
                 )}
-
-                {whatsappStatus === 'CONNECTED' && (
-                  <button
-                    onClick={handleWhatsappLogout}
-                    disabled={whatsappLoading}
-                    className="btn-modern btn-modern-secondary"
-                    style={{ marginTop: '24px', color: '#ef4444', borderColor: '#fca5a5' }}
-                  >
-                    <WifiOff size={16} />
-                    {whatsappLoading ? 'Unlinking...' : 'Unlink Device'}
-                  </button>
-                )}
-              </div>
-
-              <div>
-                <div className="qr-card-container">
-                  {whatsappStatus === 'QR_READY' && whatsappQr ? (
-                    <>
-                      <p style={{ margin: '0 0 14px 0', fontSize: '0.9rem', fontWeight: 'bold', color: '#1e293b' }}>
-                        Scan this QR code with WhatsApp Linked Devices:
-                      </p>
-                      <div style={{ background: '#ffffff', padding: '12px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-                        <img src={whatsappQr} alt="WhatsApp QR Code" style={{ width: '180px', height: '180px', display: 'block' }} />
-                      </div>
-                    </>
-                  ) : whatsappStatus === 'CONNECTED' ? (
-                    <div style={{ color: '#16a34a' }}>
-                      <MessageCircle size={48} style={{ margin: '0 auto 12px auto' }} />
-                      <p style={{ margin: 0, fontWeight: '700', fontSize: '1.1rem' }}>WhatsApp Linked!</p>
-                      <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#64748b', lineHeight: '1.4' }}>
-                        POS receipts will be sent automatically from your connected phone.
-                      </p>
-                    </div>
-                  ) : whatsappStatus === 'AUTHENTICATING' ? (
-                    <div style={{ color: '#0288d1' }}>
-                      <RotateCcw size={48} className="spin" style={{ margin: '0 auto 12px auto' }} />
-                      <p style={{ margin: 0, fontWeight: '700' }}>Authenticated!</p>
-                      <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
-                        Syncing data. Please wait...
-                      </p>
-                    </div>
-                  ) : whatsappStatus === 'INITIALIZING' ? (
-                    <div style={{ color: '#475569' }}>
-                      <RotateCcw size={48} className="spin" style={{ margin: '0 auto 12px auto' }} />
-                      <p style={{ margin: 0, fontWeight: '600' }}>Connecting to WhatsApp Session...</p>
-                      <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
-                        Preparing WhatsApp driver.
-                      </p>
-                    </div>
-                  ) : (
-                    <div style={{ color: '#64748b' }}>
-                      <WifiOff size={48} style={{ margin: '0 auto 12px auto' }} />
-                      <p style={{ margin: 0, fontWeight: '600' }}>Relay is offline or linking is waiting.</p>
-                      {whatsappError && <p style={{ fontSize: '0.8rem', color: '#ef4444', margin: '8px 0 0 0' }}>{whatsappError}</p>}
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -1432,23 +1342,17 @@ const Settings = () => {
           gap: 8px;
         }
 
+        .settings-layout-modern {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 30px;
+          align-items: start;
+        }
+
         /* Responsive */
         @media (max-width: 900px) {
           .settings-layout-modern {
             grid-template-columns: 1fr;
-          }
-          
-          .settings-nav-sidebar {
-            flex-direction: row;
-            overflow-x: auto;
-            white-space: nowrap;
-            padding: 8px;
-          }
-          
-          .settings-nav-btn {
-            width: auto;
-            padding: 10px 16px;
-            font-size: 0.88rem;
           }
           
           .form-grid-modern, .display-grid, .info-cards-grid {
@@ -1462,37 +1366,13 @@ const Settings = () => {
       </div>
 
       <div className="settings-layout-modern">
-        {/* Navigation Sidebar */}
-        <div className="settings-nav-sidebar">
-          {tabs.map(tab => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  // Turn off editing states when switching tabs
-                  setIsEditingBarInfo(false);
-                  setIsEditingWhatsappInfo(false);
-                  setIsEditingRazorpayInfo(false);
-                  setIsEditingSecurity(false);
-                }}
-                className={`settings-nav-btn ${activeTab === tab.id ? 'active' : ''}`}
-              >
-                <Icon size={18} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Panel Container */}
+        {/* Panel Container (Stacked) */}
         <div className="settings-panel-container">
-          {activeTab === 'general' && renderGeneralTab()}
-          {activeTab === 'integrations' && renderIntegrationsTab()}
-          {activeTab === 'security' && renderSecurityTab()}
-          {activeTab === 'sync' && renderSyncTab()}
-          {activeTab === 'system' && renderSystemTab()}
+          <div style={{ marginBottom: '30px' }}>{renderGeneralTab()}</div>
+          <div style={{ marginBottom: '30px' }}>{renderIntegrationsTab()}</div>
+          <div style={{ marginBottom: '30px' }}>{renderSecurityTab()}</div>
+          <div style={{ marginBottom: '30px' }}>{renderSyncTab()}</div>
+          <div style={{ marginBottom: '30px' }}>{renderSystemTab()}</div>
         </div>
       </div>
     </div>
