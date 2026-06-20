@@ -349,19 +349,6 @@ const SalesReports = () => {
 
   return (
     <div className="sales-reports">
-      <div className="page-header">
-        <div>
-          <h1 style={{ margin: 0 }}>
-            <BarChart3 size={24} style={{ marginRight: '8px' }} />
-            {barSettings?.bar_name || 'Sales Reports'}
-          </h1>
-          {barSettings?.bar_name && (
-            <p className="page-subtitle" style={{ margin: "4px 0 0 32px", fontSize: "0.85rem", opacity: 0.8 }}>
-              Reports for {barSettings.bar_name} {barSettings.address && `| 📍 ${barSettings.address}`}
-            </p>
-          )}
-        </div>
-      </div>
 
       {/* Date Selection */}
       <div className="reports-toolbar-section">

@@ -147,18 +147,7 @@ const Spendings = () => {
 
   return (
     <div className="spendings">
-      <div className="page-header">
-        <div>
-          <h1 style={{ margin: 0 }}>
-            <DollarSign size={24} style={{ marginRight: '8px' }} />
-            {barSettings?.bar_name || 'Spendings Management'}
-          </h1>
-          {barSettings?.bar_name && (
-            <p className="page-subtitle" style={{ margin: "4px 0 0 32px", fontSize: "0.85rem", opacity: 0.8 }}>
-              Spendings for {barSettings.bar_name} {barSettings.address && `| 📍 ${barSettings.address}`}
-            </p>
-          )}
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '16px 20px' }}>
         <button onClick={() => setShowForm(true)} className="btn btn-primary">
           <Plus size={16} style={{ marginRight: "8px" }} />
           Add Spending

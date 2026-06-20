@@ -969,7 +969,7 @@ const Settings = () => {
       {/* Scope-isolated modern styles to avoid conflicts with global App.css */}
       <style>{`
         .settings-page-wrapper {
-          padding: 24px 30px;
+          padding: 24px 12px;
           max-width: 1250px;
           margin: 0 auto;
           font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
@@ -1360,10 +1360,6 @@ const Settings = () => {
           }
         }
       `}</style>
-
-      <div className="settings-header-modern">
-        <h1><SettingsIcon size={28} style={{ color: '#b6412c' }} /> Settings</h1>
-      </div>
 
       <div className="settings-layout-modern">
         {/* Panel Container (Stacked) */}

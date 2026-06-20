@@ -217,9 +217,7 @@ const TableManagement = ({ onSelectTable }) => {
 
   return (
     <div className="table-management">
-      <div className="table-header">
-        <h1>Table Management</h1>
-        <div className="header-actions">
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '16px 20px' }}>
           <button 
             className="btn btn-secondary"
             onClick={loadTables}
@@ -243,7 +241,6 @@ const TableManagement = ({ onSelectTable }) => {
             Add Table
           </button>
         </div>
-      </div>
 
       {showAddForm && (
         <div className="add-table-form">
