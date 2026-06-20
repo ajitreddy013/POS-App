@@ -5758,6 +5758,21 @@ tr:hover {
 
 .mobile-back-btn {
   display: none;
+  align-items: center;
+  justify-content: center;
+  background: #1C5C3A;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mobile-back-btn:active {
+  background: #134028;
 }
 
 /* Enhanced Responsive design */
@@ -5800,21 +5815,6 @@ tr:hover {
 
   .mobile-back-btn {
     display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-    background: #1C5C3A;
-    color: #ffffff;
-    border: none;
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .mobile-back-btn:active {
-    background: #134028;
   }
 
   .transfer-layout {
@@ -9830,6 +9830,17 @@ td:nth-child(7) {
   z-index: 1000;
   cursor: pointer;
   animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (min-width: 769px) {
+  .mobile-cart-floating-bar {
+    display: flex;
+    bottom: 24px;
+    left: calc(50% - 225px);
+    width: 450px;
+    border-radius: 16px;
+    box-shadow: 0 12px 30px rgba(28, 92, 58, 0.4);
+  }
 }
 
 .mobile-cart-floating-bar .bar-info {

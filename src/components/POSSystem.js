@@ -720,6 +720,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       <div className="pos-layout">
         <div
           className={`product-panel ${activeTab === 'cart' ? 'mobile-hidden' : ''}`}
+          style={{ display: activeTab === 'cart' ? 'none' : 'flex' }}
         >
           <div
             className="kiosk-header"
@@ -1288,6 +1289,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
         <div
           className={`cart-panel cart-panel-minimal ${activeTab === 'menu' ? 'mobile-hidden' : ''}`}
+          style={{
+            display: activeTab === 'menu' ? 'none' : 'flex',
+            maxWidth: activeTab === 'cart' ? 'none' : undefined,
+            minWidth: activeTab === 'cart' ? '0' : undefined,
+            width: activeTab === 'cart' ? '100%' : undefined,
+            flex: activeTab === 'cart' ? 1 : undefined,
+          }}
         >
           <div
             className="cart-section"
@@ -1305,6 +1313,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               <button
                 type="button"
                 className="mobile-back-btn"
+                style={{ display: 'inline-flex' }}
                 onClick={() => setActiveTab('menu')}
               >
                 ← Menu
