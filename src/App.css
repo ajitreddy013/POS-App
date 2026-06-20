@@ -10464,23 +10464,27 @@ td:nth-child(7) {
     display: none !important;
   }
 
-  .app.kiosk-locked .pos-header-minimal {
+  .app.kiosk-locked .pos-header-minimal,
+  .app.admin-unlocked .pos-system .pos-header-minimal {
     flex: 0 0 auto !important;
     margin: 0 0 10px !important;
     padding: 14px 16px !important;
   }
 
-  .app.kiosk-locked .pos-header-minimal > div:first-child {
+  .app.kiosk-locked .pos-header-minimal > div:first-child,
+  .app.admin-unlocked .pos-system .pos-header-minimal > div:first-child {
     padding-right: 48px !important;
   }
 
-  .app.kiosk-locked .pos-header-minimal h1 {
+  .app.kiosk-locked .pos-header-minimal h1,
+  .app.admin-unlocked .pos-system .pos-header-minimal h1 {
     font-size: 1.05rem !important;
     line-height: 1.2 !important;
     color: #b6412c !important;
   }
 
-  .app.kiosk-locked .pos-header-minimal .search-input-container {
+  .app.kiosk-locked .pos-header-minimal .search-input-container,
+  .app.admin-unlocked .pos-system .pos-header-minimal .search-input-container {
     margin-top: 10px !important;
     height: 52px !important;
   }
@@ -10992,23 +10996,27 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
     background: #f6f3ee !important;
     padding: 0 !important;
   }
-  .app.kiosk-locked .pos-system {
+  .app.kiosk-locked .pos-system,
+  .app.admin-unlocked .pos-system {
     background: #f6f3ee !important;
     padding: 0 !important;
     height: 100% !important;
   }
-  .app.kiosk-locked .pos-layout {
+  .app.kiosk-locked .pos-layout,
+  .app.admin-unlocked .pos-system .pos-layout {
     background: #f6f3ee !important;
     height: 100% !important;
   }
-  .app.kiosk-locked .product-panel {
+  .app.kiosk-locked .product-panel,
+  .app.admin-unlocked .pos-system .product-panel {
     background: #f6f3ee !important;
     border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     height: 100% !important;
   }
-  .app.kiosk-locked .pos-products-grid {
+  .app.kiosk-locked .pos-products-grid,
+  .app.admin-unlocked .pos-system .pos-products-grid {
     background: #f6f3ee !important;
     padding: 0 0 100px 0 !important;
     display: flex !important;
