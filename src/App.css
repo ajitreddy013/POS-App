@@ -11058,50 +11058,50 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
   }
 
   /* Cart panel overrides in kiosk mode */
-  .app.kiosk-locked .cart-panel-minimal {
+  .cart-panel-minimal {
     background: #fffdf8 !important;
     border-left: 1px solid #e6ded3 !important;
     color: #221f1a !important;
   }
-  .app.kiosk-locked .cart-section h3,
-  .app.kiosk-locked .cart-section strong {
+  .cart-section h3,
+  .cart-section strong {
     color: #221f1a !important;
   }
-  .app.kiosk-locked .cart-item-minimal-name {
+  .cart-item-minimal-name {
     color: #221f1a !important;
   }
-  .app.kiosk-locked .cart-summary-card {
+  .cart-summary-card {
     background: #fffdf8 !important;
     border-color: #e6ded3 !important;
     color: #221f1a !important;
   }
-  .app.kiosk-locked .cart-summary-row span,
-  .app.kiosk-locked .cart-summary-total {
+  .cart-summary-row span,
+  .cart-summary-total {
     color: #221f1a !important;
   }
-  .app.kiosk-locked .payment-method-chip {
+  .payment-method-chip {
     background: #ffffff !important;
     border-color: #e6ded3 !important;
     color: #7f766a !important;
   }
-  .app.kiosk-locked .payment-method-chip.active {
+  .payment-method-chip.active {
     background: #f2e7db !important;
     border-color: #b6412c !important;
     color: #b6412c !important;
   }
-  .app.kiosk-locked .form-input {
+  .form-input {
     background: #ffffff !important;
     border: 1px solid #e6ded3 !important;
     color: #221f1a !important;
   }
-  .app.kiosk-locked .mobile-back-btn {
+  .mobile-back-btn {
     background: #ffffff !important;
     border: 1px solid #e6ded3 !important;
     color: #b6412c !important;
     padding: 6px 12px !important;
     border-radius: 999px !important;
   }
-  .app.kiosk-locked .mobile-cart-floating-bar {
+  .mobile-cart-floating-bar {
     position: fixed !important;
     bottom: 24px !important;
     left: 24px !important;
@@ -11121,10 +11121,10 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
     height: 48px !important;
     box-sizing: border-box !important;
   }
-  .app.kiosk-locked .mobile-cart-floating-bar .bar-info {
+  .mobile-cart-floating-bar .bar-info {
     font-size: 13px !important;
   }
-  .app.kiosk-locked .mobile-cart-floating-bar .bar-action {
+  .mobile-cart-floating-bar .bar-action {
     font-size: 11px !important;
   }
 }

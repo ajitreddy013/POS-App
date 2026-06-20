@@ -1137,15 +1137,15 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           </div>
           <div className="billing-section payment-checkout-panel">
             {!isKiosk && (
-              <div className="billing-controls" style={{ padding: '12px 10px', borderTop: '1px solid #f1f3f5' }}>
-                <div className="payment-method-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="billing-controls" style={{ padding: '8px 10px', borderTop: '1px solid #e6ded3', background: '#fffdf8' }}>
+                <div className="payment-method-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <button
                       type="button"
-                      style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #e9ecef', background: showDiscountInput ? '#f8f9fa' : 'transparent' }}
+                      style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #e6ded3', background: showDiscountInput ? '#f2e7db' : 'transparent', color: '#7f766a', cursor: 'pointer' }}
                       onClick={() => setShowDiscountInput((prev) => !prev)}
                     >
-                      % Disc
+                      % Discount
                     </button>
                     {showDiscountInput && (
                       <input
@@ -1163,22 +1163,22 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               </div>
             )}
 
-            <div className="bill-summary payment-total-card" style={{ borderTop: '1px solid #f1f3f5', paddingTop: '12px' }}>
+            <div className="bill-summary payment-total-card cart-summary-card" style={{ borderTop: '1px solid #e6ded3', paddingTop: '12px' }}>
               {!isKiosk && (
-                <div className="summary-line">
-                  <span>Subtotal:</span>
-                  <span>{formatCurrency(calculateSubtotal())}</span>
+                <div className="summary-line cart-summary-row" style={{ fontSize: '12px', marginBottom: '4px' }}>
+                  <span style={{ color: '#7f766a' }}>Subtotal:</span>
+                  <span style={{ color: '#221f1a', fontWeight: '500' }}>{formatCurrency(calculateSubtotal())}</span>
                 </div>
               )}
               {!isKiosk && discount > 0 && (
-                <div className="summary-line discount">
+                <div className="summary-line discount cart-summary-row" style={{ fontSize: '12px', marginBottom: '4px', color: '#b6412c' }}>
                   <span>Discount:</span>
                   <span>-{formatCurrency(calculateDiscountAmount())}</span>
                 </div>
               )}
-              <div className="summary-line total">
-                <span>Total:</span>
-                <span>{formatCurrency(calculateTotal())}</span>
+              <div className="summary-line total cart-summary-total" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #e6ded3', fontSize: '16px', fontWeight: 'bold' }}>
+                <span style={{ color: '#221f1a' }}>Total:</span>
+                <span style={{ color: '#b6412c' }}>{formatCurrency(calculateTotal())}</span>
               </div>
             </div>
 
