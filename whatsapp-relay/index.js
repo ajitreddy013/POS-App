@@ -76,6 +76,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
+const relayVersion = "2026-06-21-razorpay-qr-v2";
 
 app.use(cors());
 app.use(express.json());
@@ -183,6 +184,19 @@ async function cleanupSession() {
 
 // --- EXPRESS ENDPOINTS ---
 
+// Health / deployment diagnostics
+app.get("/health", (req, res) => {
+  res.json({
+    success: true,
+    service: "whatsapp-relay",
+    version: relayVersion,
+    razorpayQrCreatePath: "/v1/payments/qr_codes",
+    razorpayQrStatusPath: "/v1/payments/qr_codes/:id",
+    hasRazorpayKeyId: !!process.env.RAZORPAY_KEY_ID,
+    hasRazorpayKeySecret: !!process.env.RAZORPAY_KEY_SECRET
+  });
+});
+
 // Check Status
 app.get("/status", (req, res) => {
   res.json({
@@ -284,10 +298,17 @@ function razorpayRequest(method, path, body, keyId, keySecret) {
           if (res.statusCode >= 200 && res.statusCode < 300) {
             resolve(parsed);
           } else {
-            reject(new Error(parsed.error ? parsed.error.description : `HTTP Error ${res.statusCode}`));
+            const errorMessage = parsed.error
+              ? `${parsed.error.description || parsed.error.reason || parsed.error.code || "Razorpay API error"} (HTTP ${res.statusCode})`
+              : `HTTP Error ${res.statusCode}: ${responseBody}`;
+            reject(new Error(errorMessage));
           }
         } catch (err) {
-          reject(new Error(`Failed to parse response: ${responseBody}`));
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            reject(new Error(`Failed to parse response: ${responseBody}`));
+          } else {
+            reject(new Error(`HTTP Error ${res.statusCode}: ${responseBody}`));
+          }
         }
       });
     });
@@ -334,7 +355,7 @@ app.post("/payment/create-qr", async (req, res) => {
     };
 
     console.log(`Creating Razorpay QR Code for Order #${orderId}, Amount: ${amountInPaise} paise`);
-    const response = await razorpayRequest("POST", "/v1/qr_codes", payload, rzpKeyId, rzpKeySecret);
+    const response = await razorpayRequest("POST", "/v1/payments/qr_codes", payload, rzpKeyId, rzpKeySecret);
     
     res.json({
       success: true,
@@ -366,7 +387,7 @@ app.post("/payment/status", async (req, res) => {
 
   try {
     console.log(`Checking Razorpay status for QR: ${qrCodeId}`);
-    const response = await razorpayRequest("GET", `/v1/qr_codes/${qrCodeId}`, null, rzpKeyId, rzpKeySecret);
+    const response = await razorpayRequest("GET", `/v1/payments/qr_codes/${qrCodeId}`, null, rzpKeyId, rzpKeySecret);
     
     // If status is closed or payments_count_received > 0, it's paid
     const isPaid = response.status === "closed" || response.payments_count_received > 0;
@@ -551,5 +572,7 @@ app.post("/payment/webhook", async (req, res) => {
 // Start Server
 app.listen(port, () => {
   console.log(`WhatsApp Cloud-Relay Server running on port ${port}`);
+  console.log(`Relay version: ${relayVersion}`);
+  console.log("Razorpay QR API path: /v1/payments/qr_codes");
   initializeClient();
 });
