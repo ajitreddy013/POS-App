@@ -26,6 +26,7 @@ import { App } from '@capacitor/app';
 import { dbService } from '../services/dbService';
 import { whatsappService } from '../services/whatsappService';
 import { APP_CONFIG } from '../config';
+import QRCode from 'qrcode';
 import malabarLogo from '../assets/malabar-waffle-logo.png';
 import {
   playSuccessFeedback,
@@ -599,16 +600,24 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       const data = await response.json();
       setLoading(false);
 
-      if (!data.success)
-        throw new Error(data.error || 'Unknown error creating QR code.');
+      if (!data.success) throw new Error(data.error || 'Unknown error creating QR code.');
+
+      // If merchant VPA is configured, prefer showing a direct UPI QR generated locally
+      let qrImage = data.qrImageUrl;
+      try {
+        if (barSettings && barSettings.upi_vpa) {
+          const upiUri = `upi://pay?pa=${encodeURIComponent(barSettings.upi_vpa)}&pn=${encodeURIComponent(
+            barSettings.bar_name || ''
+          )}&am=${encodeURIComponent(Number(amount).toFixed(2))}&cu=INR&tn=${encodeURIComponent('Order ' + orderId)}`;
+          qrImage = await QRCode.toDataURL(upiUri, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
+        }
+      } catch (qrErr) {
+        console.error('Failed to generate local UPI QR:', qrErr);
+        qrImage = data.qrImageUrl;
+      }
 
       qrPaymentPendingRef.current = true;
-      setUpiQrPayment({
-        orderId,
-        amount,
-        qrImageUrl: data.qrImageUrl,
-        paymentLinkId: data.paymentLinkId || null,
-      });
+      setUpiQrPayment({ orderId, amount, qrImageUrl: qrImage, paymentLinkId: data.paymentLinkId || null });
       setUpiQrStatus('Waiting for customer payment...');
 
       if (qrPollIntervalRef.current) clearInterval(qrPollIntervalRef.current);

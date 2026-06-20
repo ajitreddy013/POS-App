@@ -22,6 +22,8 @@ import {
   Loader2,
   Sparkles,
 } from 'lucide-react';
+import useBarSettings from '../utils/useBarSettings';
+import QRCode from 'qrcode';
 
 const CustomerMenu = () => {
   const searchParams = useSearchParams()[0];
@@ -47,6 +49,7 @@ const CustomerMenu = () => {
 
   // Initialize Firebase Firestore db using default config
   const db = useMemo(() => getFirebaseDb(), []);
+  const { barSettings } = useBarSettings();
 
   useEffect(() => {
     // Dynamically load Google Fonts for modern aesthetics
@@ -188,16 +191,38 @@ const CustomerMenu = () => {
         body: JSON.stringify({ amount: totalAmount, orderId: orderNumber }),
       })
         .then((response) => response.json())
-        .then((data) => {
+        .then(async (data) => {
           if (!data.success) {
             throw new Error(data.error || 'Failed to create UPI QR code.');
           }
 
           setUpiQrLoading(false);
+
+          // Prefer a locally-generated direct UPI QR (upi://) when merchant VPA is available in settings.
+          let qrImage = data.qrImageUrl;
+          try {
+            if (barSettings && barSettings.upi_vpa) {
+              const upiUri = `upi://pay?pa=${encodeURIComponent(
+                barSettings.upi_vpa
+              )}&pn=${encodeURIComponent(barSettings.bar_name || '')}&am=${encodeURIComponent(
+                Number(totalAmount).toFixed(2)
+              )}&cu=INR&tn=${encodeURIComponent('Order ' + orderNumber)}`;
+              qrImage = await QRCode.toDataURL(upiUri, {
+                errorCorrectionLevel: 'M',
+                margin: 2,
+                scale: 6,
+              });
+            }
+          } catch (qrErr) {
+            console.error('Failed to generate local UPI QR:', qrErr);
+            // fallback to server-provided QR image
+            qrImage = data.qrImageUrl;
+          }
+
           setUpiQrPayment({
             orderId: orderNumber,
             amount: totalAmount,
-            qrImageUrl: data.qrImageUrl,
+            qrImageUrl: qrImage,
             paymentLinkId: data.paymentLinkId || null,
           });
           setUpiQrStatus('Waiting for customer payment...');

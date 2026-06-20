@@ -31,6 +31,7 @@ const Settings = () => {
     to: '',
     enabled: false
   });
+  const [activeTab, setActiveTab] = useState('integrations');
   const [isEditingBarInfo, setIsEditingBarInfo] = useState(false);
   const [isEditingEmailInfo, setIsEditingEmailInfo] = useState(false);
   const [isEditingWhatsappInfo, setIsEditingWhatsappInfo] = useState(false);
@@ -75,7 +76,7 @@ const Settings = () => {
     let intervalId = null;
     const activeUrl = getActiveRelayUrl();
     
-    if (barSettings.whatsapp_enabled && activeUrl) {
+    if (activeUrl) {
       checkRelayStatus();
       intervalId = setInterval(checkRelayStatus, 5000); // Poll every 5 seconds
     } else {
@@ -86,7 +87,7 @@ const Settings = () => {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [barSettings.whatsapp_enabled, barSettings.whatsapp_relay_url]);
+  }, [barSettings.whatsapp_relay_url]);
 
   const checkRelayStatus = async () => {
     const activeUrl = getActiveRelayUrl();
@@ -433,625 +434,1066 @@ const Settings = () => {
     }
   };
 
-  return (
-    <div className="settings">
-      <div className="page-header">
-        <h1><SettingsIcon size={24} /> Settings</h1>
+  const tabs = [
+    { id: 'integrations', label: 'Integrations', icon: MessageCircle },
+    { id: 'general', label: 'General', icon: Store },
+    { id: 'security', label: 'Security', icon: Lock },
+    { id: 'sync', label: 'Cloud Sync', icon: CloudLightning },
+    { id: 'system', label: 'System & Danger Zone', icon: AlertTriangle }
+  ];
+
+  const renderGeneralTab = () => (
+    <div className="settings-card-modern">
+      <div className="settings-card-hdr">
+        <h2><Store size={20} style={{ color: '#b6412c' }} /> Shop Information</h2>
+        <button 
+          onClick={() => setIsEditingBarInfo(!isEditingBarInfo)}
+          className="btn-modern btn-modern-secondary"
+        >
+          <Edit size={16} />
+          {isEditingBarInfo ? 'Cancel' : 'Edit Info'}
+        </button>
       </div>
+      <div className="settings-card-body-modern">
+        {isEditingBarInfo ? (
+          <div className="form-grid-modern">
+            <div className="form-group-modern">
+              <label>Shop Name</label>
+              <input
+                type="text"
+                value={barSettings.bar_name}
+                onChange={(e) => handleBarSettingsChange('bar_name', e.target.value)}
+                className="input-modern"
+                placeholder="Enter shop name"
+              />
+            </div>
+            <div className="form-group-modern">
+              <label>Contact Number</label>
+              <input
+                type="text"
+                value={barSettings.contact_number}
+                onChange={(e) => handleBarSettingsChange('contact_number', e.target.value)}
+                className="input-modern"
+                placeholder="Enter contact number"
+              />
+            </div>
+            <div className="form-group-modern">
+              <label>GST Number</label>
+              <input
+                type="text"
+                value={barSettings.gst_number}
+                onChange={(e) => handleBarSettingsChange('gst_number', e.target.value)}
+                className="input-modern"
+                placeholder="Enter GST number"
+              />
+            </div>
+            <div className="form-group-modern full-width">
+              <label>Address</label>
+              <textarea
+                value={barSettings.address}
+                onChange={(e) => handleBarSettingsChange('address', e.target.value)}
+                className="input-modern textarea-modern"
+                placeholder="Enter complete address"
+                rows="3"
+              />
+            </div>
+            <div className="form-group-modern full-width">
+              <label>Thank You Message</label>
+              <input
+                type="text"
+                value={barSettings.thank_you_message}
+                onChange={(e) => handleBarSettingsChange('thank_you_message', e.target.value)}
+                className="input-modern"
+                placeholder="Enter thank you message for bills"
+              />
+            </div>
+            <div className="form-group-modern full-width" style={{ marginTop: '10px' }}>
+              <button 
+                onClick={saveBarSettings}
+                disabled={loading}
+                className="btn-modern btn-modern-primary"
+                style={{ width: 'fit-content' }}
+              >
+                <Save size={16} />
+                {loading ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="display-grid">
+            <div className="display-item">
+              <h4>Shop Name</h4>
+              <p>{barSettings.bar_name || 'Not set'}</p>
+            </div>
+            <div className="display-item">
+              <h4>Contact Number</h4>
+              <p>{barSettings.contact_number || 'Not set'}</p>
+            </div>
+            <div className="display-item">
+              <h4>GST Number</h4>
+              <p>{barSettings.gst_number || 'Not set'}</p>
+            </div>
+            <div className="display-item" style={{ gridColumn: '1 / -1' }}>
+              <h4>Address</h4>
+              <p style={{ whiteSpace: 'pre-wrap' }}>{barSettings.address || 'Not set'}</p>
+            </div>
+            <div className="display-item" style={{ gridColumn: '1 / -1' }}>
+              <h4>Thank You Message</h4>
+              <p>{barSettings.thank_you_message || 'Thank you for visiting!'}</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
-      <div style={{ padding: '20px 30px' }}>
-        {/* Shop Information Section */}
-        <div className="table-container" style={{ marginBottom: '30px' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            padding: '20px',
-            borderBottom: '1px solid #e9ecef'
-          }}>
-            <h2 style={{ margin: 0 }}>
-              <Store size={20} style={{ marginRight: '10px' }} />
-              Shop Information
-            </h2>
-            <button 
-              onClick={() => setIsEditingBarInfo(!isEditingBarInfo)}
-              className="btn btn-secondary"
-            >
-              <Edit size={16} />
-              {isEditingBarInfo ? 'Cancel' : 'Edit'}
-            </button>
-          </div>
-          
-          <div style={{ padding: '20px' }}>
-            {isEditingBarInfo ? (
-              <div className="bar-settings-form">
-                <div className="form-row">
-                  <label>
-                    Shop Name:
-                    <input
-                      type="text"
-                      value={barSettings.bar_name}
-                      onChange={(e) => handleBarSettingsChange('bar_name', e.target.value)}
-                      className="form-input"
-                      placeholder="Enter shop name"
-                    />
-                  </label>
-                  <label>
-                    Contact Number:
-                    <input
-                      type="text"
-                      value={barSettings.contact_number}
-                      onChange={(e) => handleBarSettingsChange('contact_number', e.target.value)}
-                      className="form-input"
-                      placeholder="Enter contact number"
-                    />
-                  </label>
-                </div>
-                <div className="form-row">
-                  <label>
-                    GST Number:
-                    <input
-                      type="text"
-                      value={barSettings.gst_number}
-                      onChange={(e) => handleBarSettingsChange('gst_number', e.target.value)}
-                      className="form-input"
-                      placeholder="Enter GST number"
-                    />
-                  </label>
-                </div>
-                <div className="form-row">
-                  <label style={{ gridColumn: '1 / -1' }}>
-                    Address:
-                    <textarea
-                      value={barSettings.address}
-                      onChange={(e) => handleBarSettingsChange('address', e.target.value)}
-                      className="form-input"
-                      placeholder="Enter complete address"
-                      rows="3"
-                    />
-                  </label>
-                </div>
-                <div className="form-row">
-                  <label style={{ gridColumn: '1 / -1' }}>
-                    Thank You Message:
-                    <input
-                      type="text"
-                      value={barSettings.thank_you_message}
-                      onChange={(e) => handleBarSettingsChange('thank_you_message', e.target.value)}
-                      className="form-input"
-                      placeholder="Enter thank you message for bills"
-                    />
-                  </label>
-                </div>
-                <div className="form-actions">
-                  <button 
-                    onClick={saveBarSettings}
-                    disabled={loading}
-                    className="btn btn-primary"
-                  >
-                    <Save size={16} />
-                    {loading ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="bar-settings-display">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                  <div>
-                    <h4>Shop Name</h4>
-                    <p>{barSettings.bar_name || 'Not set'}</p>
-                    <h4>Contact Number</h4>
-                    <p>{barSettings.contact_number || 'Not set'}</p>
-                    <h4>GST Number</h4>
-                    <p>{barSettings.gst_number || 'Not set'}</p>
-                  </div>
-                  <div>
-                    <h4>Address</h4>
-                    <p style={{ whiteSpace: 'pre-wrap' }}>{barSettings.address || 'Not set'}</p>
-                    <h4>Thank You Message</h4>
-                    <p>{barSettings.thank_you_message || 'Thank you for visiting!'}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+  const renderIntegrationsTab = () => (
+    <>
+      {/* WhatsApp Linked Devices Section */}
+      <div className="settings-card-modern">
+        <div className="settings-card-hdr">
+          <h2><MessageCircle size={20} style={{ color: '#25D366' }} /> WhatsApp Linked Devices</h2>
+          <button 
+            onClick={() => setIsEditingWhatsappInfo(!isEditingWhatsappInfo)}
+            className="btn-modern btn-modern-secondary"
+          >
+            <Edit size={16} />
+            {isEditingWhatsappInfo ? 'Cancel' : 'Edit WhatsApp Settings'}
+          </button>
         </div>
-
-        {/* Security Settings Section */}
-        <div className="table-container" style={{ marginBottom: '30px' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            padding: '20px',
-            borderBottom: '1px solid #e9ecef'
-          }}>
-            <h2 style={{ margin: 0 }}>
-              <Lock size={20} style={{ marginRight: '10px' }} />
-              Security Settings
-            </h2>
-            <button 
-              onClick={() => {
-                setIsEditingSecurity(!isEditingSecurity);
-                setCurrentPasswordInput('');
-                setNewPasswordInput('');
-                setConfirmPasswordInput('');
-              }}
-              className="btn btn-secondary"
-            >
-              <Edit size={16} />
-              {isEditingSecurity ? 'Cancel' : 'Change Password'}
-            </button>
-          </div>
-          
-          <div style={{ padding: '20px' }}>
-            {isEditingSecurity ? (
-              <div className="bar-settings-form">
-                <div className="form-row">
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    Current Password:
-                    <input
-                      type="password"
-                      value={currentPasswordInput}
-                      onChange={(e) => setCurrentPasswordInput(e.target.value)}
-                      className="form-input"
-                      placeholder="Enter current password"
-                    />
-                  </label>
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    New Password (6-digit):
-                    <input
-                      type="password"
-                      value={newPasswordInput}
-                      onChange={(e) => setNewPasswordInput(e.target.value.substring(0, 10))}
-                      className="form-input"
-                      placeholder="Enter new password"
-                    />
-                  </label>
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    Confirm New Password:
-                    <input
-                      type="password"
-                      value={confirmPasswordInput}
-                      onChange={(e) => setConfirmPasswordInput(e.target.value.substring(0, 10))}
-                      className="form-input"
-                      placeholder="Confirm new password"
-                    />
-                  </label>
-                </div>
-                <div className="form-actions" style={{ marginTop: '20px' }}>
-                  <button 
-                    onClick={handlePasswordChange}
-                    disabled={securityLoading}
-                    className="btn btn-primary"
-                  >
-                    <Save size={16} style={{ marginRight: '8px' }} />
-                    {securityLoading ? 'Saving...' : 'Update Password'}
-                  </button>
+        <div className="settings-card-body-modern">
+          {isEditingWhatsappInfo ? (
+            <div className="form-grid-modern">
+              <div className="form-group-modern full-width">
+                <div 
+                  className="switch-wrapper" 
+                  onClick={() => handleBarSettingsChange('whatsapp_enabled', barSettings.whatsapp_enabled ? 0 : 1)}
+                >
+                  <div className={`switch-track ${barSettings.whatsapp_enabled ? 'active' : ''}`}>
+                    <div className="switch-thumb"></div>
+                  </div>
+                  <span className="switch-label">Enable WhatsApp POS Receipts</span>
                 </div>
               </div>
-            ) : (
-              <div className="bar-settings-display">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
-                  <div>
-                    <h4 style={{ margin: '0 0 8px 0', fontSize: '15px' }}>Admin Console Protection</h4>
-                    <p style={{ margin: 0, color: '#7f8c8d', fontSize: '13px', lineHeight: '1.5' }}>
-                      Kiosk Mode is active by default. Access to the admin dashboard, reports, products, and settings is protected by a 6-digit password. Click &quot;Change Password&quot; to update it.
-                    </p>
-                  </div>
-                </div>
+              <div className="form-group-modern full-width">
+                <label>WhatsApp Relay URL</label>
+                <input
+                  type="text"
+                  value={barSettings.whatsapp_relay_url}
+                  onChange={(e) => handleBarSettingsChange('whatsapp_relay_url', e.target.value)}
+                  className="input-modern"
+                  placeholder="e.g. http://localhost:8080 (Leaves empty for cloud default)"
+                />
+                <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0' }}>
+                  Current active URL: <code>{getActiveRelayUrl()}</code>
+                </p>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* WhatsApp Cloud-Relay Settings Section */}
-        <div className="table-container" style={{ marginBottom: '30px' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            padding: '20px',
-            borderBottom: '1px solid #e9ecef'
-          }}>
-            <h2 style={{ margin: 0 }}>
-              <MessageCircle size={20} style={{ marginRight: '10px' }} />
-              WhatsApp Linked Devices
-            </h2>
-          </div>
-          
-          <div style={{ padding: '20px' }}>
-            <div className="whatsapp-settings-display">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                <div>
-                  <h4>Relay Status</h4>
-                  <div style={{ display: 'flex', alignItems: 'center', marginTop: '10px' }}>
-                    {whatsappStatus === 'CONNECTED' ? (
-                      <span style={{ display: 'flex', alignItems: 'center', color: '#2e7d32', fontWeight: 'bold' }}>
-                        <Wifi size={18} style={{ marginRight: '5px' }} /> Linked / Active
-                      </span>
-                    ) : whatsappStatus === 'AUTHENTICATING' ? (
-                      <span style={{ display: 'flex', alignItems: 'center', color: '#0288d1', fontWeight: 'bold' }}>
-                        <RotateCcw size={18} className="spin" style={{ marginRight: '5px' }} /> Authenticating / Syncing...
-                      </span>
-                    ) : whatsappStatus === 'QR_READY' ? (
-                      <span style={{ display: 'flex', alignItems: 'center', color: '#f57c00', fontWeight: 'bold' }}>
-                        <MessageCircle size={18} style={{ marginRight: '5px' }} /> Scan QR Code to Link
-                      </span>
-                    ) : whatsappStatus === 'INITIALIZING' ? (
-                      <span style={{ display: 'flex', alignItems: 'center', color: '#0288d1', fontWeight: 'bold' }}>
-                        <RotateCcw size={18} className="spin" style={{ marginRight: '5px' }} /> Connecting to Relay...
-                      </span>
-                    ) : (
-                      <span style={{ display: 'flex', alignItems: 'center', color: '#d32f2f', fontWeight: 'bold' }}>
-                        <WifiOff size={18} style={{ marginRight: '5px' }} /> Offline / Not Linked
-                      </span>
-                    )}
-                  </div>
-                  
-                  {whatsappStatus === 'CONNECTED' && (
-                    <button
-                      onClick={handleWhatsappLogout}
-                      disabled={whatsappLoading}
-                      className="btn btn-secondary"
-                      style={{ marginTop: '20px', color: '#d32f2f', borderColor: '#d32f2f' }}
-                    >
-                      <WifiOff size={16} />
-                      {whatsappLoading ? 'Unlinking...' : 'Unlink WhatsApp Device'}
-                    </button>
+              <div className="form-group-modern">
+                <label>Default Country Code</label>
+                <input
+                  type="text"
+                  value={barSettings.whatsapp_default_country_code}
+                  onChange={(e) => handleBarSettingsChange('whatsapp_default_country_code', e.target.value)}
+                  className="input-modern"
+                  placeholder="91"
+                />
+              </div>
+              <div className="form-group-modern">
+                <label>Template Name</label>
+                <input
+                  type="text"
+                  value={barSettings.whatsapp_template_name}
+                  onChange={(e) => handleBarSettingsChange('whatsapp_template_name', e.target.value)}
+                  className="input-modern"
+                  placeholder="counterflow_pos_receipt"
+                />
+              </div>
+              <div className="form-group-modern">
+                <label>Language Code</label>
+                <input
+                  type="text"
+                  value={barSettings.whatsapp_language_code}
+                  onChange={(e) => handleBarSettingsChange('whatsapp_language_code', e.target.value)}
+                  className="input-modern"
+                  placeholder="en"
+                />
+              </div>
+              <div className="form-group-modern full-width" style={{ marginTop: '10px' }}>
+                <button 
+                  onClick={saveBarSettings}
+                  disabled={loading}
+                  className="btn-modern btn-modern-primary"
+                  style={{ width: 'fit-content' }}
+                >
+                  <Save size={16} />
+                  {loading ? 'Saving...' : 'Save Settings'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="display-grid">
+              <div>
+                <h4>Relay Status</h4>
+                <div style={{ marginTop: '10px' }}>
+                  {whatsappStatus === 'CONNECTED' ? (
+                    <span className="status-badge connected">
+                      <Wifi size={16} /> Linked / Active
+                    </span>
+                  ) : whatsappStatus === 'AUTHENTICATING' ? (
+                    <span className="status-badge authenticating">
+                      <RotateCcw size={16} className="spin" /> Syncing...
+                    </span>
+                  ) : whatsappStatus === 'QR_READY' ? (
+                    <span className="status-badge qr-ready">
+                      <MessageCircle size={16} /> Scan QR Code
+                    </span>
+                  ) : whatsappStatus === 'INITIALIZING' ? (
+                    <span className="status-badge initializing">
+                      <RotateCcw size={16} className="spin" /> Connecting...
+                    </span>
+                  ) : (
+                    <span className="status-badge disconnected">
+                      <WifiOff size={16} /> Offline / Disabled
+                    </span>
                   )}
                 </div>
 
-                <div>
-                  {getActiveRelayUrl() ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid #ddd', borderRadius: '8px', padding: '15px', background: '#fafafa', minHeight: '200px' }}>
-                      {whatsappStatus === 'QR_READY' && whatsappQr ? (
-                        <>
-                          <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', textAlign: 'center', fontWeight: 'bold' }}>
-                            Scan this QR code with WhatsApp Linked Devices:
-                          </p>
-                          <img src={whatsappQr} alt="WhatsApp QR Code" style={{ width: '180px', height: '180px' }} />
-                        </>
-                      ) : whatsappStatus === 'CONNECTED' ? (
-                        <div style={{ textAlign: 'center', color: '#2e7d32' }}>
-                          <MessageCircle size={48} style={{ margin: '0 auto 10px auto' }} />
-                          <p style={{ margin: 0, fontWeight: 'bold' }}>Device Linked!</p>
-                          <p style={{ margin: '5px 0 0 0', fontSize: '0.85rem', color: '#666' }}>
-                            POS receipts will be sent automatically from your scanned number.
-                          </p>
-                        </div>
-                      ) : whatsappStatus === 'AUTHENTICATING' ? (
-                        <div style={{ textAlign: 'center', color: '#0288d1' }}>
-                          <RotateCcw size={48} className="spin" style={{ margin: '0 auto 10px auto' }} />
-                          <p style={{ margin: 0, fontWeight: 'bold' }}>Authenticated!</p>
-                          <p style={{ margin: '5px 0 0 0', fontSize: '0.85rem', color: '#666' }}>
-                            Syncing chats and data. Please wait...
-                          </p>
-                        </div>
-                      ) : whatsappStatus === 'INITIALIZING' ? (
-                        <div style={{ textAlign: 'center', color: '#0288d1' }}>
-                          <RotateCcw size={48} className="spin" style={{ margin: '0 auto 10px auto' }} />
-                          <p style={{ margin: 0 }}>Starting WhatsApp session...</p>
-                        </div>
-                      ) : (
-                        <div style={{ textAlign: 'center', color: '#666' }}>
-                          <WifiOff size={48} style={{ margin: '0 auto 10px auto' }} />
-                          <p style={{ margin: 0 }}>Relay is offline or not configured.</p>
-                          {whatsappError && <p style={{ fontSize: '0.8rem', color: '#d32f2f', margin: '5px 0 0 0' }}>{whatsappError}</p>}
-                        </div>
-                      )}
+                <div style={{ marginTop: '24px' }}>
+                  <h4>Active Relay URL</h4>
+                  <p style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: '#475569', marginTop: '6px' }}>
+                    {getActiveRelayUrl()}
+                  </p>
+                </div>
+
+                {barSettings.whatsapp_enabled === 0 && (
+                  <div style={{ marginTop: '20px', padding: '12px', background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', color: '#b45309', fontSize: '0.85rem' }}>
+                    <strong>Note:</strong> WhatsApp receipts are disabled. Click &quot;Edit WhatsApp Settings&quot; above to enable them.
+                  </div>
+                )}
+
+                {whatsappStatus === 'CONNECTED' && (
+                  <button
+                    onClick={handleWhatsappLogout}
+                    disabled={whatsappLoading}
+                    className="btn-modern btn-modern-secondary"
+                    style={{ marginTop: '24px', color: '#ef4444', borderColor: '#fca5a5' }}
+                  >
+                    <WifiOff size={16} />
+                    {whatsappLoading ? 'Unlinking...' : 'Unlink Device'}
+                  </button>
+                )}
+              </div>
+
+              <div>
+                <div className="qr-card-container">
+                  {whatsappStatus === 'QR_READY' && whatsappQr ? (
+                    <>
+                      <p style={{ margin: '0 0 14px 0', fontSize: '0.9rem', fontWeight: 'bold', color: '#1e293b' }}>
+                        Scan this QR code with WhatsApp Linked Devices:
+                      </p>
+                      <div style={{ background: '#ffffff', padding: '12px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                        <img src={whatsappQr} alt="WhatsApp QR Code" style={{ width: '180px', height: '180px', display: 'block' }} />
+                      </div>
+                    </>
+                  ) : whatsappStatus === 'CONNECTED' ? (
+                    <div style={{ color: '#16a34a' }}>
+                      <MessageCircle size={48} style={{ margin: '0 auto 12px auto' }} />
+                      <p style={{ margin: 0, fontWeight: '700', fontSize: '1.1rem' }}>WhatsApp Linked!</p>
+                      <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#64748b', lineHeight: '1.4' }}>
+                        POS receipts will be sent automatically from your connected phone.
+                      </p>
+                    </div>
+                  ) : whatsappStatus === 'AUTHENTICATING' ? (
+                    <div style={{ color: '#0288d1' }}>
+                      <RotateCcw size={48} className="spin" style={{ margin: '0 auto 12px auto' }} />
+                      <p style={{ margin: 0, fontWeight: '700' }}>Authenticated!</p>
+                      <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                        Syncing data. Please wait...
+                      </p>
+                    </div>
+                  ) : whatsappStatus === 'INITIALIZING' ? (
+                    <div style={{ color: '#475569' }}>
+                      <RotateCcw size={48} className="spin" style={{ margin: '0 auto 12px auto' }} />
+                      <p style={{ margin: 0, fontWeight: '600' }}>Connecting to WhatsApp Session...</p>
+                      <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                        Preparing WhatsApp driver.
+                      </p>
                     </div>
                   ) : (
-                    <div style={{ padding: '20px', color: '#d32f2f', textAlign: 'center', border: '1px solid #ffcdd2', borderRadius: '8px', background: '#ffebee' }}>
-                      <p>WhatsApp Relay URL is not configured.</p>
+                    <div style={{ color: '#64748b' }}>
+                      <WifiOff size={48} style={{ margin: '0 auto 12px auto' }} />
+                      <p style={{ margin: 0, fontWeight: '600' }}>Relay is offline or linking is waiting.</p>
+                      {whatsappError && <p style={{ fontSize: '0.8rem', color: '#ef4444', margin: '8px 0 0 0' }}>{whatsappError}</p>}
                     </div>
                   )}
                 </div>
               </div>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Razorpay UPI Card */}
+      <div className="settings-card-modern" style={{ marginTop: '24px' }}>
+        <div className="settings-card-hdr">
+          <h2><CreditCard size={20} style={{ color: '#3399FF' }} /> Razorpay UPI Settings</h2>
+          <button 
+            onClick={() => setIsEditingRazorpayInfo(!isEditingRazorpayInfo)}
+            className="btn-modern btn-modern-secondary"
+          >
+            <Edit size={16} />
+            {isEditingRazorpayInfo ? 'Cancel' : 'Edit'}
+          </button>
+        </div>
+        <div className="settings-card-body-modern">
+          {isEditingRazorpayInfo ? (
+            <div className="form-grid-modern single-column">
+              <div className="form-group-modern">
+                <div 
+                  className="switch-wrapper" 
+                  onClick={() => handleBarSettingsChange('razorpay_enabled', barSettings.razorpay_enabled ? 0 : 1)}
+                >
+                  <div className={`switch-track ${barSettings.razorpay_enabled ? 'active' : ''}`}>
+                    <div className="switch-thumb"></div>
+                  </div>
+                  <span className="switch-label">Enable Razorpay UPI QR Codes</span>
+                </div>
+                <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0', paddingLeft: '62px' }}>
+                  Generates dynamic payment QR codes using Render environment credentials.
+                </p>
+              </div>
+              <div className="form-group-modern" style={{ marginTop: '10px' }}>
+                <button 
+                  onClick={saveBarSettings}
+                  disabled={loading}
+                  className="btn-modern btn-modern-primary"
+                  style={{ width: 'fit-content' }}
+                >
+                  <Save size={16} />
+                  {loading ? 'Saving...' : 'Save Settings'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="display-grid">
+              <div className="display-item">
+                <h4>Integration Status</h4>
+                <p style={{ marginTop: '6px' }}>
+                  {barSettings.razorpay_enabled === 1 ? (
+                    <span style={{ color: '#16a34a', fontWeight: '700' }}>✓ Enabled (Razorpay UPI active using Render credentials)</span>
+                  ) : (
+                    <span style={{ color: '#ef4444', fontWeight: '700' }}>✗ Disabled (UPI QR generation is manual)</span>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+
+  const renderSecurityTab = () => (
+    <div className="settings-card-modern">
+      <div className="settings-card-hdr">
+        <h2><Lock size={20} style={{ color: '#ef4444' }} /> Security Settings</h2>
+        <button 
+          onClick={() => {
+            setIsEditingSecurity(!isEditingSecurity);
+            setCurrentPasswordInput('');
+            setNewPasswordInput('');
+            setConfirmPasswordInput('');
+          }}
+          className="btn-modern btn-modern-secondary"
+        >
+          <Edit size={16} />
+          {isEditingSecurity ? 'Cancel' : 'Change Password'}
+        </button>
+      </div>
+      <div className="settings-card-body-modern">
+        {isEditingSecurity ? (
+          <div className="form-grid-modern single-column">
+            <div className="form-group-modern">
+              <label>Current Password</label>
+              <input
+                type="password"
+                value={currentPasswordInput}
+                onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                className="input-modern"
+                placeholder="Enter current password"
+              />
+            </div>
+            <div className="form-group-modern">
+              <label>New Password (6 digits/chars)</label>
+              <input
+                type="password"
+                value={newPasswordInput}
+                onChange={(e) => setNewPasswordInput(e.target.value.substring(0, 10))}
+                className="input-modern"
+                placeholder="Enter new password"
+              />
+            </div>
+            <div className="form-group-modern">
+              <label>Confirm New Password</label>
+              <input
+                type="password"
+                value={confirmPasswordInput}
+                onChange={(e) => setConfirmPasswordInput(e.target.value.substring(0, 10))}
+                className="input-modern"
+                placeholder="Confirm new password"
+              />
+            </div>
+            <div className="form-group-modern" style={{ marginTop: '10px' }}>
+              <button 
+                onClick={handlePasswordChange}
+                disabled={securityLoading}
+                className="btn-modern btn-modern-primary"
+                style={{ width: 'fit-content' }}
+              >
+                <Save size={16} />
+                {securityLoading ? 'Updating...' : 'Update Password'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <h4 style={{ margin: '0 0 10px 0', fontSize: '1rem', color: '#1e293b', fontWeight: '700' }}>
+              Admin Console Protection
+            </h4>
+            <p style={{ color: '#64748b', fontSize: '0.92rem', lineHeight: '1.6', margin: 0 }}>
+              Access to protected screens like Products, Sales, Settings, and Spendings requires the admin authorization password. The default password is <code>123456</code>.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderSyncTab = () => (
+    <div className="settings-card-modern">
+      <div className="settings-card-hdr">
+        <h2><CloudLightning size={20} style={{ color: '#f59e0b' }} /> Firebase Cloud Sync</h2>
+      </div>
+      <div className="settings-card-body-modern">
+        <div className="display-grid" style={{ marginBottom: '24px' }}>
+          <div className="display-item" style={{ gridColumn: '1 / -1' }}>
+            <h4>Cloud Connection Status</h4>
+            <p style={{ marginTop: '6px' }}>
+              {getFirebaseDb() ? (
+                <span style={{ color: '#16a34a', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  ✓ Configured & Connected (Firestore live sync is active)
+                </span>
+              ) : (
+                <span style={{ color: '#ef4444', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  ✗ Not Configured (Configure credentials inside src/firebase.js first)
+                </span>
+              )}
+            </p>
           </div>
         </div>
 
-        {/* Razorpay Automatic UPI Settings Section */}
-        <div className="table-container" style={{ marginBottom: '30px' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            padding: '20px',
-            borderBottom: '1px solid #e9ecef'
-          }}>
-            <h2 style={{ margin: 0 }}>
-              <CreditCard size={20} style={{ marginRight: '10px' }} />
-              Razorpay UPI Settings
-            </h2>
+        {getFirebaseDb() && (
+          <div style={{ borderTop: '1px solid #eef2f6', paddingTop: '24px' }}>
+            <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: '#1e293b', fontWeight: '700' }}>
+              Manual Menu Sync
+            </h4>
+            <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0 0 16px 0', lineHeight: '1.5' }}>
+              Push your local products, prices, and categories to the cloud Firestore database so customers can access the live catalog online.
+            </p>
             <button 
-              onClick={() => setIsEditingRazorpayInfo(!isEditingRazorpayInfo)}
-              className="btn btn-secondary"
+              onClick={syncMenuToCloud}
+              disabled={syncingMenu}
+              className="btn-modern btn-modern-primary"
+              style={{ background: '#1C5C3A' }}
             >
-              <Edit size={16} />
-              {isEditingRazorpayInfo ? 'Cancel' : 'Edit'}
+              <CloudLightning size={16} />
+              {syncingMenu ? 'Syncing...' : 'Sync Menu to Cloud'}
             </button>
           </div>
-          
-          <div style={{ padding: '20px' }}>
-            {isEditingRazorpayInfo ? (
-              <div className="razorpay-settings-form">
-                <div className="form-row" style={{ width: '100%', marginBottom: '15px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center' }}>
-                    <input
-                      type="checkbox"
-                      checked={!!barSettings.razorpay_enabled}
-                      onChange={(e) => handleBarSettingsChange('razorpay_enabled', e.target.checked ? 1 : 0)}
-                      style={{ marginRight: '10px' }}
-                    />
-                    Enable Razorpay UPI QR (Uses Render environment variables)
-                  </label>
-                </div>
-                
-                <div className="form-actions">
-                  <button 
-                    onClick={saveBarSettings}
-                    disabled={loading}
-                    className="btn btn-primary"
-                  >
-                    <Save size={16} />
-                    {loading ? 'Saving...' : 'Save Settings'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="razorpay-settings-display">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
-                  <div>
-                    <h4>Integration Status</h4>
-                    <p style={{ margin: 0 }}>
-                      {barSettings.razorpay_enabled === 1 ? (
-                        <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✓ Enabled (Razorpay UPI QR active using Render credentials)</span>
-                      ) : (
-                        <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>✗ Disabled (UPI payments will be manual)</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+        )}
+      </div>
+    </div>
+  );
+
+  const renderSystemTab = () => (
+    <>
+      {/* End of Day Operations */}
+      <div className="settings-card-modern">
+        <div className="settings-card-hdr">
+          <h2><RotateCcw size={20} style={{ color: '#1e293b' }} /> Daily Operations</h2>
+        </div>
+        <div className="settings-card-body-modern">
+          <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: '#1e293b', fontWeight: '700' }}>
+            Close Sell & Generate Reports
+          </h4>
+          <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0 0 16px 0', lineHeight: '1.5' }}>
+            {"Closes the current day's business shift, creates a compressed ZIP file of all reports, backs up the database, and emails the package to the owner."}
+          </p>
+          <button 
+            onClick={handleCloseSell}
+            disabled={closeSellLoading}
+            className="btn-modern btn-modern-primary"
+            style={{ background: '#1e293b' }}
+          >
+            <RotateCcw size={16} />
+            {closeSellLoading ? 'Processing Close Sell...' : 'Run Close Sell Now'}
+          </button>
+        </div>
+      </div>
+
+      {/* Danger Zone: Reset Application */}
+      <div className="settings-card-modern" style={{ marginTop: '24px', border: '1.5px solid #fca5a5' }}>
+        <div className="settings-card-hdr" style={{ background: '#fef2f2' }}>
+          <h2 style={{ color: '#ef4444' }}><AlertTriangle size={20} /> Danger Zone: Reset App</h2>
+        </div>
+        <div className="settings-card-body-modern">
+          <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '12px', padding: '16px', marginBottom: '20px', color: '#b45309', fontSize: '0.9rem' }}>
+            <strong style={{ display: 'block', marginBottom: '6px' }}>Warning: This action is permanent!</strong>
+            Resetting the application will completely wipe all local products, tables, configurations, spendings, and sales records. Defaults will be restored.
           </div>
+
+          {!showResetConfirm ? (
+            <button 
+              onClick={handleResetApplication}
+              disabled={resetLoading}
+              className="btn-modern btn-modern-danger"
+            >
+              <RotateCcw size={16} />
+              {resetLoading ? 'Resetting...' : 'Reset Entire Application'}
+            </button>
+          ) : (
+            <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '20px' }}>
+              <p style={{ margin: '0 0 12px 0', color: '#991b1b', fontWeight: '700' }}>
+                Are you absolutely sure? This cannot be undone.
+              </p>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#991b1b', marginBottom: '6px' }}>
+                  Please type &quot;reset app&quot; below to confirm:
+                </label>
+                <input
+                  type="text"
+                  value={resetConfirmText}
+                  onChange={(e) => setResetConfirmText(e.target.value)}
+                  placeholder="Type 'reset app'"
+                  className="input-modern"
+                  style={{ width: '100%', borderColor: '#fca5a5', background: '#ffffff', color: '#991b1b' }}
+                  disabled={resetLoading}
+                  autoComplete="off"
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button 
+                  onClick={handleResetApplication}
+                  disabled={resetLoading || resetConfirmText.trim().toLowerCase() !== 'reset app'}
+                  className="btn-modern btn-modern-danger"
+                >
+                  {resetLoading ? 'Resetting...' : 'Yes, Delete All Data'}
+                </button>
+                <button 
+                  onClick={cancelReset}
+                  disabled={resetLoading}
+                  className="btn-modern btn-modern-secondary"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Info & Support */}
+      <div className="info-cards-grid" style={{ marginTop: '24px' }}>
+        <div className="info-card">
+          <h3><Info size={18} style={{ color: '#3b82f6' }} /> Application Info</h3>
+          <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+            <tbody>
+              <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                <td style={{ padding: '8px 0', color: '#64748b', fontWeight: '600' }}>Version:</td>
+                <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: '600' }}>2.0.0</td>
+              </tr>
+              <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                <td style={{ padding: '8px 0', color: '#64748b', fontWeight: '600' }}>Database:</td>
+                <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: '600' }}>
+                  {typeof window !== "undefined" && !!window.electronAPI ? 'SQLite' : 'IndexedDB (Dexie)'}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ padding: '8px 0', color: '#64748b', fontWeight: '600' }}>Platform:</td>
+                <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: '600' }}>
+                  {typeof window !== "undefined" && !!window.electronAPI ? 'Electron (Desktop)' : 'Android / Web'}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-
-
-        {/* Cloud Sync & Firebase Configuration Section */}
-        <div className="table-container" style={{ marginBottom: '30px' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            padding: '20px',
-            borderBottom: '1px solid #e9ecef'
-          }}>
-            <h2 style={{ margin: 0 }}>
-              <CloudLightning size={20} style={{ marginRight: '10px' }} />
-              Firebase Cloud Sync
-            </h2>
-          </div>
-          
-          <div style={{ padding: '20px' }}>
-            <div className="cloud-settings-display">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px', marginBottom: '20px' }}>
-                <div>
-                  <h4>Cloud Connection Status</h4>
-                  <p style={{ margin: 0 }}>
-                    {getFirebaseDb() ? (
-                      <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✓ Configured & Connected (Firestore live sync is active)</span>
-                    ) : (
-                      <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>✗ Not Configured (Please add your Firebase web app credentials in src/firebase.js)</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              {getFirebaseDb() && (
-                <div style={{ borderTop: '1px solid #eaecf0', paddingTop: '20px' }}>
-                  <h4>Manual Operations</h4>
-                  <p style={{ color: '#667085', fontSize: '0.9rem', margin: '0 0 15px 0' }}>
-                    Push your local product catalog and categories to the cloud Firestore database so customers can see them on the website.
-                  </p>
-                  <button 
-                    onClick={syncMenuToCloud}
-                    disabled={syncingMenu}
-                    className="btn btn-primary"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#1C5C3A' }}
-                  >
-                    <CloudLightning size={16} />
-                    {syncingMenu ? 'Synchronizing...' : 'Sync Menu to Cloud'}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+        <div className="info-card">
+          <h3><HelpCircle size={18} style={{ color: '#10b981' }} /> Support</h3>
+          <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#475569', fontWeight: '600' }}>
+            For technical support:
+          </p>
+          <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+            <tbody>
+              <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                <td style={{ padding: '8px 0', color: '#64748b', fontWeight: '600' }}>Email:</td>
+                <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: '600', color: '#b6412c' }}>
+                  ajitreddy013@gmail.com
+                </td>
+              </tr>
+              <tr>
+                <td style={{ padding: '8px 0', color: '#64748b', fontWeight: '600' }}>Phone:</td>
+                <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: '600', color: '#b6412c' }}>
+                  +91 7517323121
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
+      </div>
+    </>
+  );
 
-        {/* Reset Application Section */}
-        <div className="table-container" style={{ marginBottom: '30px', border: '2px solid #e74c3c' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            padding: '20px',
-            borderBottom: '1px solid #e74c3c',
-            backgroundColor: '#fdf2f2'
-          }}>
-            <h2 style={{ margin: 0, color: '#e74c3c' }}>
-              <AlertTriangle size={20} style={{ marginRight: '10px' }} />
-              Reset Application
-            </h2>
-          </div>
+  return (
+    <div className="settings-page-wrapper">
+      {/* Scope-isolated modern styles to avoid conflicts with global App.css */}
+      <style>{`
+        .settings-page-wrapper {
+          padding: 24px 30px;
+          max-width: 1250px;
+          margin: 0 auto;
+          font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
+          color: #2c3e50;
+        }
+        
+        .settings-header-modern {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 30px;
+          border-bottom: 2px solid #eef2f6;
+          padding-bottom: 16px;
+        }
+        
+        .settings-header-modern h1 {
+          margin: 0;
+          font-size: 1.85rem;
+          font-weight: 800;
+          color: #1e293b;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .settings-layout-modern {
+          display: grid;
+          grid-template-columns: 260px 1fr;
+          gap: 30px;
+          align-items: start;
+        }
+
+        .settings-nav-sidebar {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          background: rgba(255, 255, 255, 0.6);
+          backdrop-filter: blur(8px);
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+          padding: 12px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+        }
+
+        .settings-nav-btn {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 14px 16px;
+          border: none;
+          border-radius: 10px;
+          background: transparent;
+          color: #64748b;
+          font-size: 0.95rem;
+          font-weight: 600;
+          text-align: left;
+          cursor: pointer;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          width: 100%;
+        }
+
+        .settings-nav-btn:hover {
+          background: rgba(182, 65, 44, 0.06);
+          color: #b6412c;
+          transform: translateX(4px);
+        }
+
+        .settings-nav-btn.active {
+          background: linear-gradient(135deg, #b6412c 0%, #e05e46 100%);
+          color: #ffffff;
+          box-shadow: 0 6px 16px rgba(182, 65, 44, 0.2);
+        }
+
+        .settings-panel-container {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+          animation: settingsFadeIn 0.3s ease-out;
+        }
+
+        @keyframes settingsFadeIn {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Glassmorphic Cards */
+        .settings-card-modern {
+          background: rgba(255, 255, 255, 0.9);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          border: 1px solid rgba(226, 232, 240, 0.8);
+          border-radius: 20px;
+          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.02);
+          overflow: hidden;
+          transition: all 0.3s ease;
+        }
+
+        .settings-card-modern:hover {
+          box-shadow: 0 12px 36px rgba(0, 0, 0, 0.04);
+        }
+
+        .settings-card-hdr {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 22px 28px;
+          border-bottom: 1px solid #eef2f6;
+          background: rgba(248, 250, 252, 0.5);
+        }
+
+        .settings-card-hdr h2 {
+          margin: 0;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 1.15rem;
+          font-weight: 700;
+          color: #1e293b;
+        }
+
+        .settings-card-body-modern {
+          padding: 28px;
+        }
+
+        /* Form Layouts */
+        .form-grid-modern {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 24px;
+        }
+
+        .form-grid-modern.single-column {
+          grid-template-columns: 1fr;
+          max-width: 600px;
+        }
+
+        .form-group-modern {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .form-group-modern.full-width {
+          grid-column: 1 / -1;
+        }
+
+        .form-group-modern label {
+          font-size: 0.82rem;
+          font-weight: 700;
+          color: #475569;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .input-modern {
+          padding: 12px 16px;
+          border: 1.5px solid #e2e8f0;
+          border-radius: 12px;
+          background: #f8fafc;
+          color: #1e293b;
+          font-size: 0.95rem;
+          transition: all 0.2s ease;
+        }
+
+        .input-modern:focus {
+          border-color: #b6412c;
+          background: #ffffff;
+          outline: none;
+          box-shadow: 0 0 0 3px rgba(182, 65, 44, 0.1);
+        }
+
+        .textarea-modern {
+          min-height: 90px;
+          resize: vertical;
+        }
+
+        /* Toggle Custom Switch */
+        .switch-wrapper {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          cursor: pointer;
+          user-select: none;
+          padding: 6px 0;
+        }
+
+        .switch-track {
+          position: relative;
+          width: 50px;
+          height: 26px;
+          background: #cbd5e1;
+          border-radius: 13px;
+          transition: all 0.25s ease;
+        }
+
+        .switch-track.active {
+          background: #1C5C3A;
+        }
+
+        .switch-thumb {
+          position: absolute;
+          top: 3px;
+          left: 3px;
+          width: 20px;
+          height: 20px;
+          background: #ffffff;
+          border-radius: 50%;
+          transition: all 0.25s cubic-bezier(0.3, 1.5, 0.7, 1);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+
+        .switch-track.active .switch-thumb {
+          left: 27px;
+        }
+
+        .switch-label {
+          font-size: 0.95rem;
+          font-weight: 600;
+          color: #334155;
+        }
+
+        /* Buttons styling */
+        .btn-modern {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 12px 20px;
+          border-radius: 12px;
+          font-size: 0.95rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          border: 1px solid transparent;
+        }
+
+        .btn-modern-primary {
+          background: #b6412c;
+          color: #ffffff;
+        }
+
+        .btn-modern-primary:hover {
+          background: #d85a42;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(182, 65, 44, 0.2);
+        }
+
+        .btn-modern-secondary {
+          background: #ffffff;
+          border-color: #cbd5e1;
+          color: #475569;
+        }
+
+        .btn-modern-secondary:hover {
+          background: #f8fafc;
+          border-color: #94a3b8;
+        }
+
+        .btn-modern-danger {
+          background: #ef4444;
+          color: #ffffff;
+        }
+
+        .btn-modern-danger:hover {
+          background: #f87171;
+          transform: translateY(-1px);
+        }
+
+        .btn-modern:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none !important;
+          box-shadow: none !important;
+        }
+
+        /* Displays */
+        .display-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 24px;
+        }
+
+        .display-item h4 {
+          margin: 0 0 6px 0;
+          font-size: 0.8rem;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          font-weight: 700;
+        }
+
+        .display-item p {
+          margin: 0;
+          font-size: 1rem;
+          color: #1e293b;
+          font-weight: 500;
+          line-height: 1.5;
+        }
+
+        /* QR Section */
+        .qr-card-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          border: 1.5px dashed #cbd5e1;
+          border-radius: 16px;
+          padding: 24px;
+          background: #f8fafc;
+          min-height: 250px;
+          text-align: center;
+        }
+
+        .status-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 12px;
+          border-radius: 999px;
+          font-size: 0.85rem;
+          font-weight: 700;
+        }
+
+        .status-badge.connected {
+          background: #dcfce7;
+          color: #15803d;
+        }
+
+        .status-badge.authenticating {
+          background: #e0f2fe;
+          color: #0369a1;
+        }
+
+        .status-badge.qr-ready {
+          background: #fef3c7;
+          color: #b45309;
+        }
+
+        .status-badge.initializing {
+          background: #f1f5f9;
+          color: #475569;
+        }
+
+        .status-badge.disconnected {
+          background: #fee2e2;
+          color: #b91c1c;
+        }
+
+        /* Info Card support */
+        .info-cards-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 20px;
+        }
+
+        .info-card {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+          padding: 20px;
+        }
+
+        .info-card h3 {
+          margin: 0 0 12px 0;
+          font-size: 1rem;
+          color: #1e293b;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+          .settings-layout-modern {
+            grid-template-columns: 1fr;
+          }
           
-          <div style={{ padding: '20px' }}>
-            <div style={{ 
-              background: '#fff3cd', 
-              border: '1px solid #ffeaa7', 
-              borderRadius: '6px', 
-              padding: '15px', 
-              marginBottom: '20px' 
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                <AlertTriangle size={16} style={{ marginRight: '8px', color: '#856404' }} />
-                <strong style={{ color: '#856404' }}>Warning: This action cannot be undone!</strong>
-              </div>
-              <p style={{ margin: '0', color: '#856404', fontSize: '0.9rem' }}>
-                Resetting the application will permanently delete all data including:
-              </p>
-              <ul style={{ margin: '10px 0 0 0', paddingLeft: '20px', color: '#856404', fontSize: '0.9rem' }}>
-                <li>All products</li>
-                <li>All sales records and transactions</li>
-                <li>All table orders</li>
-                <li>All spendings records</li>
-                <li>All settings and configurations</li>
-              </ul>
-              <p style={{ margin: '10px 0 0 0', color: '#856404', fontSize: '0.9rem' }}>
-                Default tables and settings will be restored after reset.
-              </p>
-            </div>
-            
-            {!showResetConfirm ? (
-              <button 
-                onClick={handleResetApplication}
-                disabled={resetLoading}
-                className="btn"
-                style={{
-                  backgroundColor: '#e74c3c',
-                  color: 'white',
-                  border: 'none',
-                  padding: '12px 20px',
-                  borderRadius: '6px',
-                  cursor: resetLoading ? 'not-allowed' : 'pointer',
-                  opacity: resetLoading ? 0.6 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
+          .settings-nav-sidebar {
+            flex-direction: row;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding: 8px;
+          }
+          
+          .settings-nav-btn {
+            width: auto;
+            padding: 10px 16px;
+            font-size: 0.88rem;
+          }
+          
+          .form-grid-modern, .display-grid, .info-cards-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+
+      <div className="settings-header-modern">
+        <h1><SettingsIcon size={28} style={{ color: '#b6412c' }} /> Settings</h1>
+      </div>
+
+      <div className="settings-layout-modern">
+        {/* Navigation Sidebar */}
+        <div className="settings-nav-sidebar">
+          {tabs.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  // Turn off editing states when switching tabs
+                  setIsEditingBarInfo(false);
+                  setIsEditingWhatsappInfo(false);
+                  setIsEditingRazorpayInfo(false);
+                  setIsEditingSecurity(false);
                 }}
+                className={`settings-nav-btn ${activeTab === tab.id ? 'active' : ''}`}
               >
-                <RotateCcw size={16} />
-                {resetLoading ? 'Resetting...' : 'Reset Application'}
+                <Icon size={18} />
+                <span>{tab.label}</span>
               </button>
-            ) : (
-              <div style={{ 
-                background: '#f8d7da', 
-                border: '1px solid #f5c6cb', 
-                borderRadius: '6px', 
-                padding: '15px'
-              }}>
-                <p style={{ margin: '0 0 15px 0', color: '#721c24', fontWeight: 'bold' }}>
-                  Are you absolutely sure you want to reset the application?
-                </p>
-                <p style={{ margin: '0 0 15px 0', color: '#721c24', fontSize: '0.9rem' }}>
-                  This will permanently delete all your data and cannot be undone.
-                </p>
-                <div style={{ marginBottom: '15px' }}>
-                  <p style={{ margin: '0 0 10px 0', color: '#721c24', fontSize: '0.9rem', fontWeight: 'bold' }}>
-                    To confirm, please type &quot;reset app&quot; below:
-                  </p>
-                  <input
-                    type="text"
-                    value={resetConfirmText}
-                    onChange={(e) => setResetConfirmText(e.target.value)}
-                    placeholder="Type 'reset app' to confirm"
-                    disabled={resetLoading}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: '1px solid #dc3545',
-                      borderRadius: '4px',
-                      fontSize: '0.9rem',
-                      backgroundColor: resetLoading ? '#f8f9fa' : 'white',
-                      color: '#721c24'
-                    }}
-                    autoComplete="off"
-                  />
-                </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button 
-                    onClick={handleResetApplication}
-                    disabled={resetLoading || resetConfirmText.trim().toLowerCase() !== 'reset app'}
-                    className="btn"
-                    style={{
-                      backgroundColor: '#dc3545',
-                      color: 'white',
-                      border: 'none',
-                      padding: '10px 16px',
-                      borderRadius: '4px',
-                      cursor: (resetLoading || resetConfirmText.trim().toLowerCase() !== 'reset app') ? 'not-allowed' : 'pointer',
-                      opacity: (resetLoading || resetConfirmText.trim().toLowerCase() !== 'reset app') ? 0.6 : 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <RotateCcw size={14} />
-                    {resetLoading ? 'Resetting...' : 'Yes, Reset Everything'}
-                  </button>
-                  <button 
-                    onClick={cancelReset}
-                    disabled={resetLoading}
-                    className="btn"
-                    style={{
-                      backgroundColor: '#6c757d',
-                      color: 'white',
-                      border: 'none',
-                      padding: '10px 16px',
-                      borderRadius: '4px',
-                      cursor: resetLoading ? 'not-allowed' : 'pointer',
-                      opacity: resetLoading ? 0.6 : 1
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+            );
+          })}
         </div>
 
-        <div className="summary-cards">
-          <div className="summary-card" style={{ overflow: 'visible', minHeight: 'unset' }}>
-            <h3><Info size={20} style={{ marginRight: '10px' }} />Application Info</h3>
-            <div style={{ textAlign: 'left', fontSize: '0.85rem', width: '100%', marginTop: '10px' }}>
-              <p style={{ margin: '6px 0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '4px' }}>
-                <strong>Version:</strong>
-                <span>2.0.0</span>
-              </p>
-              <p style={{ margin: '6px 0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '4px' }}>
-                <strong>Database:</strong>
-                <span style={{ wordBreak: 'break-word', textAlign: 'right' }}>{typeof window !== "undefined" && !!window.electronAPI ? 'SQLite' : 'IndexedDB (Dexie)'}</span>
-              </p>
-              <p style={{ margin: '6px 0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '4px' }}>
-                <strong>Platform:</strong>
-                <span style={{ wordBreak: 'break-word', textAlign: 'right' }}>{typeof window !== "undefined" && !!window.electronAPI ? 'Electron (Desktop)' : 'Android / Web'}</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="summary-card" style={{ overflow: 'visible', minHeight: 'unset' }}>
-            <h3><HelpCircle size={20} style={{ marginRight: '10px' }} />Support</h3>
-            <div style={{ textAlign: 'left', fontSize: '0.85rem', width: '100%', marginTop: '10px' }}>
-              <p style={{ margin: '6px 0', fontWeight: '600', color: '#2c3e50' }}>For technical support:</p>
-              <p style={{ margin: '6px 0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '4px' }}>
-                <strong>Email:</strong>
-                <span style={{ wordBreak: 'break-all', textAlign: 'right' }}>ajitreddy013@gmail.com</span>
-              </p>
-              <p style={{ margin: '6px 0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '4px' }}>
-                <strong>Phone:</strong>
-                <span>+91 7517323121</span>
-              </p>
-            </div>
-          </div>
+        {/* Panel Container */}
+        <div className="settings-panel-container">
+          {activeTab === 'general' && renderGeneralTab()}
+          {activeTab === 'integrations' && renderIntegrationsTab()}
+          {activeTab === 'security' && renderSecurityTab()}
+          {activeTab === 'sync' && renderSyncTab()}
+          {activeTab === 'system' && renderSystemTab()}
         </div>
-
-
-
-
       </div>
     </div>
   );
