@@ -298,8 +298,18 @@ function razorpayRequest(method, path, body, keyId, keySecret) {
           if (res.statusCode >= 200 && res.statusCode < 300) {
             resolve(parsed);
           } else {
+            const razorpayErrorDetails = parsed.error
+              ? [
+                  parsed.error.description,
+                  parsed.error.code && `code=${parsed.error.code}`,
+                  parsed.error.field && `field=${parsed.error.field}`,
+                  parsed.error.source && `source=${parsed.error.source}`,
+                  parsed.error.step && `step=${parsed.error.step}`,
+                  parsed.error.reason && `reason=${parsed.error.reason}`
+                ].filter(Boolean).join(" | ")
+              : "";
             const errorMessage = parsed.error
-              ? `${parsed.error.description || parsed.error.reason || parsed.error.code || "Razorpay API error"} (HTTP ${res.statusCode})`
+              ? `${razorpayErrorDetails || "Razorpay API error"} (HTTP ${res.statusCode})`
               : `HTTP Error ${res.statusCode}: ${responseBody}`;
             reject(new Error(errorMessage));
           }
@@ -329,6 +339,7 @@ app.post("/payment/create-qr", async (req, res) => {
   const { amount, orderId } = req.body;
   const rzpKeyId = process.env.RAZORPAY_KEY_ID;
   const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET;
+  const shopName = process.env.SHOP_NAME || "Malabar Waffle";
 
   if (!amount || !orderId || !rzpKeyId || !rzpKeySecret) {
     return res.status(400).json({
@@ -340,21 +351,32 @@ app.post("/payment/create-qr", async (req, res) => {
   try {
     // Razorpay expects amount in paise (e.g. ₹150.00 is 15000 paise)
     const amountInPaise = Math.round(parseFloat(amount) * 100);
+    if (!Number.isFinite(amountInPaise) || amountInPaise < 100) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid amount. Razorpay QR amount must be at least ₹1."
+      });
+    }
     
     // Set expiration to 10 minutes from now (600 seconds)
     const expireTimestamp = Math.floor(Date.now() / 1000) + 600;
 
     const payload = {
       type: "upi_qr",
-      name: "Food Truck POS",
+      name: shopName,
       usage: "single_use",
       fixed_amount: true,
       payment_amount: amountInPaise,
       description: `Payment for Order #${orderId}`,
-      close_by: expireTimestamp
+      close_by: expireTimestamp,
+      notes: {
+        order_id: String(orderId),
+        source: "pos_app"
+      }
     };
 
     console.log(`Creating Razorpay QR Code for Order #${orderId}, Amount: ${amountInPaise} paise`);
+    console.log("Razorpay QR request path: /v1/payments/qr_codes");
     const response = await razorpayRequest("POST", "/v1/payments/qr_codes", payload, rzpKeyId, rzpKeySecret);
     
     res.json({
