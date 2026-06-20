@@ -2481,6 +2481,16 @@ tr:hover {
   color: #b45309;
 }
 
+@media (max-width: 900px) {
+  .pos-notice {
+    top: auto;
+    bottom: calc(24px + env(safe-area-inset-bottom));
+    right: 5%;
+    left: 5%;
+    width: auto;
+    min-width: unset;
+  }
+}
 
 @keyframes posNoticeIn {
   from {
