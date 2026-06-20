@@ -633,234 +633,178 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       )}
       <div className="pos-layout">
         <div className={`product-panel ${activeTab === 'cart' ? 'mobile-hidden' : ''}`}>
-          {isKiosk ? (
-            <div className="kiosk-header" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px 14px 12px', background: '#f6f3ee', borderBottom: '1px solid #e6ded3' }}>
-              {/* Single Row: Logo + Name + Search Icon */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
-                <div
-                  onMouseDown={startLongPress}
-                  onMouseUp={cancelLongPress}
-                  onMouseLeave={cancelLongPress}
-                  onTouchStart={startLongPress}
-                  onTouchEnd={cancelLongPress}
-                  onTouchCancel={cancelLongPress}
-                  onContextMenu={(e) => { e.preventDefault(); return false; }}
-                  style={{
-                    height: '36px', 
-                    width: '36px', 
-                    borderRadius: '50%',
-                    flexShrink: 0,
-                    cursor: 'pointer',
-                    WebkitTouchCallout: 'none',
-                    WebkitUserSelect: 'none',
-                    userSelect: 'none',
-                    opacity: longPressActive ? 0.5 : 1,
-                    transition: 'opacity 0.2s',
-                  }}
-                >
-                  <img 
-                    src={malabarLogo} 
-                    alt="Logo" 
-                    draggable="false"
-                    style={{ 
-                      height: '100%', 
-                      width: '100%', 
-                      borderRadius: '50%', 
-                      objectFit: 'cover', 
-                      border: '1.5px solid #e6ded3', 
-                      background: '#ffffff', 
-                      pointerEvents: 'none'
-                    }} 
-                  />
-                </div>
-                <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#221f1a', fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.02em', flex: 1 }}>
+          <div className="kiosk-header" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px 14px 12px', background: '#f6f3ee', borderBottom: '1px solid #e6ded3' }}>
+            {/* Single Row: Logo + Name + Online Orders + Search Icon */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
+              <div
+                onMouseDown={startLongPress}
+                onMouseUp={cancelLongPress}
+                onMouseLeave={cancelLongPress}
+                onTouchStart={startLongPress}
+                onTouchEnd={cancelLongPress}
+                onTouchCancel={cancelLongPress}
+                onContextMenu={(e) => { e.preventDefault(); return false; }}
+                style={{
+                  height: '36px', 
+                  width: '36px', 
+                  borderRadius: '50%',
+                  flexShrink: 0,
+                  cursor: 'pointer',
+                  WebkitTouchCallout: 'none',
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none',
+                  opacity: longPressActive ? 0.5 : 1,
+                  transition: 'opacity 0.2s',
+                }}
+              >
+                <img 
+                  src={malabarLogo} 
+                  alt="Logo" 
+                  draggable="false"
+                  style={{ 
+                    height: '100%', 
+                    width: '100%', 
+                    borderRadius: '50%', 
+                    objectFit: 'cover', 
+                    border: '1.5px solid #e6ded3', 
+                    background: '#ffffff', 
+                    pointerEvents: 'none'
+                  }} 
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#221f1a', fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {barSettings?.bar_name || 'Malabar Waffle'}
                 </span>
+                {!isKiosk && barSettings?.address && (
+                  <span style={{ fontSize: '0.7rem', color: '#7f766a', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    📍 {barSettings.address}
+                  </span>
+                )}
+              </div>
+
+              {!isKiosk && getFirebaseDb() && (
                 <button
-                  type="button"
-                  onClick={() => {
-                    setShowSearch(prev => {
-                      const next = !prev;
-                      if (next) {
-                        setTimeout(() => { if (searchInputRef.current) searchInputRef.current.focus({ preventScroll: true }); }, 80);
-                      } else {
-                        setSearchTerm('');
-                      }
-                      return next;
-                    });
-                  }}
+                  onClick={() => setShowOnlineOrdersModal(true)}
                   style={{
-                    background: showSearch ? '#f2e7db' : '#ffffff',
-                    border: '1px solid #e6ded3',
-                    color: '#b6412c',
-                    width: '40px',
-                    height: '40px',
+                    background: onlineOrders.filter(o => o.orderStatus === 'pending_acceptance').length > 0 ? '#ea580c' : '#1C5C3A',
+                    color: 'white',
+                    padding: '6px 12px',
+                    borderRadius: '999px',
+                    border: 'none',
+                    fontWeight: '700',
+                    fontSize: '0.75rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.08)',
+                    transition: 'all 0.2s ease',
+                    flexShrink: 0
+                  }}
+                >
+                  <Smartphone size={14} />
+                  <span style={{
+                    background: 'white',
+                    color: onlineOrders.filter(o => o.orderStatus === 'pending_acceptance').length > 0 ? '#ea580c' : '#1C5C3A',
                     borderRadius: '50%',
+                    width: '16px',
+                    height: '16px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                    transition: 'all 0.2s'
-                  }}
-                  title="Search"
-                  aria-label="Search products"
-                >
-                  {showSearch ? <X size={18} /> : <Search size={18} />}
+                    fontSize: '0.65rem',
+                    fontWeight: '800'
+                  }}>
+                    {onlineOrders.length}
+                  </span>
                 </button>
-              </div>
+              )}
 
-              {/* Expandable Search Bar */}
-              {showSearch && (
-                <div style={{
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSearch(prev => {
+                    const next = !prev;
+                    if (next) {
+                      setTimeout(() => { if (searchInputRef.current) searchInputRef.current.focus({ preventScroll: true }); }, 80);
+                    } else {
+                      setSearchTerm('');
+                    }
+                    return next;
+                  });
+                }}
+                style={{
+                  background: showSearch ? '#f2e7db' : '#ffffff',
+                  border: '1px solid #e6ded3',
+                  color: '#b6412c',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
                   display: 'flex',
                   alignItems: 'center',
-                  background: '#ffffff',
-                  border: '1px solid #e6ded3',
-                  borderRadius: '999px',
-                  padding: '0 16px',
-                  height: '40px',
-                  gap: '8px',
-                }}>
-                  <Search size={16} style={{ color: '#b6412c', flexShrink: 0 }} />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    placeholder="Search products..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onKeyDown={handleKeyPress}
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'all 0.2s'
+                }}
+                title="Search"
+                aria-label="Search products"
+              >
+                {showSearch ? <X size={16} /> : <Search size={16} />}
+              </button>
+            </div>
+
+            {/* Expandable Search Bar */}
+            {showSearch && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                background: '#ffffff',
+                border: '1px solid #e6ded3',
+                borderRadius: '999px',
+                padding: '0 16px',
+                height: '40px',
+                gap: '8px',
+              }}>
+                <Search size={16} style={{ color: '#b6412c', flexShrink: 0 }} />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search products..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    color: '#221f1a',
+                    fontSize: '0.85rem',
+                    width: '100%',
+                    padding: 0
+                  }}
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
                     style={{
                       background: 'transparent',
                       border: 'none',
-                      outline: 'none',
-                      color: '#221f1a',
-                      fontSize: '0.85rem',
-                      width: '100%',
-                      padding: 0
-                    }}
-                  />
-                  {searchTerm && (
-                    <button
-                      onClick={() => setSearchTerm('')}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#7f766a',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: 0
-                      }}
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="pos-header-minimal">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '15px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <h1 style={{ margin: 0, fontSize: '1.2rem', lineHeight: '1.2' }}>{barSettings?.bar_name || 'POS System'}</h1>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowSearch(prev => {
-                          const next = !prev;
-                          if (next) {
-                            setTimeout(() => {
-                              if (searchInputRef.current) {
-                                searchInputRef.current.focus({ preventScroll: true });
-                              }
-                            }, 80);
-                          }
-                          return next;
-                        });
-                      }}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#b6412c',
-                        padding: '4px',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        outline: 'none'
-                      }}
-                      aria-label="Search"
-                    >
-                      <Search size={18} />
-                    </button>
-                  </div>
-                  {barSettings?.address && (
-                    <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--mw-text-muted)', fontWeight: 500, marginTop: '2px' }}>
-                      📍 {barSettings.address}
-                    </p>
-                  )}
-                </div>
-                
-                {!isKiosk && getFirebaseDb() && (
-                  <button
-                    onClick={() => setShowOnlineOrdersModal(true)}
-                    className="btn"
-                    style={{
-                      background: onlineOrders.filter(o => o.orderStatus === 'pending_acceptance').length > 0 ? '#ea580c' : '#1C5C3A',
-                      color: 'white',
-                      padding: '8px 16px',
-                      borderRadius: '24px',
-                      border: 'none',
-                      fontWeight: '700',
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
+                      color: '#7f766a',
                       cursor: 'pointer',
-                      boxShadow: '0 4px 10px rgba(0,0,0,0.08)',
-                      transition: 'all 0.2s ease',
-                      flexShrink: 0
-                    }}
-                  >
-                    <Smartphone size={16} />
-                    Online Orders
-                    <span style={{
-                      background: 'white',
-                      color: onlineOrders.filter(o => o.orderStatus === 'pending_acceptance').length > 0 ? '#ea580c' : '#1C5C3A',
-                      borderRadius: '50%',
-                      width: '20px',
-                      height: '20px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '0.75rem',
-                      fontWeight: '800'
-                    }}>
-                      {onlineOrders.length}
-                    </span>
+                      padding: 0
+                    }}
+                  >
+                    <X size={16} />
                   </button>
                 )}
               </div>
-              {showSearch && (
-                <div className="search-input-container" style={{ width: '100%', marginTop: '12px' }}>
-                  <Search size={16} />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    placeholder="Search products..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onKeyDown={handleKeyPress}
-                    className="search-input"
-                  />
-                </div>
-              )}
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="products-grid pos-products-grid">
             {filteredProducts.length === 0 ? (
