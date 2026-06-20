@@ -59,6 +59,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("upi");
   const [discount, setDiscount] = useState(0);
   const [showDiscountInput, setShowDiscountInput] = useState(false);
@@ -483,6 +484,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       setCart([]);
       setCustomerName("");
       setCustomerPhone("");
+      setPhoneError("");
       setDiscount(0);
       setShowDiscountInput(false);
       setActiveTab("menu");
@@ -512,7 +514,8 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
     const cleanedPhone = customerPhone.replace(/\D/g, "");
     if (!cleanedPhone || cleanedPhone.length !== 10) {
-      showNotice("error", "Please enter a valid 10-digit phone number to complete your order.", 6000);
+      setPhoneError("Enter a valid 10-digit phone number to continue.");
+      showNotice("error", "Enter a valid 10-digit phone number.", 6000);
       if (phoneInputRef.current) {
         phoneInputRef.current.focus({ preventScroll: true });
       }
@@ -1101,12 +1104,20 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   const value = e.target.value.replace(/\D/g, "");
                   if (value.length <= 10) {
                     setCustomerPhone(value);
+                    if (phoneError) {
+                      setPhoneError("");
+                    }
                   }
                 }}
-                className="form-input cart-phone-input"
+                className={`form-input cart-phone-input ${phoneError ? "error" : ""}`}
                 style={{ padding: '8px 12px', fontSize: '13px', width: '100%' }}
                 maxLength="10"
               />
+              {phoneError && (
+                <div className="cart-phone-error" role="alert">
+                  {phoneError}
+                </div>
+              )}
             </div>
             <div className="cart-items">
               {cart.length === 0 ? (

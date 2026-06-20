@@ -2466,11 +2466,16 @@ tr:hover {
 }
 
 .pos-notice-error .pos-notice-bar {
-  background: #134028;
+  background: #b6412c;
 }
 
 .pos-notice-error strong {
-  color: #C8860A;
+  color: #b6412c;
+}
+
+.pos-notice-error .pos-notice-content span {
+  color: #7a2a1d;
+  font-weight: 700;
 }
 
 .pos-notice-warning .pos-notice-bar {
@@ -12150,6 +12155,24 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
     color: #9a8f82 !important;
     font-weight: 700;
     letter-spacing: 0;
+  }
+
+  .cart-phone-input.error {
+    border-color: #b6412c !important;
+    background: #fff7f3 !important;
+    box-shadow: 0 0 0 3px rgba(182, 65, 44, 0.12) !important;
+  }
+
+  .cart-phone-error {
+    margin-top: 8px !important;
+    padding: 9px 11px !important;
+    border: 1px solid #efc6ba !important;
+    border-radius: 12px !important;
+    background: #fff3ef !important;
+    color: #b6412c !important;
+    font-size: 0.78rem !important;
+    font-weight: 900 !important;
+    line-height: 1.25 !important;
   }
 
   .payment-checkout-panel {
