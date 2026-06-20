@@ -942,102 +942,56 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                 ) : (
                   cart.map((item) => (
                     <div key={item.id} className="cart-item-minimal">
-                      <div
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0px',
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                          }}
+                      <div className="cart-item-minimal-layout">
+                        <button
+                          onClick={() => removeFromCart(item.id)}
+                          className="remove-btn cart-item-delete-btn"
+                          style={{ padding: '0' }}
                         >
+                          <Trash2 size={14} />
+                        </button>
+                        <div className="cart-item-minimal-text">
                           <h4
-                            style={{
-                              margin: 0,
-                              flex: 1,
-                              fontSize: '14px',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
+                            className="cart-item-minimal-name"
+                            title={item.name}
                           >
                             {item.name}
                           </h4>
-                          <div
-                            className="quantity-controls"
-                            style={{
-                              transform: 'scale(0.8)',
-                              transformOrigin: 'center',
-                            }}
-                          >
-                            <button
-                              onClick={() =>
-                                updateQuantity(item.id, item.quantity - 1)
-                              }
-                              className="qty-btn"
-                            >
-                              <Minus size={14} />
-                            </button>
-                            <span
-                              style={{ margin: '0 8px', fontWeight: 'bold' }}
-                            >
-                              {item.quantity}
-                            </span>
-                            <button
-                              onClick={() =>
-                                updateQuantity(item.id, item.quantity + 1)
-                              }
-                              className="qty-btn"
-                            >
-                              <Plus size={14} />
-                            </button>
-                          </div>
-                          <div
-                            className="item-total"
-                            style={{
-                              minWidth: '60px',
-                              textAlign: 'right',
-                              fontWeight: 'bold',
-                            }}
-                          >
-                            {formatCurrency(item.price * item.quantity)}
-                          </div>
                         </div>
                         <div
+                          className="quantity-controls cart-item-minimal-qty"
                           style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
+                            transform: 'scale(0.8)',
+                            transformOrigin: 'center',
                           }}
                         >
-                          <p
-                            className="cart-item-minimal-unit-price"
-                            style={{
-                              margin: 0,
-                              fontSize: '11px',
-                              color: '#6c757d',
-                            }}
+                          <button
+                            onClick={() =>
+                              updateQuantity(item.id, item.quantity - 1)
+                            }
+                            className="qty-btn"
                           >
+                            <Minus size={14} />
+                          </button>
+                          <span className="cart-item-qty-value">
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() =>
+                              updateQuantity(item.id, item.quantity + 1)
+                            }
+                            className="qty-btn"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                        <div className="cart-item-minimal-price-block">
+                          <div className="item-total cart-item-minimal-total">
+                            {formatCurrency(item.price * item.quantity)}
+                          </div>
+                          <p className="cart-item-minimal-unit-price">
                             {formatCurrency(item.price)} each
                           </p>
-                          <button
-                            onClick={() => removeFromCart(item.id)}
-                            className="remove-btn"
-                            style={{
-                              padding: '0',
-                              background: 'transparent',
-                              border: 'none',
-                              color: '#ef4444',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
                         </div>
                       </div>
                     </div>
@@ -1045,50 +999,43 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                 )}
               </div>
             </div>
-            <div
-              className="billing-section"
-              style={{
-                background: '#fff',
-                borderRadius: '16px',
-                border: '1px solid #e6ded3',
-                overflow: 'hidden',
-              }}
-            >
+            <div className="billing-section payment-checkout-panel">
               <div
                 className="billing-controls"
                 style={{
-                  padding: '16px 12px',
-                  borderTop: '2px solid #e5e7eb',
-                  background: '#f9fafb',
+                  padding: '8px 10px',
+                  borderTop: '1px solid #e6ded3',
+                  background: '#fffdf8',
                 }}
               >
                 <div
+                  className="payment-method-row"
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '12px',
-                    marginBottom: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    justifyContent: 'flex-end',
                   }}
                 >
                   <div
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px',
+                      gap: '4px',
                     }}
                   >
                     <button
                       type="button"
                       style={{
-                        fontSize: '0.95rem',
-                        padding: '10px 16px',
-                        borderRadius: '8px',
-                        border: '1px solid #d1d5db',
-                        background: showDiscountInput ? '#ef4444' : '#f3f4f6',
-                        color: showDiscountInput ? 'white' : '#344054',
-                        fontWeight: '600',
+                        fontSize: '11px',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        border: '1px solid #e6ded3',
+                        background: showDiscountInput
+                          ? '#f2e7db'
+                          : 'transparent',
+                        color: '#7f766a',
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease',
                       }}
                       onClick={() => setShowDiscountInput((prev) => !prev)}
                     >
@@ -1102,155 +1049,108 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                           setDiscount(parseFloat(e.target.value) || 0)
                         }
                         min="0"
-                        placeholder="0%"
+                        className="form-input"
+                        placeholder="Amt"
                         style={{
-                          flex: 1,
-                          padding: '10px 12px',
-                          fontSize: '0.95rem',
-                          borderRadius: '8px',
-                          border: '2px solid #ef4444',
-                          fontWeight: '600',
-                          textAlign: 'center',
+                          width: '60px',
+                          padding: '4px 8px',
+                          fontSize: '11px',
                         }}
                       />
                     )}
-                  </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                    }}
-                  >
-                    <label
-                      style={{
-                        fontSize: '0.95rem',
-                        fontWeight: '600',
-                        color: '#344054',
-                        margin: 0,
-                      }}
-                    >
-                      Payment:
-                    </label>
-                    <select
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      style={{
-                        flex: 1,
-                        padding: '10px 12px',
-                        fontSize: '0.95rem',
-                        fontWeight: '600',
-                        borderRadius: '8px',
-                        border: '1px solid #d1d5db',
-                        background: 'white',
-                        cursor: 'pointer',
-                        appearance: 'none',
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23344054' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-                        backgroundRepeat: 'no-repeat',
-                        backgroundPosition: 'right 10px center',
-                        paddingRight: '32px',
-                      }}
-                    >
-                      <option value="cash">💵 Cash</option>
-                      <option value="card">💳 Card</option>
-                      <option value="upi">📱 UPI</option>
-                      <option value="cheque">✓ Cheque</option>
-                    </select>
                   </div>
                 </div>
               </div>
 
               <div
-                className="bill-summary"
-                style={{
-                  padding: '16px 12px',
-                  background: 'white',
-                  borderRadius: '8px',
-                  border: '1px solid #e5e7eb',
-                  margin: '12px 0',
-                }}
+                className="bill-summary payment-total-card cart-summary-card"
+                style={{ borderTop: '1px solid #e6ded3', paddingTop: '12px' }}
               >
                 <div
-                  className="summary-line"
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '12px 0',
-                    borderBottom: '1px solid #f3f4f6',
-                    fontSize: '1rem',
-                  }}
+                  className="summary-line cart-summary-row"
+                  style={{ fontSize: '12px', marginBottom: '4px' }}
                 >
-                  <span style={{ color: '#64748b', fontWeight: '500' }}>
-                    Subtotal:
-                  </span>
-                  <span
-                    style={{
-                      fontWeight: '700',
-                      color: '#111827',
-                      fontSize: '1.1rem',
-                    }}
-                  >
-                    ₹{calculateSubtotal().toFixed(2)}
+                  <span style={{ color: '#7f766a' }}>Subtotal:</span>
+                  <span style={{ color: '#221f1a', fontWeight: '500' }}>
+                    {formatCurrency(calculateSubtotal())}
                   </span>
                 </div>
                 {discount > 0 && (
                   <div
-                    className="summary-line discount"
+                    className="summary-line discount cart-summary-row"
                     style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '12px 0',
-                      borderBottom: '1px solid #f3f4f6',
-                      fontSize: '1rem',
-                      color: '#059669',
+                      fontSize: '12px',
+                      marginBottom: '4px',
+                      color: '#b6412c',
                     }}
                   >
-                    <span style={{ fontWeight: '600' }}>
-                      Discount ({discount}%):
-                    </span>
-                    <span style={{ fontWeight: '700', fontSize: '1.1rem' }}>
-                      -₹{calculateDiscountAmount().toFixed(2)}
-                    </span>
+                    <span>Discount ({discount}%):</span>
+                    <span>-{formatCurrency(calculateDiscountAmount())}</span>
                   </div>
                 )}
                 {tax > 0 && (
                   <div
-                    className="summary-line tax"
+                    className="summary-line tax cart-summary-row"
                     style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '12px 0',
-                      borderBottom: '1px solid #f3f4f6',
-                      fontSize: '1rem',
+                      fontSize: '12px',
+                      marginBottom: '4px',
                       color: '#7c3aed',
                     }}
                   >
-                    <span style={{ fontWeight: '600' }}>Tax ({tax}%):</span>
-                    <span style={{ fontWeight: '700', fontSize: '1.1rem' }}>
-                      ₹{calculateTaxAmount().toFixed(2)}
-                    </span>
+                    <span>Tax ({tax}%):</span>
+                    <span>{formatCurrency(calculateTaxAmount())}</span>
                   </div>
                 )}
                 <div
-                  className="summary-line total"
+                  className="summary-line total cart-summary-total"
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '14px 0',
-                    marginTop: '6px',
-                    fontSize: '1.4rem',
-                    fontWeight: '800',
-                    color: '#ef4444',
-                    borderTop: '2px solid #ef4444',
+                    marginTop: '8px',
+                    paddingTop: '8px',
+                    borderTop: '1px dashed #e6ded3',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
                   }}
                 >
-                  <span>TOTAL:</span>
-                  <span>₹{calculateTotal().toFixed(2)}</span>
+                  <span style={{ color: '#221f1a' }}>Total:</span>
+                  <span style={{ color: '#b6412c' }}>
+                    {formatCurrency(calculateTotal())}
+                  </span>
                 </div>
+              </div>
+
+              <div
+                className="action-buttons payment-action-grid"
+                style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '10px', padding: '0 10px' }}
+              >
+                {[
+                  { id: 'cash', label: 'Cash', icon: '💵' },
+                  { id: 'card', label: 'Card', icon: '💳' },
+                  { id: 'upi', label: 'UPI', icon: '📱' },
+                  { id: 'cheque', label: 'Cheque', icon: '✓' }
+                ].map(method => (
+                  <button
+                    key={method.id}
+                    className={`payment-method-chip ${paymentMethod === method.id ? 'active' : ''}`}
+                    onClick={() => setPaymentMethod(method.id)}
+                    style={{
+                      padding: '8px 4px',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      borderRadius: '8px',
+                      border: '1px solid #e6ded3',
+                      background: paymentMethod === method.id ? '#f2e7db' : '#ffffff',
+                      color: paymentMethod === method.id ? '#b6412c' : '#7f766a',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <span style={{ fontSize: '16px' }}>{method.icon}</span>
+                    {method.label}
+                  </button>
+                ))}
               </div>
 
               <div
@@ -1258,123 +1158,68 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr 1fr',
-                  gap: '12px',
-                  padding: '12px',
-                  background: '#f9fafb',
-                  borderTop: '1px solid #e5e7eb',
+                  gap: '8px',
+                  padding: '10px',
+                  marginTop: '10px',
+                  borderTop: '1px solid #e6ded3',
+                  background: '#fffdf8',
                 }}
               >
                 <button
                   onClick={saveTableOrder}
                   disabled={cart.length === 0}
+                  className="btn btn-secondary"
                   style={{
-                    padding: '14px 16px',
-                    fontSize: '1rem',
-                    fontWeight: '600',
+                    padding: '10px 8px',
+                    fontSize: '12px',
                     borderRadius: '8px',
-                    border: '1px solid #d1d5db',
-                    background: cart.length === 0 ? '#e5e7eb' : '#f3f4f6',
-                    color: cart.length === 0 ? '#9ca3af' : '#344054',
-                    cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '8px',
-                    transition: 'all 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (cart.length > 0) {
-                      e.currentTarget.style.background = '#e5e7eb';
-                      e.currentTarget.style.borderColor = '#9ca3af';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (cart.length > 0) {
-                      e.currentTarget.style.background = '#f3f4f6';
-                      e.currentTarget.style.borderColor = '#d1d5db';
-                    }
+                    gap: '4px',
                   }}
                 >
-                  <Save size={20} />
+                  <Save size={14} />
                   Save
                 </button>
 
                 <button
                   onClick={savePendingBill}
                   disabled={cart.length === 0 || loading}
+                  className="btn"
                   style={{
-                    padding: '14px 16px',
-                    fontSize: '1rem',
-                    fontWeight: '600',
+                    padding: '10px 8px',
+                    fontSize: '12px',
                     borderRadius: '8px',
-                    border: '1px solid #fbbf24',
-                    background:
-                      cart.length === 0 || loading ? '#fef3c7' : '#fef08a',
+                    background: cart.length === 0 || loading ? '#fef3c7' : '#fef08a',
                     color: cart.length === 0 ? '#b45309' : '#92400e',
-                    cursor:
-                      cart.length === 0 || loading ? 'not-allowed' : 'pointer',
+                    border: '1px solid #fbbf24',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '8px',
-                    transition: 'all 0.2s ease',
-                    opacity: loading ? 0.7 : 1,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (cart.length > 0 && !loading) {
-                      e.currentTarget.style.background = '#fcd34d';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (cart.length > 0 && !loading) {
-                      e.currentTarget.style.background = '#fef08a';
-                    }
+                    gap: '4px',
                   }}
                 >
-                  <Clock size={20} />
+                  <Clock size={14} />
                   {loading ? 'Saving...' : 'Pending'}
                 </button>
 
                 <button
                   onClick={processSale}
                   disabled={cart.length === 0 || loading}
+                  className="btn btn-primary"
                   style={{
-                    padding: '14px 16px',
-                    fontSize: '1rem',
-                    fontWeight: '700',
+                    padding: '10px 8px',
+                    fontSize: '12px',
                     borderRadius: '8px',
-                    border: 'none',
-                    background: cart.length === 0 ? '#fca5a5' : '#ef4444',
-                    color: 'white',
-                    cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '8px',
-                    transition: 'all 0.2s ease',
-                    boxShadow:
-                      cart.length === 0
-                        ? 'none'
-                        : '0 4px 12px rgba(239, 68, 68, 0.3)',
-                    opacity: loading ? 0.8 : 1,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (cart.length > 0 && !loading) {
-                      e.currentTarget.style.background = '#dc2626';
-                      e.currentTarget.style.boxShadow =
-                        '0 6px 16px rgba(239, 68, 68, 0.4)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (cart.length > 0 && !loading) {
-                      e.currentTarget.style.background = '#ef4444';
-                      e.currentTarget.style.boxShadow =
-                        '0 4px 12px rgba(239, 68, 68, 0.3)';
-                    }
+                    gap: '4px',
                   }}
                 >
-                  <Calculator size={20} />
-                  {loading ? 'Processing...' : 'Process Sale'}
+                  <Calculator size={14} />
+                  {loading ? 'Processing...' : 'Complete'}
                 </button>
               </div>
             </div>
