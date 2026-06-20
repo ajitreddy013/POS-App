@@ -591,35 +591,33 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
           </div>
         </div>
       )}
-      <div className="pos-header">
-        <div className="header-left">
-          <button className="btn btn-secondary" onClick={onBack}>
+      <div className="pos-header" style={{ background: '#ffffff', borderBottom: '2px solid #f3f4f6', padding: '20px 30px', minHeight: '100px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: '20px', flex: 1 }}>
+          <button className="btn btn-secondary" onClick={onBack} style={{ padding: '12px 20px', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px', background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#344054', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s ease' }} onMouseEnter={(e) => { e.currentTarget.style.background = '#e5e7eb'; e.currentTarget.style.borderColor = '#d1d5db'; }} onMouseLeave={(e) => { e.currentTarget.style.background = '#f3f4f6'; e.currentTarget.style.borderColor = '#e5e7eb'; }}>
             <ArrowLeft size={20} />
-            Back to Tables
+            Back
           </button>
           <div>
-            <h1 style={{ margin: 0 }}>
-              <ShoppingCart size={24} style={{ marginRight: '8px' }} />
-              {table.name} - {table.area === "restaurant" ? "Restaurant" : "Bar"}
+            <h1 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '12px', fontSize: '1.75rem', fontWeight: '700', color: '#111827' }}>
+              <ShoppingCart size={32} style={{ color: '#ef4444' }} />
+              {table.name}
             </h1>
-            {barSettings?.bar_name && (
-              <p className="pos-shop-subtitle" style={{ margin: "4px 0 0 32px", fontSize: "0.85rem", opacity: 0.8 }}>
-                {barSettings.bar_name} {barSettings.address && `| 📍 ${barSettings.address}`}
-              </p>
-            )}
+            <p style={{ margin: "8px 0 0 44px", fontSize: "0.95rem", color: '#64748b', fontWeight: '500' }}>
+              {table.area === "restaurant" ? "🍽️ Restaurant" : "🍺 Bar"} {barSettings?.bar_name && `- ${barSettings.bar_name}`}
+            </p>
           </div>
         </div>
-        <div className="header-right">
-          <div className="table-status">
-            Status:{" "}
-            <span className={`status-badge ${table.status}`}>
+        <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div className="table-status" style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: '500' }}>Status</div>
+            <span className={`status-badge ${table.status}`} style={{ display: 'inline-block', padding: '8px 16px', borderRadius: '8px', fontSize: '1rem', fontWeight: '700', background: table.status === 'occupied' ? '#fef2f2' : table.status === 'reserved' ? '#fef3c7' : '#f0fdf4', color: table.status === 'occupied' ? '#dc2626' : table.status === 'reserved' ? '#d97706' : '#16a34a', textTransform: 'capitalize' }}>
               {table.status}
             </span>
           </div>
           {autoSaving && (
-            <div className="auto-save-indicator">
-              <Save size={16} className="spinning" />
-              <span>Auto-saving...</span>
+            <div className="auto-save-indicator" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#059669', fontWeight: '600', fontSize: '0.95rem' }}>
+              <Save size={18} className="spinning" style={{ animation: 'spin 1s linear infinite' }} />
+              <span>Saving...</span>
             </div>
           )}
         </div>
@@ -747,15 +745,25 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
 
           </div>
           <div className="billing-section">
-            <div className="billing-controls" style={{ padding: '12px 10px', borderTop: '1px solid #f1f3f5' }}>
-              <div className="payment-method-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div className="billing-controls" style={{ padding: '16px 12px', borderTop: '2px solid #e5e7eb', background: '#f9fafb' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <button
                     type="button"
-                    style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #e9ecef', background: showDiscountInput ? '#f8f9fa' : 'transparent' }}
+                    style={{ 
+                      fontSize: '0.95rem', 
+                      padding: '10px 16px', 
+                      borderRadius: '8px', 
+                      border: '1px solid #d1d5db', 
+                      background: showDiscountInput ? '#ef4444' : '#f3f4f6',
+                      color: showDiscountInput ? 'white' : '#344054',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
                     onClick={() => setShowDiscountInput((prev) => !prev)}
                   >
-                    % Disc
+                    % Discount
                   </button>
                   {showDiscountInput && (
                     <input
@@ -763,92 +771,179 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                       value={discount === 0 ? "" : discount}
                       onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
                       min="0"
-                      className="form-input"
-                      placeholder="Amt"
-                      style={{ width: '60px', padding: '4px 8px', fontSize: '11px' }}
+                      placeholder="0%"
+                      style={{ 
+                        flex: 1, 
+                        padding: '10px 12px', 
+                        fontSize: '0.95rem',
+                        borderRadius: '8px',
+                        border: '2px solid #ef4444',
+                        fontWeight: '600',
+                        textAlign: 'center'
+                      }}
                     />
                   )}
                 </div>
-                <div className="payment-method-grid" style={{ flex: 1, display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', margin: 0 }}>
-                    Method:
-                    <select
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="form-input"
-                      style={{ padding: '4px 8px', fontSize: '12px', width: 'auto' }}
-                    >
-                      <option value="cash">Cash</option>
-                      <option value="card">Card</option>
-                      <option value="upi">UPI</option>
-                      <option value="cheque">Cheque</option>
-                    </select>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label style={{ fontSize: '0.95rem', fontWeight: '600', color: '#344054', margin: 0 }}>
+                    Payment:
                   </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    style={{ 
+                      flex: 1, 
+                      padding: '10px 12px', 
+                      fontSize: '0.95rem', 
+                      fontWeight: '600',
+                      borderRadius: '8px',
+                      border: '1px solid #d1d5db',
+                      background: 'white',
+                      cursor: 'pointer',
+                      appearance: 'none',
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23344054' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 10px center',
+                      paddingRight: '32px'
+                    }}
+                  >
+                    <option value="cash">💵 Cash</option>
+                    <option value="card">💳 Card</option>
+                    <option value="upi">📱 UPI</option>
+                    <option value="cheque">✓ Cheque</option>
+                  </select>
                 </div>
               </div>
             </div>
 
-            <div className="bill-summary">
-              <div className="summary-line">
-                <span>Subtotal:</span>
-                <span>₹{calculateSubtotal().toFixed(2)}</span>
+            <div className="bill-summary" style={{ padding: '16px 12px', background: 'white', borderRadius: '8px', border: '1px solid #e5e7eb', margin: '12px 0' }}>
+              <div className="summary-line" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f3f4f6', fontSize: '1rem' }}>
+                <span style={{ color: '#64748b', fontWeight: '500' }}>Subtotal:</span>
+                <span style={{ fontWeight: '700', color: '#111827', fontSize: '1.1rem' }}>₹{calculateSubtotal().toFixed(2)}</span>
               </div>
               {discount > 0 && (
-                <div className="summary-line discount">
-                  <span>Discount ({discount}%):</span>
-                  <span>-₹{calculateDiscountAmount().toFixed(2)}</span>
+                <div className="summary-line discount" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f3f4f6', fontSize: '1rem', color: '#059669' }}>
+                  <span style={{ fontWeight: '600' }}>Discount ({discount}%):</span>
+                  <span style={{ fontWeight: '700', fontSize: '1.1rem' }}>-₹{calculateDiscountAmount().toFixed(2)}</span>
                 </div>
               )}
               {tax > 0 && (
-                <div className="summary-line tax">
-                  <span>Tax ({tax}%):</span>
-                  <span>₹{calculateTaxAmount().toFixed(2)}</span>
+                <div className="summary-line tax" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f3f4f6', fontSize: '1rem', color: '#7c3aed' }}>
+                  <span style={{ fontWeight: '600' }}>Tax ({tax}%):</span>
+                  <span style={{ fontWeight: '700', fontSize: '1.1rem' }}>₹{calculateTaxAmount().toFixed(2)}</span>
                 </div>
               )}
-              <div className="summary-line total">
-                <span>Total:</span>
+              <div className="summary-line total" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', marginTop: '6px', fontSize: '1.4rem', fontWeight: '800', color: '#ef4444', borderTop: '2px solid #ef4444' }}>
+                <span>TOTAL:</span>
                 <span>₹{calculateTotal().toFixed(2)}</span>
               </div>
             </div>
 
-            <div className="action-buttons">
+            <div className="action-buttons" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', padding: '12px', background: '#f9fafb', borderTop: '1px solid #e5e7eb' }}>
               <button
                 onClick={saveTableOrder}
                 disabled={cart.length === 0}
-                className="btn btn-secondary"
+                style={{
+                  padding: '14px 16px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  borderRadius: '8px',
+                  border: '1px solid #d1d5db',
+                  background: cart.length === 0 ? '#e5e7eb' : '#f3f4f6',
+                  color: cart.length === 0 ? '#9ca3af' : '#344054',
+                  cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (cart.length > 0) {
+                    e.currentTarget.style.background = '#e5e7eb';
+                    e.currentTarget.style.borderColor = '#9ca3af';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (cart.length > 0) {
+                    e.currentTarget.style.background = '#f3f4f6';
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                  }
+                }}
               >
                 <Save size={20} />
-                Save Order
+                Save
               </button>
 
               <button
                 onClick={savePendingBill}
                 disabled={cart.length === 0 || loading}
-                className="btn btn-secondary save-pending-btn"
+                style={{
+                  padding: '14px 16px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  borderRadius: '8px',
+                  border: '1px solid #fbbf24',
+                  background: cart.length === 0 || loading ? '#fef3c7' : '#fef08a',
+                  color: cart.length === 0 ? '#b45309' : '#92400e',
+                  cursor: cart.length === 0 || loading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease',
+                  opacity: loading ? 0.7 : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (cart.length > 0 && !loading) {
+                    e.currentTarget.style.background = '#fcd34d';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (cart.length > 0 && !loading) {
+                    e.currentTarget.style.background = '#fef08a';
+                  }
+                }}
               >
-                {loading ? (
-                  "Saving..."
-                ) : (
-                  <>
-                    <Clock size={20} />
-                    Save as Pending
-                  </>
-                )}
+                <Clock size={20} />
+                {loading ? 'Saving...' : 'Pending'}
               </button>
 
               <button
                 onClick={processSale}
                 disabled={cart.length === 0 || loading}
-                className="btn btn-primary process-sale-btn"
+                style={{
+                  padding: '14px 16px',
+                  fontSize: '1rem',
+                  fontWeight: '700',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: cart.length === 0 ? '#fca5a5' : '#ef4444',
+                  color: 'white',
+                  cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease',
+                  boxShadow: cart.length === 0 ? 'none' : '0 4px 12px rgba(239, 68, 68, 0.3)',
+                  opacity: loading ? 0.8 : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (cart.length > 0 && !loading) {
+                    e.currentTarget.style.background = '#dc2626';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(239, 68, 68, 0.4)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (cart.length > 0 && !loading) {
+                    e.currentTarget.style.background = '#ef4444';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.3)';
+                  }
+                }}
               >
-                {loading ? (
-                  "Processing..."
-                ) : (
-                  <>
-                    <Calculator size={20} />
-                    Process Sale
-                  </>
-                )}
+                <Calculator size={20} />
+                {loading ? 'Processing...' : 'Process Sale'}
               </button>
             </div>
           </div>
