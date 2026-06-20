@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Wifi, WifiOff, CreditCard, Lock, CloudLightning } from 'lucide-react';
+import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Wifi, WifiOff, CreditCard, Lock, CloudLightning, QrCode } from 'lucide-react';
 import { dbService } from '../services/dbService';
 import { whatsappService } from '../services/whatsappService';
 import { APP_CONFIG } from '../config';
 import { getFirebaseDb } from '../firebase';
 import { doc, writeBatch } from 'firebase/firestore';
+import QRCode from 'qrcode';
 
 const Settings = () => {
   const [barSettings, setBarSettings] = useState({
@@ -20,7 +21,8 @@ const Settings = () => {
     whatsapp_language_code: 'en',
     whatsapp_default_country_code: '91',
     admin_password: '123456',
-    firebase_config: ''
+    firebase_config: '',
+    hosted_app_url: ''
   });
   const [emailSettings, setEmailSettings] = useState({
     host: '',
@@ -54,6 +56,11 @@ const Settings = () => {
   const [whatsappError, setWhatsappError] = useState(null);
   const [whatsappLoading, setWhatsappLoading] = useState(false);
 
+  // Self-Ordering Table QR States
+  const [tablesList, setTablesList] = useState([]);
+  const [selectedTable, setSelectedTable] = useState('Parcel');
+  const [tableQrCodeUrl, setTableQrCodeUrl] = useState('');
+
   useEffect(() => {
     if (whatsappError) {
       const timer = setTimeout(() => {
@@ -63,9 +70,142 @@ const Settings = () => {
     }
   }, [whatsappError]);
 
+  const loadTables = async () => {
+    try {
+      const list = await dbService.getTables();
+      const sorted = [...list].sort((a, b) => {
+        const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+        const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+        return numA - numB;
+      });
+      setTablesList(sorted);
+      if (sorted.length > 0) {
+        setSelectedTable(sorted[0].name);
+      }
+    } catch (err) {
+      console.error('Failed to load tables:', err);
+    }
+  };
+
+  const handlePrintQr = () => {
+    const hostedUrl = barSettings.hosted_app_url || window.location.origin;
+    const targetUrl = `${hostedUrl}/#/menu`;
+    QRCode.toDataURL(targetUrl, { width: 512, margin: 1 })
+      .then(qrDataUrl => {
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>Print Menu QR Code</title>
+              <style>
+                body {
+                  font-family: 'Outfit', 'Inter', sans-serif;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: center;
+                  height: 100vh;
+                  margin: 0;
+                  background-color: #ffffff;
+                }
+                .card {
+                  border: 4px solid #1C5C3A;
+                  border-radius: 32px;
+                  padding: 50px 40px;
+                  text-align: center;
+                  max-width: 450px;
+                  box-shadow: 0 15px 35px rgba(0,0,0,0.06);
+                }
+                .logo {
+                  font-size: 1.8rem;
+                  font-weight: 800;
+                  color: #1C5C3A;
+                  text-transform: uppercase;
+                  letter-spacing: 2px;
+                  margin-bottom: 5px;
+                }
+                .tagline {
+                  font-size: 1.1rem;
+                  color: #EAB308;
+                  font-weight: 700;
+                  margin-bottom: 30px;
+                  text-transform: uppercase;
+                  letter-spacing: 1px;
+                }
+                .qr-img {
+                  width: 280px;
+                  height: 280px;
+                  margin-bottom: 30px;
+                }
+                .tag-main {
+                  font-size: 1.6rem;
+                  font-weight: 800;
+                  color: #1C5C3A;
+                  margin-bottom: 10px;
+                }
+                .instructions {
+                  font-size: 0.95rem;
+                  color: #64748B;
+                  line-height: 1.6;
+                  font-weight: 600;
+                }
+                @media print {
+                  body {
+                    background: none;
+                  }
+                  .card {
+                    box-shadow: none;
+                    border: 4px solid #1C5C3A;
+                  }
+                }
+              </style>
+            </head>
+            <body>
+              <div class="card">
+                <div class="logo">${barSettings.bar_name || 'MALABAR WAFFLE'}</div>
+                <div class="tagline">Self-Ordering QR Menu</div>
+                <img class="qr-img" src="${qrDataUrl}" alt="QR Code" />
+                <div class="tag-main">SCAN & ORDER</div>
+                <div class="instructions">Scan this QR code with your mobile camera to browse our delicious menu and place your order directly!</div>
+              </div>
+              <script>
+                window.onload = function() {
+                  window.print();
+                  setTimeout(function() { window.close(); }, 500);
+                };
+              </script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      })
+      .catch(err => {
+        console.error('Failed to print QR code:', err);
+        alert('Failed to generate print view. Please try again.');
+      });
+  };
+
+  const handleDownloadQr = () => {
+    const hostedUrl = barSettings.hosted_app_url || window.location.origin;
+    const targetUrl = `${hostedUrl}/#/menu`;
+    QRCode.toDataURL(targetUrl, { width: 512, margin: 1 })
+      .then(qrDataUrl => {
+        const link = document.createElement('a');
+        link.href = qrDataUrl;
+        link.download = `menu_ordering_qr.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      })
+      .catch(err => {
+        console.error('Failed to download QR code:', err);
+      });
+  };
+
   useEffect(() => {
     loadBarSettings();
     loadEmailSettings();
+    loadTables();
   }, []);
 
   const getActiveRelayUrl = () => {
@@ -88,6 +228,19 @@ const Settings = () => {
       if (intervalId) clearInterval(intervalId);
     };
   }, [barSettings.whatsapp_relay_url]);
+
+  useEffect(() => {
+    const hostedUrl = barSettings.hosted_app_url || window.location.origin;
+    const targetUrl = `${hostedUrl}/#/menu`;
+    
+    QRCode.toDataURL(targetUrl, { width: 350, margin: 2 })
+      .then(url => {
+        setTableQrCodeUrl(url);
+      })
+      .catch(err => {
+        console.error('Error generating table QR:', err);
+      });
+  }, [selectedTable, barSettings.hosted_app_url]);
 
   const checkRelayStatus = async () => {
     const activeUrl = getActiveRelayUrl();
@@ -437,6 +590,7 @@ const Settings = () => {
   const tabs = [
     { id: 'integrations', label: 'Integrations', icon: MessageCircle },
     { id: 'general', label: 'General', icon: Store },
+    { id: 'menu-qr', label: 'Menu QR Code', icon: QrCode },
     { id: 'security', label: 'Security', icon: Lock },
     { id: 'sync', label: 'Cloud Sync', icon: CloudLightning },
     { id: 'system', label: 'System & Danger Zone', icon: AlertTriangle }
@@ -701,6 +855,109 @@ const Settings = () => {
         </div>
       </div>
     </>
+  );
+
+  const renderMenuQrTab = () => (
+    <div className="settings-card-modern">
+      <div className="settings-card-hdr">
+        <h2><QrCode size={20} style={{ color: '#EAB308' }} /> Self-Ordering Menu QR Code</h2>
+      </div>
+      <div className="settings-card-body-modern">
+        <p style={{ margin: '0 0 20px 0', fontSize: '0.95rem', color: '#64748b', lineHeight: '1.6' }}>
+          Scan this single QR code to view our menu and place orders from your mobile. You can print this QR code or download it to place on dining tables or at the takeaway counter.
+        </p>
+        
+        <div className="form-grid-modern single-column">
+          <div className="form-group-modern">
+            <label>Hosted Customer App URL</label>
+            <input
+              type="url"
+              className="input-modern"
+              value={barSettings.hosted_app_url || ''}
+              onChange={(e) => handleBarSettingsChange('hosted_app_url', e.target.value)}
+              placeholder={`e.g., https://malabar-waffle.web.app (fallback: ${window.location.origin})`}
+            />
+            <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0' }}>
+              If hosted on Firebase or a custom domain, enter it here. Otherwise, it defaults to the current network URL.
+            </p>
+          </div>
+          <div className="form-group-modern" style={{ marginTop: '10px' }}>
+            <button
+              onClick={saveBarSettings}
+              disabled={loading}
+              className="btn-modern btn-modern-primary"
+              style={{ width: 'fit-content' }}
+            >
+              <Save size={16} />
+              {loading ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
+        </div>
+        
+        <div 
+          style={{ 
+            marginTop: '30px', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            padding: '30px', 
+            background: '#f8fafc', 
+            borderRadius: '20px', 
+            border: '1.5px dashed #cbd5e1',
+            textAlign: 'center',
+            maxWidth: '500px',
+            margin: '30px auto 0 auto'
+          }}
+        >
+          <div style={{ background: '#ffffff', padding: '20px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
+            {tableQrCodeUrl ? (
+              <img 
+                src={tableQrCodeUrl} 
+                alt="Ordering QR Code" 
+                style={{ width: '200px', height: '200px', display: 'block' }} 
+              />
+            ) : (
+              <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                Generating QR Code...
+              </div>
+            )}
+          </div>
+          
+          <strong style={{ fontSize: '1.25rem', color: '#1e293b', display: 'block', marginBottom: '8px' }}>
+            Customer Menu Link
+          </strong>
+          <code style={{ fontSize: '0.85rem', color: '#b6412c', wordBreak: 'break-all', display: 'block', marginBottom: '24px', background: '#fff3f0', padding: '6px 12px', borderRadius: '8px', border: '1px solid #ffe3dd' }}>
+            {`${barSettings.hosted_app_url || window.location.origin}/#/menu`}
+          </code>
+          
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <a 
+              href={`${barSettings.hosted_app_url || window.location.origin}/#/menu`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-modern btn-modern-secondary"
+              style={{ textDecoration: 'none', fontSize: '0.9rem', padding: '10px 18px' }}
+            >
+              Open Link
+            </a>
+            <button 
+              onClick={handleDownloadQr}
+              className="btn-modern btn-modern-secondary"
+              style={{ fontSize: '0.9rem', padding: '10px 18px' }}
+            >
+              Download PNG
+            </button>
+            <button 
+              onClick={handlePrintQr}
+              className="btn-modern btn-modern-primary"
+              style={{ fontSize: '0.9rem', padding: '10px 18px', background: '#1C5C3A' }}
+            >
+              Print Poster / Card
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   const renderSecurityTab = () => (
@@ -1362,13 +1619,31 @@ const Settings = () => {
       `}</style>
 
       <div className="settings-layout-modern">
-        {/* Panel Container (Stacked) */}
+        {/* Sidebar Navigation */}
+        <div className="settings-nav-sidebar">
+          {tabs.map((tab) => {
+            const IconComponent = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                className={`settings-nav-btn ${activeTab === tab.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                <IconComponent size={18} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Panel Container (Active Tab) */}
         <div className="settings-panel-container">
-          <div style={{ marginBottom: '30px' }}>{renderGeneralTab()}</div>
-          <div style={{ marginBottom: '30px' }}>{renderIntegrationsTab()}</div>
-          <div style={{ marginBottom: '30px' }}>{renderSecurityTab()}</div>
-          <div style={{ marginBottom: '30px' }}>{renderSyncTab()}</div>
-          <div style={{ marginBottom: '30px' }}>{renderSystemTab()}</div>
+          {activeTab === 'general' && renderGeneralTab()}
+          {activeTab === 'integrations' && renderIntegrationsTab()}
+          {activeTab === 'menu-qr' && renderMenuQrTab()}
+          {activeTab === 'security' && renderSecurityTab()}
+          {activeTab === 'sync' && renderSyncTab()}
+          {activeTab === 'system' && renderSystemTab()}
         </div>
       </div>
     </div>

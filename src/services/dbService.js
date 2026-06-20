@@ -213,7 +213,8 @@ export const dbService = {
       whatsapp_language_code: "en",
       whatsapp_default_country_code: "91",
       razorpay_enabled: 1,
-      admin_password: "123456"
+      admin_password: "123456",
+      hosted_app_url: ""
     };
   },
 
@@ -233,7 +234,8 @@ export const dbService = {
       whatsapp_template_name: settings.whatsapp_template_name || "counterflow_pos_receipt",
       whatsapp_language_code: settings.whatsapp_language_code || "en",
       whatsapp_default_country_code: settings.whatsapp_default_country_code || "91",
-      admin_password: settings.admin_password || existing.admin_password || "123456"
+      admin_password: settings.admin_password || existing.admin_password || "123456",
+      hosted_app_url: settings.hosted_app_url || ""
     });
     return { success: true };
   },

@@ -44,8 +44,15 @@ const CustomerMenu = () => {
   const [paymentMethod, setPaymentMethod] = useState('upi'); // 'upi' or 'cash'
   const [submitting, setSubmitting] = useState(false);
 
-  // Get table number from URL, e.g., ?table=T3. Default to "Parcel" if not present.
-  const tableNumber = searchParams.get('table') || 'Parcel';
+  // Get table number state initialized from URL, e.g., ?table=T3. Default to "Parcel" if not present.
+  const [tableNumber, setTableNumber] = useState(searchParams.get('table') || 'Parcel');
+
+  useEffect(() => {
+    const table = searchParams.get('table');
+    if (table) {
+      setTableNumber(table);
+    }
+  }, [searchParams]);
 
   // Initialize Firebase Firestore db using default config
   const db = useMemo(() => getFirebaseDb(), []);
@@ -976,6 +983,47 @@ const CustomerMenu = () => {
                     fontSize: '0.95rem',
                   }}
                 />
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '6px',
+                    fontWeight: '600',
+                    fontSize: '0.9rem',
+                    color: '#4A5568',
+                  }}
+                >
+                  Table / Dining Option
+                </label>
+                <select
+                  value={tableNumber}
+                  onChange={(e) => setTableNumber(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: '10px',
+                    border: '1px solid #CBD5E1',
+                    outline: 'none',
+                    fontSize: '0.95rem',
+                    background: 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="Parcel">Parcel / Takeaway</option>
+                  {[...Array(12)].map((_, i) => {
+                    const tName = `T${i + 1}`;
+                    return (
+                      <option key={tName} value={tName}>
+                        Table {tName}
+                      </option>
+                    );
+                  })}
+                  {tableNumber !== 'Parcel' && !/^T([1-9]|1[0-2])$/.test(tableNumber) && (
+                    <option value={tableNumber}>{tableNumber}</option>
+                  )}
+                </select>
               </div>
 
               <div style={{ marginBottom: '24px' }}>
