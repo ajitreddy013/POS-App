@@ -232,7 +232,7 @@ const CustomerMenu = () => {
         const res = await fetch(`${relayUrl}/payment/create-link`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount: totalAmount, orderId: orderNumber, callbackUrl }),
+          body: JSON.stringify({ amount: totalAmount, orderId: orderNumber, callbackUrl, name, phone }),
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Failed to generate payment link.');

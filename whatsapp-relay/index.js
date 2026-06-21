@@ -474,7 +474,7 @@ app.post('/payment/create-qr', async (req, res) => {
 
 // Create Razorpay Payment Link for Direct Intent Redirection
 app.post('/payment/create-link', async (req, res) => {
-  const { amount, orderId, callbackUrl } = req.body;
+  const { amount, orderId, callbackUrl, name, phone } = req.body;
   const rzpKeyId = process.env.RAZORPAY_KEY_ID;
   const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET;
 
@@ -496,6 +496,23 @@ app.post('/payment/create-link', async (req, res) => {
       reference_id: String(orderId),
       callback_url: callbackUrl || 'https://counterflow-kiosk.web.app/',
       callback_method: 'get',
+      customer: {
+        name: name || 'Customer',
+        contact: phone || '',
+      },
+      options: {
+        checkout: {
+          method: {
+            netbanking: false,
+            card: false,
+            wallet: false,
+            upi: true
+          },
+          prefill: {
+            method: 'upi'
+          }
+        }
+      },
       notes: {
         order_id: String(orderId),
         source: 'customer_website',
