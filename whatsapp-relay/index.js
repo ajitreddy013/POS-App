@@ -277,7 +277,7 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
     : `*🔴 CASH PAYMENT - PAY AT COUNTER 🔴*`;
 
   // Personalized greeting
-  const hasTable = tableNumber && tableNumber !== 'Parcel' && tableNumber !== 'Takeaway' && tableNumber !== 'Kiosk';
+  const hasTable = tableNumber && tableNumber !== 'Parcel' && tableNumber !== 'Takeaway' && tableNumber !== 'Kiosk' && tableNumber !== 'Website' && tableNumber !== 'Online';
   const tableSuffix = hasTable ? ` for *Table ${tableNumber}*` : '';
   const greeting = `Hi *${name}*,\nWe have received your ${isPaid ? 'payment & ' : ''}order *#${orderNumber}*${tableSuffix}.`;
 

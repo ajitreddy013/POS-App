@@ -191,17 +191,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="summary-card card-slate">
-          <div className="card-header">
-            <h3>Opening Balance</h3>
-            <div className="card-icon">
-              <History size={16} />
-            </div>
-          </div>
-          <div className="value">
-            ₹{dashboardData.openingBalance.toFixed(0)}
-          </div>
-        </div>
+
 
         <div className="summary-card card-purple">
           <div className="card-header">
@@ -280,85 +270,57 @@ const Dashboard = () => {
       </div>
 
       {/* Recent Sales */}
-      <div className="table-container">
+      <div className="table-container" style={{ background: '#ffffff', borderRadius: '16px', border: '1.5px solid #e6ded3', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
         <h2
           style={{
-            padding: '20px',
+            padding: '16px 20px',
             margin: 0,
-            borderBottom: '1px solid #e9ecef',
+            borderBottom: '1px solid #eadfce',
+            fontSize: '1.1rem',
+            fontWeight: '800',
+            color: '#221f1a',
+            fontFamily: 'Outfit, sans-serif'
           }}
         >
           Recent Sales
         </h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Sale Number</th>
-              <th>Customer</th>
-              <th>Items</th>
-              <th>Amount</th>
-              <th>Payment</th>
-              <th>Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dashboardData.recentSales.length === 0 ? (
-              <tr>
-                <td
-                  colSpan="6"
-                  style={{
-                    textAlign: 'center',
-                    padding: '40px',
-                    color: '#7f8c8d',
+        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {dashboardData.recentSales.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: '#7f766a', fontStyle: 'italic' }}>
+              No sales recorded yet
+            </div>
+          ) : (
+            dashboardData.recentSales.map((sale) => {
+              const payMethod = String(sale.paymentMethod || sale.payment_method || '').toLowerCase().trim();
+              const amountColor = payMethod === 'upi' ? '#27ae60' : (payMethod === 'cash' ? '#dc2626' : '#221f1a');
+              return (
+                <div 
+                  key={sale.id} 
+                  style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    padding: '12px 16px', 
+                    background: '#fdfbf7', 
+                    borderRadius: '10px', 
+                    border: '1px solid #e6ded3',
+                    fontFamily: 'Outfit, sans-serif'
                   }}
                 >
-                  No sales recorded yet
-                </td>
-              </tr>
-            ) : (
-              dashboardData.recentSales.map((sale) => (
-                <tr key={sale.id}>
-                  <td>{sale.saleNumber || sale.sale_number}</td>
-                  <td>
-                    {sale.customerName ||
-                      sale.customer_name ||
-                      'Walk-in Customer'}
-                  </td>
-                  <td>
-                    {sale.items ? sale.items.length : sale.item_count || '-'}{' '}
-                    items
-                  </td>
-                  <td>
+                  <strong style={{ color: '#221f1a', fontSize: '0.95rem' }}>
+                    {sale.saleNumber || sale.sale_number}
+                  </strong>
+                  <strong style={{ 
+                    color: amountColor, 
+                    fontSize: '1.05rem'
+                  }}>
                     ₹{(sale.totalAmount || sale.total_amount || 0).toFixed(2)}
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        textTransform: 'uppercase',
-                        fontWeight: '600',
-                        letterSpacing: '0.5px',
-                        background:
-                          (sale.paymentMethod || sale.payment_method) === 'upi'
-                            ? 'rgba(102, 126, 234, 0.15)'
-                            : 'rgba(39, 174, 96, 0.15)',
-                        color:
-                          (sale.paymentMethod || sale.payment_method) === 'upi'
-                            ? '#667eea'
-                            : '#27ae60',
-                        padding: '4px 10px',
-                        borderRadius: '20px',
-                        fontSize: '0.75rem',
-                      }}
-                    >
-                      {sale.paymentMethod || sale.payment_method}
-                    </span>
-                  </td>
-                  <td>{formatDate(sale.saleDate || sale.sale_date)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                  </strong>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
   );

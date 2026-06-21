@@ -24,6 +24,16 @@ const LiveOrdersScreen = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [barSettings, setBarSettings] = useState(null);
   const [timeCounter, setTimeCounter] = useState(0); // Trigger re-render for timers
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // Track viewport changes
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Real-time ticking for "elapsed time" badge
   useEffect(() => {
@@ -78,6 +88,14 @@ const LiveOrdersScreen = () => {
 
         // Keep selection in sync or select the first order if none selected
         setSelectedOrder((prev) => {
+          const isMobileViewport = window.innerWidth < 768;
+          if (isMobileViewport) {
+            if (prev) {
+              const found = list.find((o) => o.id === prev.id);
+              return found || null;
+            }
+            return null;
+          }
           if (!prev && list.length > 0) return list[0];
           if (prev) {
             const found = list.find((o) => o.id === prev.id);
@@ -267,19 +285,7 @@ const LiveOrdersScreen = () => {
 
   return (
     <div style={{ padding: '16px', background: '#f6f3ee', minHeight: 'calc(100vh - 60px)', fontFamily: 'Outfit, sans-serif' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', borderBottom: '2px solid #e6ded3', paddingBottom: '8px' }}>
-        <h2 style={{ margin: 0, color: '#221f1a', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Bell size={22} style={{ color: '#b6412c' }} /> Kitchen & Live Orders
-          {selectedOrder && (
-            <span style={{ fontSize: '1.1rem', color: '#7f766a', fontWeight: '600', marginLeft: '12px' }}>
-              (Active: #{selectedOrder.orderNumber})
-            </span>
-          )}
-        </h2>
-        <span style={{ background: '#b6412c', color: 'white', padding: '4px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '700' }}>
-          {orders.length} Active Orders
-        </span>
-      </div>
+
 
       {orders.length === 0 ? (
         <div style={{ background: '#ffffff', borderRadius: '16px', border: '1.5px solid #e6ded3', padding: '40px 20px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
@@ -287,9 +293,10 @@ const LiveOrdersScreen = () => {
           <h3 style={{ margin: '0 0 4px 0', color: '#221f1a', fontWeight: '700' }}>No Incoming Orders</h3>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '16px', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '300px 1fr', gap: '16px', alignItems: 'start' }}>
           {/* Left Column: Order Cards List */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '78vh', overflowY: 'auto', paddingRight: '4px' }}>
+          {(!isMobile || !selectedOrder) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '78vh', overflowY: 'auto', paddingRight: '4px' }}>
             {orders.map((order) => {
               const isSelected = selectedOrder?.id === order.id;
               const isWeb = order.orderNumber.startsWith('W-');
@@ -402,13 +409,33 @@ const LiveOrdersScreen = () => {
                 </div>
               );
             })}
-          </div>
+            </div>
+          )}
 
           {/* Right Column: Active Order Details Screen */}
-          {selectedOrder && (
+          {selectedOrder && (!isMobile || selectedOrder) && (
             <div style={{ background: '#ffffff', borderRadius: '12px', border: '1.5px solid #e6ded3', padding: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #f2e7db', paddingBottom: '12px', marginBottom: '16px' }}>
                 <div>
+                  {isMobile && (
+                    <button
+                      onClick={() => setSelectedOrder(null)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#b6412c',
+                        fontWeight: '700',
+                        fontSize: '0.9rem',
+                        cursor: 'pointer',
+                        padding: '0 0 8px 0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      ← Back to Orders
+                    </button>
+                  )}
                   <h3 style={{ margin: '0 0 2px 0', fontSize: '1.25rem', fontWeight: '800', color: '#221f1a' }}>
                     Order #{selectedOrder.orderNumber}
                   </h3>

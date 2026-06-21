@@ -43,6 +43,7 @@ import {
   updateDoc,
   addDoc,
   getDoc,
+  getDocs,
 } from 'firebase/firestore';
 
 const formatCurrency = (value) => `₹${Number(value || 0).toFixed(2)}`;
@@ -505,10 +506,52 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const calculateTotal = () => cartTotal;
 
   const generateSaleNumber = async () => {
-    // Generate a sequential order number based on total sales excluding web orders
-    const allSales = (await dbService.getSales()) || [];
-    const appSalesCount = allSales.filter(s => !s.saleNumber?.startsWith('W-')).length;
-    return `A-${appSalesCount + 1}`;
+    try {
+      // 1. Get all A- sales from local Dexie database
+      const allSales = (await dbService.getSales()) || [];
+      const dexieNumbers = allSales
+        .map(s => s.saleNumber || s.sale_number || '')
+        .filter(num => num.startsWith('A-'));
+
+      // 2. Get all A- orders from Firestore
+      let firestoreNumbers = [];
+      const db = getFirebaseDb();
+      if (db) {
+        const q = query(
+          collection(db, 'orders'),
+          where('orderNumber', '>=', 'A-'),
+          where('orderNumber', '<=', 'A-\uf8ff')
+        );
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.orderNumber) {
+            firestoreNumbers.push(data.orderNumber);
+          }
+        });
+      }
+
+      // 3. Combine and find the maximum numeric suffix
+      const allAppNumbers = [...dexieNumbers, ...firestoreNumbers];
+      let maxNum = 0;
+      allAppNumbers.forEach(str => {
+        const parts = str.split('-');
+        if (parts.length === 2) {
+          const val = parseInt(parts[1], 10);
+          if (!isNaN(val) && val > maxNum) {
+            maxNum = val;
+          }
+        }
+      });
+
+      return `A-${maxNum + 1}`;
+    } catch (err) {
+      console.error('Error generating sale number:', err);
+      // Fallback to simple Dexie count if firestore/queries fail
+      const allSales = (await dbService.getSales()) || [];
+      const appSalesCount = allSales.filter(s => (s.saleNumber || s.sale_number || '').startsWith('A-')).length;
+      return `A-${appSalesCount + 1}`;
+    }
   };
 
   const executeSaleWrite = async (selectedMethod) => {
@@ -716,66 +759,90 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         const docRef = await addDoc(collection(db, 'orders'), orderData);
         console.log(`Created Cashfree-tracked Firestore order with ID: ${docRef.id}`);
 
-        const response = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount,
-            orderId,
-            phone: customerPhone || '9999999999',
-            name: isKiosk ? 'Kiosk Customer' : (customerName || 'Walk-in Customer')
-          }),
-        });
-        const data = await response.json();
-        setLoading(false);
+        let upiLink = '';
+        let isUsingFallback = false;
 
-        if (!data.success) {
-          throw new Error(data.error || 'Failed to generate Cashfree payment.');
+        try {
+          const response = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              amount,
+              orderId,
+              phone: customerPhone || '9999999999',
+              name: isKiosk ? 'Kiosk Customer' : (customerName || 'Walk-in Customer')
+            }),
+          });
+          const data = await response.json();
+          if (data.success && data.upiLink) {
+            upiLink = data.upiLink;
+          } else {
+            console.warn('Cashfree UPI QR code initiation failed:', data.error);
+          }
+        } catch (fetchErr) {
+          console.warn('Failed to call Cashfree create-order endpoint:', fetchErr);
         }
 
-        const upiLink = data.upiLink;
+        setLoading(false);
+
         if (!upiLink) {
-          throw new Error("No UPI link returned from Cashfree.");
+          if (barSettings && barSettings.upi_vpa) {
+            console.log('Automated Cashfree UPI failed or not supported. Falling back to static VPA.');
+            upiLink = `upi://pay?pa=${encodeURIComponent(barSettings.upi_vpa)}&pn=${encodeURIComponent(
+              barSettings.bar_name || ''
+            )}&am=${encodeURIComponent(Number(amount).toFixed(2))}&cu=INR&tn=${encodeURIComponent('Order ' + orderId)}`;
+            isUsingFallback = true;
+          } else {
+            throw new Error("Failed to generate automated Cashfree payment QR code, and no fallback Merchant UPI VPA is configured in Settings.");
+          }
         }
 
         let qrImage = '';
         try {
           qrImage = await QRCode.toDataURL(upiLink, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
         } catch (qrErr) {
-          console.error('Failed to generate local UPI QR from Cashfree link:', qrErr);
+          console.error('Failed to generate local UPI QR from link:', qrErr);
           throw qrErr;
         }
 
         qrPaymentPendingRef.current = true;
-        setUpiQrPayment({ orderId, amount, qrImageUrl: qrImage });
-        setUpiQrStatus('Waiting for customer payment...');
+        setUpiQrPayment({ 
+          orderId, 
+          amount, 
+          qrImageUrl: qrImage, 
+          isFallback: isUsingFallback, 
+          docId: docRef.id 
+        });
+        setUpiQrStatus(isUsingFallback ? 'Scan QR to pay. Tap "I Have Paid" once done.' : 'Waiting for customer payment...');
 
         if (qrPollIntervalRef.current) {
           if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
           else clearInterval(qrPollIntervalRef.current);
         }
 
-        const unsubscribe = onSnapshot(docRef, async (snap) => {
-          if (snap.exists()) {
-            const snapData = snap.data();
-            if (snapData.paymentStatus === 'paid') {
-              unsubscribe();
-              qrPaymentPendingRef.current = false;
-              setUpiQrStatus('Payment received! Completing sale...');
-              setTimeout(async () => {
-                setUpiQrPayment(null);
-                setUpiQrStatus('');
-                await executeSaleWrite('upi');
-              }, 1500);
+        if (!isUsingFallback) {
+          const unsubscribe = onSnapshot(docRef, async (snap) => {
+            if (snap.exists()) {
+              const snapData = snap.data();
+              if (snapData.paymentStatus === 'paid') {
+                unsubscribe();
+                qrPaymentPendingRef.current = false;
+                setUpiQrStatus('Payment received! Completing sale...');
+                setTimeout(async () => {
+                  setUpiQrPayment(null);
+                  setUpiQrStatus('');
+                  await executeSaleWrite('upi');
+                }, 1500);
+              }
             }
-          }
-        }, (error) => {
-          console.error("Error listening to Cashfree order status in Firestore:", error);
-        });
+          }, (error) => {
+            console.error("Error listening to Cashfree order status in Firestore:", error);
+          });
 
-        qrPollIntervalRef.current = {
-          unsubscribe
-        };
+          qrPollIntervalRef.current = {
+            unsubscribe
+          };
+        }
 
       } else {
         // Static VPA QR Flow (Local QR code generation)
@@ -797,8 +864,8 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
         setLoading(false);
         qrPaymentPendingRef.current = true;
-        setUpiQrPayment({ orderId, amount, qrImageUrl: qrImage, paymentLinkId: null, qrCodeId: null });
-        setUpiQrStatus('Waiting for customer payment...');
+        setUpiQrPayment({ orderId, amount, qrImageUrl: qrImage, isFallback: true, docId: null });
+        setUpiQrStatus('Scan QR to pay. Tap "I Have Paid" once done.');
 
         if (qrPollIntervalRef.current) {
           if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
@@ -829,6 +896,48 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     qrPaymentPendingRef.current = false;
     setUpiQrPayment(null);
     setUpiQrStatus('');
+  };
+
+  const handleConfirmManualUpiPayment = async () => {
+    if (!upiQrPayment) return;
+
+    setLoading(true);
+    try {
+      if (isKiosk) {
+        const db = getFirebaseDb();
+        if (upiQrPayment.docId && db) {
+          // Case 1: Firestore document exists, update paymentStatus to 'paid'
+          const { doc, updateDoc } = await import('firebase/firestore');
+          const orderRef = doc(db, 'orders', upiQrPayment.docId);
+          await updateDoc(orderRef, { paymentStatus: 'paid' });
+
+          // Reset Kiosk state
+          setCart([]);
+          setCustomerName('');
+          setCustomerPhone('');
+          setPhoneError('');
+          setDiscount(0);
+          setShowDiscountInput(false);
+          setActiveTab('menu');
+
+          showNotice('success', `Order #${upiQrPayment.orderId} Placed! Kitchen will verify your payment.`);
+          playSuccessFeedback();
+        } else {
+          // Case 2: No Firestore document yet, create it with paid status
+          await executeSaleWrite('upi');
+        }
+      } else {
+        // Admin mode: Write directly to local Dexie
+        await executeSaleWrite('upi');
+      }
+    } catch (err) {
+      console.error('Failed to manually confirm UPI payment:', err);
+      alert(`Error completing order: ${err.message}`);
+    } finally {
+      setLoading(false);
+      setUpiQrPayment(null);
+      setUpiQrStatus('');
+    }
   };
 
   const handleKeyPress = (e) => {
@@ -893,7 +1002,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               borderBottom: '1px solid #e6ded3',
             }}
           >
-            {/* Single Row: Logo + Name + Online Orders + Search Icon */}
+            {/* Single Row: Name + Online Orders + Search Icon */}
             <div
               style={{
                 display: 'flex',
@@ -1475,29 +1584,56 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 zIndex: 100,
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'space-between',
                 flexShrink: 0,
+                width: '100%',
+                boxSizing: 'border-box'
               }}
             >
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <button
+                  onClick={() => setActiveTab('menu')}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    color: '#b6412c',
+                    fontWeight: '700',
+                    fontSize: '0.95rem',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                >
+                  <ChevronLeft size={18} /> Back
+                </button>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#221f1a', margin: 0, marginLeft: '8px' }}>
+                  Review Order
+                </h2>
+              </div>
               <button
-                onClick={() => setActiveTab('menu')}
+                type="button"
+                onClick={() => {
+                  setActiveTab('menu');
+                  setShowSearch(true);
+                  setTimeout(() => {
+                    if (searchInputRef.current) searchInputRef.current.focus({ preventScroll: true });
+                  }, 80);
+                }}
                 style={{
-                  border: 'none',
                   background: 'transparent',
+                  border: 'none',
+                  color: '#b6412c',
+                  cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  color: '#b6412c',
-                  fontWeight: '700',
-                  fontSize: '0.95rem',
-                  cursor: 'pointer',
-                  padding: 0,
+                  padding: '4px',
+                  outline: 'none',
                 }}
               >
-                <ChevronLeft size={18} /> Back
+                <Search size={18} />
               </button>
-              <h2 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#221f1a', margin: 0, marginLeft: '8px' }}>
-                Review Order
-              </h2>
             </header>
           ) : (
             <div
@@ -2112,14 +2248,37 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               </div>
             </div>
 
-            <div className="upi-qr-actions">
+            <div className="upi-qr-actions" style={{ display: 'flex', gap: '10px', width: '100%', marginTop: '15px' }}>
               <button
                 type="button"
                 className="btn btn-secondary"
                 onClick={closeUpiQrPayment}
+                style={{ flex: 1 }}
               >
                 Cancel
               </button>
+              {(upiQrPayment.isFallback || !barSettings?.razorpay_enabled) && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleConfirmManualUpiPayment}
+                  style={{ 
+                    flex: 1, 
+                    backgroundColor: '#b6412c', 
+                    border: 'none', 
+                    color: '#ffffff',
+                    fontWeight: '700',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '42px'
+                  }}
+                >
+                  {isKiosk ? 'I Have Paid' : 'Payment Received'}
+                </button>
+              )}
             </div>
           </div>
         </div>

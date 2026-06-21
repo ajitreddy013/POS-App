@@ -179,6 +179,12 @@ const SalesReports = () => {
     loadData();
   }, [loadData]);
 
+  // Listen to external sales sync completed to auto-refresh reports
+  useEffect(() => {
+    window.addEventListener('saleCompleted', loadData);
+    return () => window.removeEventListener('saleCompleted', loadData);
+  }, [loadData]);
+
 
   const formatDate = (dateString) => {
     return formatDateForDisplay(dateString);
@@ -352,39 +358,7 @@ const SalesReports = () => {
 
       {/* Date Selection */}
       <div className="reports-toolbar-section">
-        {/* Preset Selector */}
-        <div className="reports-presets-container">
-          <button
-            type="button"
-            className={`reports-preset-btn ${getActivePreset() === "yesterday" ? "active" : ""}`}
-            onClick={() => handlePresetSelect("yesterday")}
-          >
-            Yesterday
-          </button>
-          <button
-            type="button"
-            className={`reports-preset-btn ${getActivePreset() === "today" ? "active" : ""}`}
-            onClick={() => handlePresetSelect("today")}
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            className={`reports-preset-btn ${getActivePreset() === "thisMonth" ? "active" : ""}`}
-            onClick={() => handlePresetSelect("thisMonth")}
-          >
-            This Month
-          </button>
-          <button
-            type="button"
-            className={`reports-preset-btn ${getActivePreset() === "lastMonth" ? "active" : ""}`}
-            onClick={() => handlePresetSelect("lastMonth")}
-          >
-            Last Month
-          </button>
-        </div>
-
-        {/* Custom Date Fields */}
+        {/* Custom Date Fields (First Row) */}
         <div className="reports-date-fields">
           <div className="reports-date-field">
             <span className="reports-date-label">Start Date</span>
@@ -406,21 +380,32 @@ const SalesReports = () => {
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="reports-action-buttons">
+        {/* Preset Selector & Download Button (Second Row) */}
+        <div className="reports-presets-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
           <button
-            onClick={loadData}
-            className="reports-btn-primary"
+            type="button"
+            className={`reports-preset-btn ${getActivePreset() === "yesterday" ? "active" : ""}`}
+            onClick={() => handlePresetSelect("yesterday")}
+            style={{ flex: 1, margin: 0 }}
           >
-            Generate Report
+            Yesterday
+          </button>
+          <button
+            type="button"
+            className={`reports-preset-btn ${getActivePreset() === "today" ? "active" : ""}`}
+            onClick={() => handlePresetSelect("today")}
+            style={{ flex: 1, margin: 0 }}
+          >
+            Today
           </button>
           <button
             onClick={exportSalesReportPDF}
-            className="reports-btn-secondary"
+            className="reports-btn-download-icon"
             disabled={sales.length === 0}
+            title="Download Report PDF"
+            style={{ margin: 0 }}
           >
-            <Download size={16} style={{ marginRight: '6px' }} />
-            Download
+            <Download size={18} />
           </button>
         </div>
       </div>
@@ -613,89 +598,100 @@ const SalesReports = () => {
               </button>
             </div>
             
-            <div className="modal-content">
-              <div className="bill-preview" style={{ padding: "10px 20px", background: "#fff", color: "#333", width: "100%", boxSizing: "border-box" }}>
+            <div className="modal-content" style={{ padding: "12px", background: "#f6f3ee" }}>
+              <div className="bill-preview" style={{ padding: "16px", background: "#fff", color: "#221f1a", width: "100%", boxSizing: "border-box", borderRadius: "12px", border: "1px solid #e6ded3", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
                 
                 {/* Shop Details Header */}
-                <div style={{ textAlign: "center", marginBottom: "20px" }}>
-                  <h2 style={{ margin: "0 0 5px 0", fontSize: "1.5rem", fontWeight: "bold", color: "#111" }}>
+                <div style={{ textAlign: "center", marginBottom: "15px" }}>
+                  <h2 style={{ margin: "0 0 5px 0", fontSize: "1.4rem", fontWeight: "800", color: "#b6412c" }}>
                     {barSettings?.bar_name || "CounterFlow POS"}
                   </h2>
                   {barSettings?.address && (
-                    <p style={{ margin: "2px 0", fontSize: "0.9rem", color: "#6c757d" }}>
+                    <p style={{ margin: "2px 0", fontSize: "0.82rem", color: "#7f766a" }}>
                       📍 {barSettings.address}
                     </p>
                   )}
                   {barSettings?.contact_number && (
-                    <p style={{ margin: "2px 0", fontSize: "0.9rem", color: "#6c757d" }}>
+                    <p style={{ margin: "2px 0", fontSize: "0.82rem", color: "#7f766a" }}>
                       📞 {barSettings.contact_number}
                     </p>
                   )}
                   {barSettings?.gst_number && (
-                    <p style={{ margin: "2px 0", fontSize: "0.9rem", color: "#6c757d", fontWeight: "500" }}>
+                    <p style={{ margin: "2px 0", fontSize: "0.82rem", color: "#7f766a", fontWeight: "700" }}>
                       GSTIN: {barSettings.gst_number}
                     </p>
                   )}
                 </div>
-                <hr style={{ borderTop: "1px dashed #000", margin: "10px 0" }} />
+                <hr style={{ borderTop: "1.5px dashed #e6ded3", margin: "12px 0" }} />
 
-                {/* Bill Details Grid */}
-                <div className="bill-details" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "25px", padding: "15px", background: "#f8f9fa", borderRadius: "10px", border: "1px solid #e9ecef" }}>
-                  <div>
-                    <div style={{ color: "#6c757d", fontSize: "0.85rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Bill No</div>
-                    <div style={{ fontWeight: "600", fontSize: "1.1rem", color: "#111" }}>{selectedBill.saleNumber}</div>
+                {/* Bill Details List */}
+                <div className="bill-details" style={{ 
+                  display: "flex", 
+                  flexDirection: "column", 
+                  gap: "8px", 
+                  marginBottom: "20px", 
+                  padding: "12px", 
+                  background: "#fdfbf7", 
+                  borderRadius: "8px", 
+                  border: "1px solid #e6ded3",
+                  fontSize: "0.88rem"
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "#7f766a" }}>Bill No:</span>
+                    <strong style={{ color: "#221f1a" }}>{selectedBill.saleNumber}</strong>
                   </div>
-                  <div>
-                    <div style={{ color: "#6c757d", fontSize: "0.85rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Date</div>
-                    <div style={{ fontWeight: "600", fontSize: "1.1rem", color: "#111" }}>{formatDate(selectedBill.saleDate)}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "#7f766a" }}>Date:</span>
+                    <strong style={{ color: "#221f1a" }}>{formatDate(selectedBill.saleDate)}</strong>
                   </div>
-                  <div>
-                    <div style={{ color: "#6c757d", fontSize: "0.85rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Type</div>
-                    <div style={{ fontWeight: "600", fontSize: "1.1rem", color: "#111" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "#7f766a" }}>Type:</span>
+                    <strong style={{ color: "#221f1a" }}>
                       {selectedBill.saleType === 'table' ? 'Table' : 'Parcel'}
                       {selectedBill.tableNumber && ` - T${selectedBill.tableNumber}`}
-                    </div>
+                    </strong>
                   </div>
-                  <div>
-                    <div style={{ color: "#6c757d", fontSize: "0.85rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Payment</div>
-                    <div style={{ fontWeight: "600", fontSize: "1.1rem", color: "#111" }}>{selectedBill.paymentMethod?.toUpperCase()}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "#7f766a" }}>Payment Method:</span>
+                    <strong style={{ color: "#221f1a", textTransform: "uppercase" }}>{selectedBill.paymentMethod}</strong>
                   </div>
                   
                   {selectedBill.customerName && selectedBill.customerName !== 'Walk-in Customer' && (
-                    <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "5px", paddingTop: "15px", borderTop: "1px dashed #dee2e6" }}>
-                      <div>
-                        <div style={{ color: "#6c757d", fontSize: "0.85rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Customer</div>
-                        <div style={{ fontWeight: "600", color: "#111" }}>{selectedBill.customerName}</div>
+                    <>
+                      <div style={{ borderTop: "1px dashed #e6ded3", marginTop: "4px", paddingTop: "8px" }} />
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ color: "#7f766a" }}>Customer:</span>
+                        <strong style={{ color: "#221f1a" }}>{selectedBill.customerName}</strong>
                       </div>
                       {selectedBill.customerPhone && (
-                        <div>
-                          <div style={{ color: "#6c757d", fontSize: "0.85rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Phone</div>
-                          <div style={{ fontWeight: "600", color: "#111" }}>{selectedBill.customerPhone}</div>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span style={{ color: "#7f766a" }}>Phone:</span>
+                          <strong style={{ color: "#221f1a" }}>{selectedBill.customerPhone}</strong>
                         </div>
                       )}
-                    </div>
+                    </>
                   )}
                 </div>
-                <hr style={{ borderTop: "1px dashed #000", margin: "10px 0" }} />
+                <hr style={{ borderTop: "1.5px dashed #e6ded3", margin: "12px 0" }} />
                 
                 {/* Items Table */}
-                <div className="bill-items" style={{ margin: "20px 0" }}>
-                  <table className="bill-items-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "1rem" }}>
+                <div className="bill-items" style={{ margin: "15px 0" }}>
+                  <table className="bill-items-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.88rem" }}>
                     <thead>
-                      <tr style={{ borderBottom: "2px solid #e9ecef", color: "#6c757d" }}>
-                        <th style={{ textAlign: "left", padding: "10px 5px", fontWeight: "600" }}>Item</th>
-                        <th style={{ textAlign: "center", padding: "10px 5px", fontWeight: "600" }}>Qty</th>
-                        <th style={{ textAlign: "right", padding: "10px 5px", fontWeight: "600" }}>Rate</th>
-                        <th style={{ textAlign: "right", padding: "10px 5px", fontWeight: "600" }}>Amount</th>
+                      <tr style={{ borderBottom: "1.5px solid #e6ded3", color: "#7f766a" }}>
+                        <th style={{ textAlign: "left", padding: "6px 2px", fontWeight: "700" }}>Item</th>
+                        <th style={{ textAlign: "center", padding: "6px 2px", fontWeight: "700", width: "40px" }}>Qty</th>
+                        <th style={{ textAlign: "right", padding: "6px 2px", fontWeight: "700", width: "70px" }}>Rate</th>
+                        <th style={{ textAlign: "right", padding: "6px 2px", fontWeight: "700", width: "80px" }}>Amount</th>
                       </tr>
                     </thead>
                     <tbody>
                       {selectedBill.items?.map((item, index) => (
-                        <tr key={index} style={{ borderBottom: "1px solid #f8f9fa" }}>
-                          <td style={{ textAlign: "left", padding: "10px 5px" }}>{item.name}</td>
-                          <td style={{ textAlign: "center", padding: "10px 5px" }}>{item.quantity}</td>
-                          <td style={{ textAlign: "right", padding: "10px 5px" }}>{item.unitPrice?.toFixed(2)}</td>
-                          <td style={{ textAlign: "right", padding: "10px 5px", fontWeight: "500" }}>{(item.totalPrice || (item.price * item.quantity))?.toFixed(2)}</td>
+                        <tr key={index} style={{ borderBottom: "1px solid #fdfbf7" }}>
+                          <td style={{ textAlign: "left", padding: "8px 2px", color: "#221f1a", fontWeight: "500" }}>{item.name}</td>
+                          <td style={{ textAlign: "center", padding: "8px 2px", color: "#221f1a" }}>{item.quantity}</td>
+                          <td style={{ textAlign: "right", padding: "8px 2px", color: "#7f766a" }}>₹{Number(item.unitPrice || 0).toFixed(2)}</td>
+                          <td style={{ textAlign: "right", padding: "8px 2px", fontWeight: "700", color: "#221f1a" }}>₹{Number(item.totalPrice || (item.price * item.quantity) || 0).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -703,34 +699,34 @@ const SalesReports = () => {
                 </div>
                 
                 {/* Bill Summary */}
-                <div className="bill-summary" style={{ fontSize: "1.05rem", padding: "15px", background: "#f8f9fa", borderRadius: "10px", marginTop: "15px" }}>
-                  <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "5px 0", color: "#495057" }}>
+                <div className="bill-summary" style={{ fontSize: "0.92rem", padding: "12px", background: "#fdfbf7", borderRadius: "8px", border: "1px solid #e6ded3", marginTop: "15px" }}>
+                  <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "4px 0", color: "#7f766a" }}>
                     <span>Subtotal</span>
-                    <span style={{ fontWeight: "500" }}>₹{selectedBill.subtotal?.toFixed(2)}</span>
+                    <span style={{ fontWeight: "600", color: "#221f1a" }}>₹{Number(selectedBill.subtotal || 0).toFixed(2)}</span>
                   </div>
                   
                   {selectedBill.discountAmount > 0 && (
-                    <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "5px 0", color: "#e53e3e" }}>
+                    <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "4px 0", color: "#dc2626" }}>
                       <span>Discount</span>
-                      <span style={{ fontWeight: "500" }}>-₹{selectedBill.discountAmount?.toFixed(2)}</span>
+                      <span style={{ fontWeight: "600" }}>-₹{Number(selectedBill.discountAmount || 0).toFixed(2)}</span>
                     </div>
                   )}
                   
                   {selectedBill.taxAmount > 0 && (
-                    <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "5px 0", color: "#495057" }}>
+                    <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "4px 0", color: "#7f766a" }}>
                       <span>Tax</span>
-                      <span style={{ fontWeight: "500" }}>₹{selectedBill.taxAmount?.toFixed(2)}</span>
+                      <span style={{ fontWeight: "600", color: "#221f1a" }}>₹{Number(selectedBill.taxAmount || 0).toFixed(2)}</span>
                     </div>
                   )}
                   
-                  <div className="summary-row total" style={{ display: "flex", justifyContent: "space-between", margin: "15px 0 0 0", paddingTop: "15px", borderTop: "2px solid #e9ecef", fontSize: "1.3rem", fontWeight: "bold", color: "#111" }}>
+                  <div className="summary-row total" style={{ display: "flex", justifyContent: "space-between", margin: "10px 0 0 0", paddingTop: "10px", borderTop: "1.5px solid #e6ded3", fontSize: "1.15rem", fontWeight: "900", color: "#b6412c" }}>
                     <span>Total</span>
-                    <span>₹{selectedBill.totalAmount?.toFixed(2)}</span>
+                    <span>₹{Number(selectedBill.totalAmount || 0).toFixed(2)}</span>
                   </div>
                 </div>
 
                 {/* Thank You Message */}
-                <div style={{ textAlign: "center", marginTop: "20px", padding: "10px", fontSize: "0.95rem", fontStyle: "italic", color: "#6c757d", borderTop: "1px dashed #000" }}>
+                <div style={{ textAlign: "center", marginTop: "15px", padding: "10px 5px 0 5px", fontSize: "0.85rem", fontStyle: "italic", color: "#7f766a", borderTop: "1.5px dashed #e6ded3" }}>
                   {barSettings?.thank_you_message || "Thank you for visiting! Please visit again."}
                 </div>
               </div>

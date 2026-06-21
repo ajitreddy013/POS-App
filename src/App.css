@@ -10912,6 +10912,31 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
   cursor: not-allowed !important;
 }
 
+.reports-btn-download-icon {
+  width: 46px !important;
+  height: 42px !important;
+  padding: 0 !important;
+  background-color: #b6412c !important;
+  border: none !important;
+  border-radius: 14px !important;
+  color: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  outline: none !important;
+}
+
+.reports-btn-download-icon:active {
+  opacity: 0.85 !important;
+}
+
+.reports-btn-download-icon:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
 /* Override input and form borders universally in admin unlocked screens */
 .app.admin-unlocked .form-input,
 .app.admin-unlocked .search-input,
@@ -12279,4 +12304,70 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
 .upi-qr-actions .btn {
   width: 100%;
   min-height: 48px;
+}
+
+.search-input-field:focus {
+  border: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Success screen animations */
+@keyframes scaleUp {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  0% {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulseStatus {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 12px 4px rgba(255, 255, 255, 0.2);
+  }
+}
+
+.success-icon-anim {
+  animation: scaleUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.success-text-anim {
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
+  opacity: 0;
+  animation-fill-mode: forwards;
+}
+
+.success-status-anim {
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards, pulseStatus 3s ease-in-out infinite;
+  opacity: 0;
+  animation-fill-mode: forwards;
+}
+
+.success-button-anim {
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.6s forwards;
+  opacity: 0;
+  animation-fill-mode: forwards;
 }

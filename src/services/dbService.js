@@ -143,6 +143,14 @@ export const dbService = {
   createSale: async (saleData) => {
     if (isElectron) return await window.electronAPI.createSale(saleData);
     
+    // Prevent duplicate entries
+    if (saleData.saleNumber) {
+      const existing = await db.sales.where("saleNumber").equals(saleData.saleNumber).first();
+      if (existing) {
+        return { success: true, id: existing.id, alreadyExisted: true };
+      }
+    }
+
     // Deduct stock for each sold product
     for (const item of saleData.items) {
       const prod = await db.products.get(Number(item.productId));
@@ -159,6 +167,29 @@ export const dbService = {
     });
 
     return { success: true, id };
+  },
+
+  deleteSaleByNumber: async (saleNumber) => {
+    if (isElectron || !db) return { success: false };
+    try {
+      const sale = await db.sales.where("saleNumber").equals(saleNumber).first();
+      if (sale) {
+        // Restock products
+        for (const item of sale.items) {
+          const prod = await db.products.get(Number(item.productId));
+          if (prod) {
+            const newCounterStock = (prod.counter_stock || 0) + item.quantity;
+            await db.products.update(Number(item.productId), { counter_stock: newCounterStock });
+          }
+        }
+        // Delete sale
+        await db.sales.delete(sale.id);
+        return { success: true };
+      }
+    } catch (err) {
+      console.error("Failed to delete sale by number:", saleNumber, err);
+    }
+    return { success: false };
   },
 
   getSales: async (dateRange) => {
@@ -179,6 +210,31 @@ export const dbService = {
   getSalesWithDetails: async (dateRange) => {
     if (isElectron) return await window.electronAPI.getSalesWithDetails(dateRange);
     return await dbService.getSales(dateRange);
+  },
+
+  fixSaleDateFormats: async () => {
+    if (isElectron || !db) return;
+    const sales = await db.sales.toArray();
+    for (const sale of sales) {
+      if (sale.saleDate && (sale.saleDate.includes('T') || sale.saleDate.includes('Z'))) {
+        try {
+          const dateObj = new Date(sale.saleDate);
+          if (isNaN(dateObj.getTime())) continue;
+          
+          const year = dateObj.getFullYear();
+          const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+          const day = String(dateObj.getDate()).padStart(2, "0");
+          const hours = String(dateObj.getHours()).padStart(2, "0");
+          const minutes = String(dateObj.getMinutes()).padStart(2, "0");
+          const seconds = String(dateObj.getSeconds()).padStart(2, "0");
+          const localString = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+          
+          await db.sales.update(sale.id, { saleDate: localString });
+        } catch (e) {
+          console.error("Failed to fix sale date format for sale:", sale.id, e);
+        }
+      }
+    }
   },
 
   getSaleWithItems: async (saleId) => {

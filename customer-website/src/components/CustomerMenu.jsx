@@ -64,9 +64,10 @@ const CustomerMenu = () => {
   const [phoneWarning, setPhoneWarning] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [submitting, setSubmitting] = useState(false);
-  const phoneInputRef = useRef(null);
+   const phoneInputRef = useRef(null);
 
-  const [tableNumber, setTableNumber] = useState('Parcel');
+  const [tableNumber, setTableNumber] = useState('Website');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   const db = useMemo(() => getFirebaseDb(), []);
   const { barSettings } = useBarSettings();
@@ -266,7 +267,9 @@ const CustomerMenu = () => {
         const orderData = {
           orderNumber, customerName: name, customerPhone: phone, tableNumber,
           items: cartItemsList.map((item) => ({ productId: String(item.id), name: item.name, quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity })),
-          totalAmount, paymentMethod, paymentStatus: 'pending', orderStatus: 'pending_acceptance', createdAt: serverTimestamp(),
+          totalAmount,
+          discountAmount: 0,
+          paymentMethod, paymentStatus: 'pending', orderStatus: 'pending_acceptance', createdAt: serverTimestamp(),
         };
         const docRef = await addDoc(collection(db, 'orders'), orderData);
 
@@ -331,7 +334,9 @@ const CustomerMenu = () => {
         const orderData = {
           orderNumber, customerName: name, customerPhone: phone, tableNumber,
           items: cartItemsList.map((item) => ({ productId: String(item.id), name: item.name, quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity })),
-          totalAmount, paymentMethod, paymentStatus: 'pending', orderStatus: 'pending_acceptance', createdAt: serverTimestamp(),
+          totalAmount,
+          discountAmount: 0,
+          paymentMethod, paymentStatus: 'pending', orderStatus: 'pending_acceptance', createdAt: serverTimestamp(),
         };
         await addDoc(collection(db, 'orders'), orderData);
 
@@ -346,6 +351,7 @@ const CustomerMenu = () => {
               orderNumber,
               tableNumber,
               totalAmount,
+              discountAmount: 0,
               paymentMethod,
               items: cartItemsList.map((item) => ({
                 name: item.name,
@@ -396,16 +402,16 @@ const CustomerMenu = () => {
   if (orderSuccess) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '32px 24px', fontFamily: '"Outfit", sans-serif', background: '#b6412c', color: '#ffffff', textAlign: 'center' }}>
-        <CheckCircle2 size={84} style={{ color: '#f2e7db', marginBottom: '24px' }} />
-        <h1 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '16px' }}>Order Placed!</h1>
-        <p style={{ fontSize: '1.15rem', opacity: 0.95, maxWidth: '380px', margin: '0 auto 28px auto', lineHeight: '1.7' }}>
+        <CheckCircle2 size={84} className="success-icon-anim" style={{ color: '#f2e7db', marginBottom: '24px' }} />
+        <h1 className="success-text-anim" style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '16px' }}>Order Placed!</h1>
+        <p className="success-text-anim" style={{ fontSize: '1.15rem', opacity: 0.95, maxWidth: '380px', margin: '0 auto 28px auto', lineHeight: '1.7' }}>
           Thank you! Your order <strong>#{orderSuccess}</strong> has been received. We&apos;ve sent a confirmation receipt to your WhatsApp.
         </p>
-        <div style={{ background: 'rgba(255,255,255,0.12)', padding: '20px 28px', borderRadius: '16px', border: '1.5px solid rgba(255,255,255,0.2)', marginBottom: '40px' }}>
+        <div className="success-status-anim" style={{ background: 'rgba(255,255,255,0.12)', padding: '20px 28px', borderRadius: '16px', border: '1.5px solid rgba(255,255,255,0.2)', marginBottom: '40px' }}>
           <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>Current Status</span>
           <strong style={{ fontSize: '1.3rem', color: '#f2e7db' }}>Preparing in Kitchen</strong>
         </div>
-        <button onClick={() => setOrderSuccess(null)} style={{ background: '#ffffff', color: '#b6412c', border: 'none', padding: '14px 36px', borderRadius: '28px', fontWeight: '700', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button className="success-button-anim" onClick={() => setOrderSuccess(null)} style={{ background: '#ffffff', color: '#b6412c', border: 'none', padding: '14px 36px', borderRadius: '28px', fontWeight: '700', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           Order Something Else <Sparkles size={16} />
         </button>
       </div>
@@ -472,14 +478,29 @@ const CustomerMenu = () => {
 
             {/* Expandable Search Bar */}
             {showSearch && (
-              <div style={{ display: 'flex', alignItems: 'center', background: '#ffffff', border: '1px solid #e6ded3', borderRadius: '999px', padding: '0 16px', height: '40px', gap: '8px' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                background: '#ffffff',
+                border: '1.5px solid',
+                borderColor: isSearchFocused ? '#b6412c' : '#e6ded3',
+                borderRadius: '999px',
+                padding: '0 16px',
+                height: '40px',
+                gap: '8px',
+                boxShadow: isSearchFocused ? '0 0 0 3px rgba(182, 65, 44, 0.08)' : 'none',
+                transition: 'all 0.2s ease-in-out'
+              }}>
                 <Search size={16} style={{ color: '#b6412c', flexShrink: 0 }} />
                 <input
                   ref={searchInputRef}
                   type="text"
+                  className="search-input-field"
                   placeholder="Search products..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  onFocus={() => setIsSearchFocused(true)}
+                  onBlur={() => setIsSearchFocused(false)}
                   style={{ background: 'transparent', border: 'none', outline: 'none', color: '#221f1a', fontSize: '0.85rem', width: '100%', padding: 0 }}
                 />
                 {searchTerm && (
@@ -603,20 +624,74 @@ const CustomerMenu = () => {
 
           {/* ═══ CATEGORY PICKER POPUP ═══ */}
           {showCategoryPicker && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(34,31,26,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={() => setShowCategoryPicker(false)}>
-              <div style={{ background: '#ffffff', width: '100%', maxWidth: '500px', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', padding: '20px', maxHeight: '60vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
-                <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '800', color: '#221f1a', textAlign: 'center' }}>Select Category</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {Object.keys(groupedProducts).map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => { scrollToCategory(cat); setShowCategoryPicker(false); }}
-                      style={{ padding: '14px 16px', borderRadius: '12px', border: '1px solid #e6ded3', background: '#fbf7f4', color: '#221f1a', fontWeight: '700', fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s' }}
-                    >
-                      {cat}
-                    </button>
-                  ))}
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.15)',
+                zIndex: 200,
+              }}
+              onClick={() => setShowCategoryPicker(false)}
+            >
+              <div
+                style={{
+                  position: 'fixed',
+                  bottom: '76px',
+                  left: '12px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e6ded3',
+                  borderRadius: '16px',
+                  padding: '12px',
+                  width: '200px',
+                  maxHeight: '320px',
+                  overflowY: 'auto',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                  zIndex: 201,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div
+                  style={{
+                    fontSize: '0.75rem',
+                    fontWeight: '800',
+                    color: '#7f766a',
+                    textTransform: 'uppercase',
+                    padding: '4px 8px',
+                  }}
+                >
+                  Categories
                 </div>
+                {Object.keys(groupedProducts).map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      scrollToCategory(cat);
+                      setShowCategoryPicker(false);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#221f1a',
+                      textAlign: 'left',
+                      padding: '8px',
+                      borderRadius: '8px',
+                      fontSize: '0.9rem',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f6f3ee'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                  >
+                    {cat}
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -624,11 +699,35 @@ const CustomerMenu = () => {
       ) : (
         <>
           {/* ═══ COMPACT CART & PAYMENT SCREEN (Page 2) ═══ */}
-          <div style={{ display: 'flex', alignItems: 'center', padding: '12px 14px 4px', gap: '8px', borderBottom: '1px solid #e6ded3', background: '#f6f3ee' }}>
-            <button onClick={() => setActiveTab('menu')} style={{ border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '4px', color: '#b6412c', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', padding: 0 }}>
-              <ChevronLeft size={18} /> Back
+          <div style={{ display: 'flex', alignItems: 'center', padding: '12px 14px 4px', gap: '8px', borderBottom: '1px solid #e6ded3', background: '#f6f3ee', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button onClick={() => setActiveTab('menu')} style={{ border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '4px', color: '#b6412c', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', padding: 0 }}>
+                <ChevronLeft size={18} /> Back
+              </button>
+              <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#221f1a', margin: 0 }}>Review Order</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('menu');
+                setShowSearch(true);
+                setTimeout(() => {
+                  if (searchInputRef.current) searchInputRef.current.focus({ preventScroll: true });
+                }, 80);
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#b6412c',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '4px',
+                outline: 'none',
+              }}
+            >
+              <Search size={18} />
             </button>
-            <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#221f1a', margin: '0 auto 0 4px' }}>Review Order</h2>
           </div>
 
           <main style={{ padding: '8px 12px 16px' }}>
