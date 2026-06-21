@@ -14,6 +14,8 @@ import {
   serverTimestamp,
   query,
   where,
+  onSnapshot,
+  doc,
 } from 'firebase/firestore';
 import { APP_CONFIG } from '../config';
 import {
@@ -266,7 +268,7 @@ const CustomerMenu = () => {
           items: cartItemsList.map((item) => ({ productId: String(item.id), name: item.name, quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity })),
           totalAmount, paymentMethod, paymentStatus: 'pending', orderStatus: 'pending_acceptance', createdAt: serverTimestamp(),
         };
-        await addDoc(collection(db, 'orders'), orderData);
+        const docRef = await addDoc(collection(db, 'orders'), orderData);
 
         // 2. Initiate Cashfree checkout session
         const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
@@ -282,19 +284,48 @@ const CustomerMenu = () => {
         // 3. Clear cart locally
         setCart({});
 
-        // 4. Initialize Cashfree SDK and launch checkout
-        if (!window.Cashfree) {
-          throw new Error('Cashfree SDK is not loaded. Please try again.');
+        // 4. Determine checkout redirection based on device
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        if (isMobile && data.upiLink) {
+          // Listen to Firestore for payment success to show success page automatically
+          const unsubscribe = onSnapshot(doc(db, 'orders', docRef.id), (snap) => {
+            if (snap.exists()) {
+              const currentData = snap.data();
+              if (currentData.paymentStatus === 'paid') {
+                unsubscribe();
+                setUpiQrLoading(false);
+                setUpiQrStatus('');
+                setOrderSuccess(orderNumber);
+                setActiveTab('menu');
+              }
+            }
+          });
+
+          // Show indicator and redirect to the UPI Intent deep link
+          setUpiQrLoading(true);
+          setUpiQrStatus('Redirecting to your UPI apps...');
+          window.location.href = data.upiLink;
+
+          // Provide manual update text in case user returns to browser
+          setTimeout(() => {
+            setUpiQrStatus('Waiting for payment confirmation. Please complete payment in your UPI app...');
+          }, 3000);
+        } else {
+          // Initialize Cashfree SDK and launch hosted checkout
+          if (!window.Cashfree) {
+            throw new Error('Cashfree SDK is not loaded. Please try again.');
+          }
+
+          const cashfree = window.Cashfree({
+            mode: data.environment || 'sandbox' // 'sandbox' or 'production'
+          });
+
+          await cashfree.checkout({
+            paymentSessionId: data.paymentSessionId,
+            redirectTarget: '_self'
+          });
         }
-
-        const cashfree = window.Cashfree({
-          mode: data.environment || 'sandbox' // 'sandbox' or 'production'
-        });
-
-        await cashfree.checkout({
-          paymentSessionId: data.paymentSessionId,
-          redirectTarget: '_self'
-        });
       } else {
         // Cash payment
         const orderData = {

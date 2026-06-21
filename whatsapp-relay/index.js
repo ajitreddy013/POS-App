@@ -416,6 +416,9 @@ function cashfreeRequest(method, path, body) {
         'x-api-version': '2023-08-01',
         'x-client-id': clientId,
         'x-client-secret': clientSecret,
+        'x-client-device': 'mobile',
+        'x-client-os': 'android',
+        'x-client-rendering-type': 'mweb',
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(data),
       },
@@ -754,11 +757,33 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
     console.log(`Creating Cashfree Order for ${orderId}, Amount: ${payload.order_amount}`);
     const response = await cashfreeRequest('POST', '/orders', payload);
 
+    // Call /orders/sessions immediately to get UPI deep link
+    let upiLink = '';
+    try {
+      console.log(`Initiating Cashfree UPI payment session for ${orderId}`);
+      const payPayload = {
+        payment_session_id: response.payment_session_id,
+        payment_method: {
+          upi: {
+            channel: 'link'
+          }
+        }
+      };
+      const payResponse = await cashfreeRequest('POST', '/orders/sessions', payPayload);
+      if (payResponse && payResponse.data && payResponse.data.payload) {
+        upiLink = payResponse.data.payload.default || payResponse.data.payload.gpay || payResponse.data.payload.phonepe || '';
+        console.log(`Successfully generated UPI deep link for Order #${orderId}: ${upiLink}`);
+      }
+    } catch (payErr) {
+      console.error(`Failed to initiate Cashfree UPI payment session for Order #${orderId}:`, payErr.message);
+    }
+
     res.json({
       success: true,
       paymentSessionId: response.payment_session_id,
       orderId: response.order_id,
       environment: cfEnv.toLowerCase() === 'production' ? 'production' : 'sandbox',
+      upiLink: upiLink,
     });
   } catch (err) {
     console.error('Cashfree Order creation failed:', err.message);
