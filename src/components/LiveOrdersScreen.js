@@ -46,15 +46,18 @@ const LiveOrdersScreen = () => {
     loadSettings();
   }, []);
 
-  // Real-time Firestore orders listener (active orders only)
+  // Real-time Firestore orders listener (today's orders only)
   useEffect(() => {
     const db = getFirebaseDb();
     if (!db) return;
 
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
     const q = query(
       collection(db, 'orders'),
-      where('orderStatus', 'in', ['pending_acceptance', 'preparing']),
-      orderBy('createdAt', 'asc') // Oldest first in kitchen
+      where('createdAt', '>=', startOfToday),
+      orderBy('createdAt', 'desc') // Recent orders on top
     );
 
     const unsubscribe = onSnapshot(
@@ -63,6 +66,7 @@ const LiveOrdersScreen = () => {
         const list = [];
         querySnapshot.forEach((doc) => {
           const data = doc.data();
+          if (data.orderStatus === 'cancelled') return;
           // Filter: Only display Cash orders or PAID UPI orders in kitchen
           const isCash = data.paymentMethod === 'cash';
           const isPaidUPI = data.paymentMethod === 'upi' && data.paymentStatus === 'paid';
@@ -83,7 +87,7 @@ const LiveOrdersScreen = () => {
         });
       },
       (err) => {
-        console.error('Error listening to active orders:', err);
+        console.error('Error listening to today\'s orders:', err);
       }
     );
 
@@ -179,10 +183,6 @@ const LiveOrdersScreen = () => {
       const db = getFirebaseDb();
       if (!db) return;
 
-      if (!window.confirm(`Are you sure you want to mark Order #${order.orderNumber} as Completed?`)) {
-        return;
-      }
-
       // If pending acceptance, we must first run the accept order logic to record the sale locally
       if (order.orderStatus === 'pending_acceptance') {
         const saleData = {
@@ -266,98 +266,126 @@ const LiveOrdersScreen = () => {
   };
 
   return (
-    <div style={{ padding: '24px', background: '#f6f3ee', minHeight: 'calc(100vh - 60px)', fontFamily: 'Outfit, sans-serif' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', borderBottom: '2px solid #e6ded3', paddingBottom: '12px' }}>
+    <div style={{ padding: '16px', background: '#f6f3ee', minHeight: 'calc(100vh - 60px)', fontFamily: 'Outfit, sans-serif' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', borderBottom: '2px solid #e6ded3', paddingBottom: '8px' }}>
         <h2 style={{ margin: 0, color: '#221f1a', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Bell size={24} style={{ color: '#b6412c' }} /> Kitchen & Live Orders
+          <Bell size={22} style={{ color: '#b6412c' }} /> Kitchen & Live Orders
+          {selectedOrder && (
+            <span style={{ fontSize: '1.1rem', color: '#7f766a', fontWeight: '600', marginLeft: '12px' }}>
+              (Active: #{selectedOrder.orderNumber})
+            </span>
+          )}
         </h2>
-        <span style={{ background: '#b6412c', color: 'white', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: '700' }}>
+        <span style={{ background: '#b6412c', color: 'white', padding: '4px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '700' }}>
           {orders.length} Active Orders
         </span>
       </div>
 
       {orders.length === 0 ? (
-        <div style={{ background: '#ffffff', borderRadius: '16px', border: '1.5px solid #e6ded3', padding: '60px 20px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
-          <AlertCircle size={48} style={{ color: '#7f766a', margin: '0 auto 16px auto', opacity: 0.6 }} />
-          <h3 style={{ margin: '0 0 8px 0', color: '#221f1a', fontWeight: '700' }}>No Incoming Orders</h3>
-          <p style={{ margin: 0, color: '#7f766a', fontSize: '0.9rem' }}>Orders placed from the customer website or self-order kiosk will appear here in real-time.</p>
+        <div style={{ background: '#ffffff', borderRadius: '16px', border: '1.5px solid #e6ded3', padding: '40px 20px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
+          <AlertCircle size={40} style={{ color: '#7f766a', margin: '0 auto 12px auto', opacity: 0.6 }} />
+          <h3 style={{ margin: '0 0 4px 0', color: '#221f1a', fontWeight: '700' }}>No Incoming Orders</h3>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '20px', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '16px', alignItems: 'start' }}>
           {/* Left Column: Order Cards List */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '72vh', overflowY: 'auto', paddingRight: '4px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '78vh', overflowY: 'auto', paddingRight: '4px' }}>
             {orders.map((order) => {
               const isSelected = selectedOrder?.id === order.id;
               const isWeb = order.orderNumber.startsWith('W-');
+              const isCompleted = order.orderStatus === 'completed';
               return (
                 <div
                   key={order.id}
                   onClick={() => setSelectedOrder(order)}
                   style={{
-                    background: '#ffffff',
-                    borderRadius: '12px',
-                    border: isSelected ? '2.5px solid #b6412c' : '1.5px solid #e6ded3',
-                    padding: '14px',
+                    background: isCompleted ? '#f3f4f6' : '#ffffff',
+                    opacity: isCompleted ? 0.8 : 1,
+                    borderRadius: '10px',
+                    border: isSelected ? '2.5px solid #b6412c' : (isCompleted ? '1.5px dashed #ccc' : '1.5px solid #e6ded3'),
+                    padding: '10px',
                     cursor: 'pointer',
-                    boxShadow: isSelected ? '0 6px 16px rgba(182,65,44,0.1)' : '0 4px 10px rgba(0,0,0,0.02)',
+                    boxShadow: isSelected ? '0 4px 10px rgba(182,65,44,0.08)' : '0 2px 6px rgba(0,0,0,0.01)',
                     transition: 'all 0.2s',
                     position: 'relative'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <strong style={{ fontSize: '1.05rem', color: '#221f1a' }}>Order #{order.orderNumber}</strong>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <strong style={{ fontSize: '1rem', color: '#221f1a' }}>Order #{order.orderNumber}</strong>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {/* Check/Tick complete button */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleQuickComplete(order);
-                        }}
-                        style={{
-                          background: '#1c8d3c',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '50%',
-                          width: '24px',
-                          height: '24px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          boxShadow: '0 2px 5px rgba(28,141,60,0.2)',
-                          outline: 'none',
-                          padding: 0,
-                          marginRight: '4px',
-                        }}
-                        title="Quick Complete Order"
-                      >
-                        <Check size={13} strokeWidth={3} style={{ display: 'block' }} />
-                      </button>
+                      {!isCompleted && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleQuickComplete(order);
+                          }}
+                          style={{
+                            background: '#1c8d3c',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '22px',
+                            height: '22px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 5px rgba(28,141,60,0.2)',
+                            outline: 'none',
+                            padding: 0,
+                            marginRight: '2px',
+                          }}
+                          title="Quick Complete Order"
+                        >
+                          <Check size={12} strokeWidth={3} style={{ display: 'block' }} />
+                        </button>
+                      )}
 
                       {isWeb ? (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '3px', background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '700' }}>
-                          <Smartphone size={10} /> Web
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#e0f2fe', color: '#0369a1', padding: '1px 4px', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '700' }}>
+                          <Smartphone size={8} /> Web
                         </span>
                       ) : (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '3px', background: '#fef3c7', color: '#b45309', padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '700' }}>
-                          <Monitor size={10} /> Kiosk
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#fef3c7', color: '#b45309', padding: '1px 4px', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '700' }}>
+                          <Monitor size={8} /> Kiosk
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: '#7f766a', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#7f766a', marginBottom: '6px' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '500' }}>
-                      <Clock size={12} /> {getElapsedString(order.createdAt)}
+                      <Clock size={11} /> {getElapsedString(order.createdAt)}
                     </span>
-                    <strong style={{ color: order.paymentStatus === 'paid' ? '#1c8d3c' : '#b6412c' }}>
-                      {order.paymentStatus === 'paid' ? 'PAID' : 'PAY CASH'}
-                    </strong>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      {isCompleted && (
+                        <span style={{ background: '#dcfce7', color: '#15803d', padding: '1px 4px', borderRadius: '3px', fontSize: '0.6rem', fontWeight: '700' }}>
+                          COMPLETED
+                        </span>
+                      )}
+                      <strong style={{ color: order.paymentStatus === 'paid' ? '#1c8d3c' : '#b6412c' }}>
+                        {order.paymentStatus === 'paid' ? 'PAID' : 'CASH'}
+                      </strong>
+                    </div>
                   </div>
 
-                  <div style={{ fontSize: '0.85rem', color: '#221f1a', background: '#fbf7f4', padding: '8px 10px', borderRadius: '6px', border: '1px solid #f2e7db' }}>
-                    {order.items.length} item{order.items.length > 1 ? 's' : ''} • <strong style={{ color: '#b6412c' }}>{formatCurrency(order.totalAmount)}</strong>
+                  {/* Show Order Items directly on the card */}
+                  <div style={{ fontSize: '0.8rem', color: '#221f1a', background: isCompleted ? '#e9ecef' : '#fbf7f4', padding: '6px 8px', borderRadius: '6px', border: '1px solid #f2e7db' }}>
+                    <div style={{ fontWeight: '700', fontSize: '0.75rem', color: '#7f766a', marginBottom: '4px', borderBottom: '1px solid #f2e7db', paddingBottom: '2px' }}>
+                      Items:
+                    </div>
+                    {order.items.map((item, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '2px' }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>• {item.name}</span>
+                        <strong>x{item.quantity}</strong>
+                      </div>
+                    ))}
+                    <div style={{ borderTop: '1px solid #f2e7db', marginTop: '4px', paddingTop: '4px', display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: '700' }}>
+                      <span>Total:</span>
+                      <span style={{ color: '#b6412c' }}>{formatCurrency(order.totalAmount)}</span>
+                    </div>
                   </div>
 
                   {/* Status Indicator Bar */}
@@ -366,10 +394,10 @@ const LiveOrdersScreen = () => {
                     top: 0,
                     bottom: 0,
                     left: 0,
-                    width: '5px',
-                    borderTopLeftRadius: '12px',
-                    borderBottomLeftRadius: '12px',
-                    background: order.orderStatus === 'pending_acceptance' ? '#e2a106' : '#1c8d3c'
+                    width: '4px',
+                    borderTopLeftRadius: '10px',
+                    borderBottomLeftRadius: '10px',
+                    background: isCompleted ? '#7f766a' : (order.orderStatus === 'pending_acceptance' ? '#e2a106' : '#1c8d3c')
                   }} />
                 </div>
               );
@@ -378,48 +406,48 @@ const LiveOrdersScreen = () => {
 
           {/* Right Column: Active Order Details Screen */}
           {selectedOrder && (
-            <div style={{ background: '#ffffff', borderRadius: '16px', border: '1.5px solid #e6ded3', padding: '24px', boxShadow: '0 6px 20px rgba(0,0,0,0.03)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #f2e7db', paddingBottom: '16px', marginBottom: '20px' }}>
+            <div style={{ background: '#ffffff', borderRadius: '12px', border: '1.5px solid #e6ded3', padding: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #f2e7db', paddingBottom: '12px', marginBottom: '16px' }}>
                 <div>
-                  <h3 style={{ margin: '0 0 4px 0', fontSize: '1.4rem', fontWeight: '800', color: '#221f1a' }}>
+                  <h3 style={{ margin: '0 0 2px 0', fontSize: '1.25rem', fontWeight: '800', color: '#221f1a' }}>
                     Order #{selectedOrder.orderNumber}
                   </h3>
-                  <span style={{ fontSize: '0.85rem', color: '#7f766a' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#7f766a' }}>
                     Placed: {selectedOrder.createdAt?.toDate ? selectedOrder.createdAt.toDate().toLocaleTimeString() : new Date(selectedOrder.createdAt).toLocaleTimeString()}
                   </span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                   <span style={{
-                    padding: '4px 12px',
-                    borderRadius: '20px',
-                    fontSize: '0.8rem',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '0.75rem',
                     fontWeight: '700',
-                    background: selectedOrder.orderStatus === 'pending_acceptance' ? '#fef3c7' : '#dcfce7',
-                    color: selectedOrder.orderStatus === 'pending_acceptance' ? '#b45309' : '#15803d'
+                    background: selectedOrder.orderStatus === 'pending_acceptance' ? '#fef3c7' : (selectedOrder.orderStatus === 'completed' ? '#dcfce7' : '#dcfce7'),
+                    color: selectedOrder.orderStatus === 'pending_acceptance' ? '#b45309' : (selectedOrder.orderStatus === 'completed' ? '#15803d' : '#15803d')
                   }}>
-                    {selectedOrder.orderStatus === 'pending_acceptance' ? 'Pending Approval' : 'Preparing'}
+                    {selectedOrder.orderStatus === 'pending_acceptance' ? 'Pending Approval' : (selectedOrder.orderStatus === 'completed' ? 'Completed' : 'Preparing')}
                   </span>
-                  <span style={{ fontSize: '0.85rem', fontWeight: '700', color: selectedOrder.paymentStatus === 'paid' ? '#1c8d3c' : '#b6412c' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: '700', color: selectedOrder.paymentStatus === 'paid' ? '#1c8d3c' : '#b6412c' }}>
                     {selectedOrder.paymentStatus === 'paid' ? '💳 PAID ONLINE' : '💵 PAY AT COUNTER'}
                   </span>
                 </div>
               </div>
 
               {/* Customer Details */}
-              <div style={{ background: '#fbf7f4', border: '1px dashed #e6ded3', borderRadius: '12px', padding: '14px', marginBottom: '20px' }}>
-                <h4 style={{ margin: '0 0 6px 0', fontSize: '0.9rem', color: '#7f766a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Customer Information</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.92rem' }}>
+              <div style={{ background: '#fbf7f4', border: '1px dashed #e6ded3', borderRadius: '8px', padding: '10px', marginBottom: '16px', fontSize: '0.88rem' }}>
+                <h4 style={{ margin: '0 0 4px 0', fontSize: '0.8rem', color: '#7f766a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Customer Information</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                   <div>Name: <strong style={{ color: '#221f1a' }}>{selectedOrder.customerName || 'Customer'}</strong></div>
                   <div>Phone: <strong style={{ color: '#221f1a' }}>{selectedOrder.customerPhone || 'N/A'}</strong></div>
                   <div>Table: <strong style={{ color: '#221f1a' }}>{selectedOrder.tableNumber === 'Parcel' ? 'Parcel / Takeaway' : selectedOrder.tableNumber}</strong></div>
-                  <div>Payment Method: <strong style={{ color: '#221f1a', textTransform: 'uppercase' }}>{selectedOrder.paymentMethod}</strong></div>
+                  <div>Payment: <strong style={{ color: '#221f1a', textTransform: 'uppercase' }}>{selectedOrder.paymentMethod}</strong></div>
                 </div>
               </div>
 
               {/* Items List */}
-              <div style={{ marginBottom: '24px' }}>
-                <h4 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '800', color: '#221f1a' }}>Items Ordered</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', border: '1.5px solid #f2e7db', borderRadius: '12px', overflow: 'hidden' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem', fontWeight: '800', color: '#221f1a' }}>Items Ordered</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', border: '1.5px solid #f2e7db', borderRadius: '8px', overflow: 'hidden' }}>
                   {selectedOrder.items.map((item, idx) => (
                     <div
                       key={idx}
@@ -427,31 +455,31 @@ const LiveOrdersScreen = () => {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        padding: '14px 16px',
+                        padding: '10px 12px',
                         borderBottom: idx === selectedOrder.items.length - 1 ? 'none' : '1px solid #f2e7db',
                         background: '#ffffff'
                       }}
                     >
                       <div>
-                        <strong style={{ fontSize: '1rem', color: '#221f1a', display: 'block' }}>
-                          {item.name} <span style={{ color: '#b6412c', marginLeft: '6px' }}>x{item.quantity}</span>
+                        <strong style={{ fontSize: '0.9rem', color: '#221f1a', display: 'block' }}>
+                          {item.name} <span style={{ color: '#b6412c', marginLeft: '4px' }}>x{item.quantity}</span>
                         </strong>
-                        <span style={{ fontSize: '0.78rem', color: '#7f766a' }}>{formatCurrency(item.unitPrice)} each</span>
+                        <span style={{ fontSize: '0.75rem', color: '#7f766a' }}>{formatCurrency(item.unitPrice)} each</span>
                       </div>
-                      <strong style={{ fontSize: '1.05rem', color: '#221f1a' }}>{formatCurrency(item.totalPrice)}</strong>
+                      <strong style={{ fontSize: '0.95rem', color: '#221f1a' }}>{formatCurrency(item.totalPrice)}</strong>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Bill Totals */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px solid #e6ded3', paddingTop: '16px', marginBottom: '24px' }}>
-                <span style={{ fontSize: '1.1rem', fontWeight: '700', color: '#7f766a' }}>Total Amount</span>
-                <span style={{ fontSize: '1.6rem', fontWeight: '800', color: '#b6412c' }}>{formatCurrency(selectedOrder.totalAmount)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px solid #e6ded3', paddingTop: '12px', marginBottom: '16px' }}>
+                <span style={{ fontSize: '1rem', fontWeight: '700', color: '#7f766a' }}>Total Amount</span>
+                <span style={{ fontSize: '1.4rem', fontWeight: '800', color: '#b6412c' }}>{formatCurrency(selectedOrder.totalAmount)}</span>
               </div>
 
               {/* Actions Footer */}
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 {selectedOrder.orderStatus === 'pending_acceptance' ? (
                   <>
                     <button
@@ -460,18 +488,18 @@ const LiveOrdersScreen = () => {
                         background: '#ffffff',
                         border: '1.5px solid #dc2626',
                         color: '#dc2626',
-                        padding: '12px 24px',
-                        borderRadius: '24px',
+                        padding: '8px 16px',
+                        borderRadius: '20px',
                         fontWeight: '700',
-                        fontSize: '0.95rem',
+                        fontSize: '0.85rem',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '6px',
+                        gap: '4px',
                         transition: 'all 0.2s'
                       }}
                     >
-                      <X size={16} /> Reject Order
+                      <X size={14} /> Reject
                     </button>
                     <button
                       onClick={() => handleAcceptOrder(selectedOrder)}
@@ -479,21 +507,25 @@ const LiveOrdersScreen = () => {
                         background: '#1C5C3A',
                         border: 'none',
                         color: '#ffffff',
-                        padding: '12px 32px',
-                        borderRadius: '24px',
+                        padding: '8px 20px',
+                        borderRadius: '20px',
                         fontWeight: '700',
-                        fontSize: '0.95rem',
+                        fontSize: '0.85rem',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '6px',
-                        boxShadow: '0 4px 12px rgba(28,92,58,0.2)',
+                        gap: '4px',
+                        boxShadow: '0 2px 8px rgba(28,92,58,0.15)',
                         transition: 'all 0.2s'
                       }}
                     >
-                      <Check size={16} /> Accept Order
+                      <Check size={14} /> Accept
                     </button>
                   </>
+                ) : selectedOrder.orderStatus === 'completed' ? (
+                  <div style={{ color: '#15803d', fontWeight: '700', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Check size={16} /> Completed Order
+                  </div>
                 ) : (
                   <button
                     onClick={() => handleCompleteOrder(selectedOrder)}
@@ -501,19 +533,19 @@ const LiveOrdersScreen = () => {
                       background: '#b6412c',
                       border: 'none',
                       color: '#ffffff',
-                      padding: '14px 40px',
-                      borderRadius: '24px',
+                      padding: '10px 24px',
+                      borderRadius: '20px',
                       fontWeight: '700',
-                      fontSize: '1rem',
+                      fontSize: '0.9rem',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 4px 15px rgba(182,65,44,0.3)',
+                      gap: '4px',
+                      boxShadow: '0 3px 10px rgba(182,65,44,0.2)',
                       transition: 'all 0.2s'
                     }}
                   >
-                    <Check size={18} /> Complete Order & Send Receipt
+                    <Check size={16} /> Complete Order & Send Receipt
                   </button>
                 )}
               </div>
