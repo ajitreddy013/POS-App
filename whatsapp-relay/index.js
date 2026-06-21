@@ -224,6 +224,23 @@ function formatWhatsAppNumber(phone) {
   return clean;
 }
 
+// Helper to retrieve the shop name dynamically from Firestore
+async function getShopName() {
+  let shopName = 'Malabar Waffle';
+  if (admin.apps.length > 0) {
+    try {
+      const db = admin.firestore();
+      const settingsDoc = await db.collection('settings').doc('bar_settings').get();
+      if (settingsDoc.exists) {
+        shopName = settingsDoc.data().bar_name || shopName;
+      }
+    } catch (err) {
+      console.warn('Failed to load shop settings for WhatsApp template:', err.message);
+    }
+  }
+  return shopName;
+}
+
 // --- EXPRESS ENDPOINTS ---
 
 // Health / deployment diagnostics
@@ -786,8 +803,9 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
                 
                 if (phone) {
                   const cleanNumber = formatWhatsAppNumber(phone);
+                  const dynamicShopName = await getShopName();
 
-                  const messageText = `*Malabar Waffle 🧇*\n\nHi *${name}*,\nWe have received your payment & order *#${orderNumber}* for *${tableNumber === 'Parcel' ? 'Parcel / Takeaway' : 'Table ' + tableNumber}*.\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}* (Paid successfully via UPI).\n\nPlease wait while the kitchen prepares your delicious waffle! 😋`;
+                  const messageText = `*${dynamicShopName}*\n\nHi *${name}*,\nWe have received your payment & order *#${orderNumber}* for *${tableNumber === 'Parcel' ? 'Parcel / Takeaway' : 'Table ' + tableNumber}*.\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}* (Paid successfully via UPI).\n\nPlease wait while the kitchen prepares your delicious order! 😋`;
 
                   try {
                     await sock.sendMessage(cleanNumber, { text: messageText });
@@ -949,9 +967,10 @@ app.post('/payment/send-confirmation', async (req, res) => {
   }
 
   const cleanNumber = formatWhatsAppNumber(phone);
+  const dynamicShopName = await getShopName();
 
   const tableText = tableNumber === 'Parcel' ? 'Parcel / Takeaway' : `Table ${tableNumber}`;
-  const messageText = `*Malabar Waffle 🧇*\n\nHi *${name || 'Customer'}*,\nWe have received your order *#${orderNumber}* for *${tableText}*.\nAmount to pay: *₹${Number(totalAmount).toFixed(2)}*.\n\n*Please pay Cash at the counter* while the kitchen prepares your delicious waffle! 😋`;
+  const messageText = `*${dynamicShopName}*\n\nHi *${name || 'Customer'}*,\nWe have received your order *#${orderNumber}* for *${tableText}*.\nAmount to pay: *₹${Number(totalAmount).toFixed(2)}*.\n\n*Please pay Cash at the counter* while the kitchen prepares your delicious order! 😋`;
 
   try {
     console.log(`Sending order confirmation WhatsApp to: ${cleanNumber}`);
@@ -1009,8 +1028,9 @@ app.post('/payment/webhook', async (req, res) => {
               
               if (phone) {
                 const cleanNumber = formatWhatsAppNumber(phone);
+                const dynamicShopName = await getShopName();
 
-                const messageText = `*Malabar Waffle 🧇*\n\nHi *${name}*,\nWe have received your payment & order *#${orderNumber}* for *${tableNumber === 'Parcel' ? 'Parcel / Takeaway' : 'Table ' + tableNumber}*.\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}* (Paid successfully via UPI).\n\nPlease wait while the kitchen prepares your delicious waffle! 😋`;
+                const messageText = `*${dynamicShopName}*\n\nHi *${name}*,\nWe have received your payment & order *#${orderNumber}* for *${tableNumber === 'Parcel' ? 'Parcel / Takeaway' : 'Table ' + tableNumber}*.\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}* (Paid successfully via UPI).\n\nPlease wait while the kitchen prepares your delicious order! 😋`;
 
                 try {
                   await sock.sendMessage(cleanNumber, { text: messageText });

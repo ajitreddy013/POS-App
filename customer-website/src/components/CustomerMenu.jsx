@@ -12,6 +12,8 @@ import {
   getDocs,
   addDoc,
   serverTimestamp,
+  query,
+  where,
 } from 'firebase/firestore';
 import { APP_CONFIG } from '../config';
 import {
@@ -237,11 +239,26 @@ const CustomerMenu = () => {
     }
     setPhoneWarning('');
     setSubmitting(true);
-    const orderNumber = `W-${Date.now().toString().slice(-6)}`;
+
+    // Generate sequential order number starting with W-
+    let orderNumber = `W-${Date.now().toString().slice(-6)}`;
+    try {
+      const q = query(
+        collection(db, 'orders'),
+        where('orderNumber', '>=', 'W-'),
+        where('orderNumber', '<=', 'W-\uf8ff')
+      );
+      const querySnapshot = await getDocs(q);
+      const webCount = querySnapshot.size;
+      orderNumber = `W-${webCount + 1}`;
+    } catch (err) {
+      console.error('Failed to generate sequential W- order number, falling back:', err);
+    }
+
     try {
       if (paymentMethod === 'upi') {
         setUpiQrLoading(true);
-        setUpiQrStatus('Initiating secure Razorpay checkout...');
+        setUpiQrStatus('Initiating secure payment checkout...');
 
         // 1. Create order in Firestore as pending
         const orderData = {
@@ -251,23 +268,33 @@ const CustomerMenu = () => {
         };
         await addDoc(collection(db, 'orders'), orderData);
 
-        // 2. Initiate Razorpay payment link
-        const relayUrl = APP_CONFIG.whatsappRelayUrl;
-        const callbackUrl = `${window.location.origin}/?payment=success&orderId=${orderNumber}`;
+        // 2. Initiate Cashfree checkout session
+        const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
 
-        const res = await fetch(`${relayUrl}/payment/create-link`, {
+        const res = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount: totalAmount, orderId: orderNumber, callbackUrl, name, phone }),
+          body: JSON.stringify({ amount: totalAmount, orderId: orderNumber, phone, name }),
         });
         const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Failed to generate payment link.');
+        if (!data.success) throw new Error(data.error || 'Failed to generate payment session.');
 
         // 3. Clear cart locally
         setCart({});
-        
-        // 4. Redirect customer to Razorpay hosted checkout page
-        window.location.href = data.paymentLinkUrl;
+
+        // 4. Initialize Cashfree SDK and launch checkout
+        if (!window.Cashfree) {
+          throw new Error('Cashfree SDK is not loaded. Please try again.');
+        }
+
+        const cashfree = window.Cashfree({
+          mode: data.environment || 'sandbox' // 'sandbox' or 'production'
+        });
+
+        await cashfree.checkout({
+          paymentSessionId: data.paymentSessionId,
+          redirectTarget: '_self'
+        });
       } else {
         // Cash payment
         const orderData = {
@@ -279,7 +306,8 @@ const CustomerMenu = () => {
 
         // Send WhatsApp confirmation
         try {
-          await fetch(`${APP_CONFIG.whatsappRelayUrl}/payment/send-confirmation`, {
+          const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+          await fetch(`${relayUrl}/payment/send-confirmation`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone, name, orderNumber, tableNumber, totalAmount, paymentMethod }),
           });

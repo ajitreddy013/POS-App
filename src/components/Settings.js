@@ -4,7 +4,7 @@ import { dbService } from '../services/dbService';
 import { whatsappService } from '../services/whatsappService';
 import { APP_CONFIG } from '../config';
 import { getFirebaseDb } from '../firebase';
-import { doc, writeBatch } from 'firebase/firestore';
+import { doc, writeBatch, setDoc, getDocs, collection } from 'firebase/firestore';
 import QRCode from 'qrcode';
 
 const Settings = () => {
@@ -305,7 +305,24 @@ const Settings = () => {
         return;
       }
 
+      // 1. Fetch all existing products from Firestore to handle clean up
+      const existingDocIds = [];
+      try {
+        const querySnapshot = await getDocs(collection(db, "products"));
+        querySnapshot.forEach((doc) => {
+          existingDocIds.push(doc.id);
+        });
+      } catch (err) {
+        console.warn("Failed to fetch existing Firestore products for cleanup:", err);
+      }
+
+      // 2. Identify products in Firestore that do not exist locally
+      const localIds = products.map((p) => String(p.id));
+      const idsToDelete = existingDocIds.filter((id) => !localIds.includes(id));
+
       const batch = writeBatch(db);
+
+      // 3. Upload/Update current local products
       products.forEach((p) => {
         const docRef = doc(db, "products", String(p.id));
         batch.set(docRef, {
@@ -318,8 +335,14 @@ const Settings = () => {
         });
       });
 
+      // 4. Delete old products no longer present in local database
+      idsToDelete.forEach((id) => {
+        const docRef = doc(db, "products", id);
+        batch.delete(docRef);
+      });
+
       await batch.commit();
-      alert(`Menu synchronized successfully! ${products.length} products uploaded to the cloud.`);
+      alert(`Menu synchronized successfully! ${products.length} products updated, and ${idsToDelete.length} obsolete products deleted from the cloud.`);
     } catch (err) {
       console.error("Failed to sync menu:", err);
       alert(`Sync failed: ${err.message || err}`);
@@ -341,6 +364,33 @@ const Settings = () => {
     try {
       setLoading(true);
       await dbService.saveBarSettings(barSettings);
+
+      // Sync settings to Firestore in real-time if configured
+      try {
+        const db = getFirebaseDb();
+        if (db) {
+          const settingsRef = doc(db, 'settings', 'bar_settings');
+          await setDoc(settingsRef, {
+            bar_name: barSettings.bar_name || '',
+            contact_number: barSettings.contact_number || '',
+            gst_number: barSettings.gst_number || '',
+            address: barSettings.address || '',
+            thank_you_message: barSettings.thank_you_message || '',
+            printing_enabled: barSettings.printing_enabled !== undefined ? Number(barSettings.printing_enabled) : 0,
+            whatsapp_enabled: barSettings.whatsapp_enabled !== undefined ? Number(barSettings.whatsapp_enabled) : 0,
+            whatsapp_relay_url: barSettings.whatsapp_relay_url || '',
+            whatsapp_template_name: barSettings.whatsapp_template_name || 'counterflow_pos_receipt',
+            whatsapp_language_code: barSettings.whatsapp_language_code || 'en',
+            whatsapp_default_country_code: barSettings.whatsapp_default_country_code || '91',
+            razorpay_enabled: barSettings.razorpay_enabled !== undefined ? Number(barSettings.razorpay_enabled) : 1,
+            hosted_app_url: barSettings.hosted_app_url || '',
+          });
+          console.log('Bar settings successfully synced to Firestore.');
+        }
+      } catch (cloudErr) {
+        console.error('Failed to sync settings to Firestore:', cloudErr);
+      }
+
       setIsEditingBarInfo(false);
       setIsEditingWhatsappInfo(false);
       setIsEditingRazorpayInfo(false);

@@ -48,6 +48,7 @@ import {
   DollarSign,      // Spendings icon
   Lock,            // Lock/Admin icon
   Store,            // Store/admin console icon
+  ClipboardList,   // Clipboard/list icon for live orders
 } from "lucide-react";
 
 // Application styles
@@ -65,6 +66,7 @@ import SalesReports from "./components/SalesReports";             // Sales repor
 import Settings from "./components/Settings";                     // App settings
 import Spendings from "./components/Spendings";                   // Expense tracking
 import CustomerMenu from "./components/CustomerMenu";             // Customer self-ordering menu
+import LiveOrdersScreen from "./components/LiveOrdersScreen";       // Kitchen/Live orders
 
 import { dbService } from "./services/dbService";
 import { playErrorFeedback } from "./utils/feedbackUtils";
@@ -168,6 +170,7 @@ function AppContent() {
   const menuItems = [
     { path: "/dashboard", name: "Dashboard", icon: BarChart3 },     // Dashboard (first)
     { path: "/", name: "Cart", icon: ShoppingCart },                // Point of sale
+    { path: "/orders", name: "Live Orders", icon: ClipboardList },   // Kitchen/Live orders
     { path: "/products", name: "Products", icon: Package },        // Product catalog
     { path: "/reports", name: "Reports", icon: BarChart3 },         // Sales reports
     { path: "/spendings", name: "Spendings", icon: DollarSign },   // Expense tracking
@@ -284,6 +287,7 @@ function AppContent() {
           {isAdminUnlocked ? (
             <>
               <Route path="/products" element={<ProductManagement />} />
+              <Route path="/orders" element={<LiveOrdersScreen />} />
               <Route path="/reports" element={<SalesReports />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/spendings" element={<Spendings />} />

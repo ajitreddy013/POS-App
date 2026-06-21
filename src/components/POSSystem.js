@@ -483,21 +483,88 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const calculateTotal = () => cartTotal;
 
   const generateSaleNumber = async () => {
-    // Generate a sequential order number based on total sales
+    // Generate a sequential order number based on total sales excluding web orders
     const allSales = (await dbService.getSales()) || [];
-    return (allSales.length + 1).toString();
+    const appSalesCount = allSales.filter(s => !s.saleNumber?.startsWith('W-')).length;
+    return `A-${appSalesCount + 1}`;
   };
 
   const executeSaleWrite = async (selectedMethod) => {
     setLoading(true);
     try {
+      const orderNumber = await generateSaleNumber();
+
+      if (isKiosk) {
+        // KIOSK MODE: Write order to Firestore 'orders' collection
+        const db = getFirebaseDb();
+        if (!db) {
+          throw new Error("Firebase not configured on client.");
+        }
+
+        const orderData = {
+          orderNumber,
+          customerName: 'Kiosk Customer',
+          customerPhone: customerPhone || '',
+          tableNumber: 'Kiosk',
+          items: cart.map((item) => ({
+            productId: String(item.id),
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            totalPrice: item.price * item.quantity,
+          })),
+          totalAmount: calculateTotal(),
+          paymentMethod: selectedMethod || paymentMethod,
+          paymentStatus: (selectedMethod || paymentMethod) === 'upi' ? 'paid' : 'pending',
+          orderStatus: 'pending_acceptance',
+          createdAt: new Date(),
+        };
+
+        const { collection, addDoc } = await import('firebase/firestore');
+        await addDoc(collection(db, 'orders'), orderData);
+
+        if (customerPhone && (selectedMethod || paymentMethod) === 'cash') {
+          try {
+            const relayUrl = APP_CONFIG.whatsappRelayUrl;
+            await fetch(`${relayUrl}/payment/send-confirmation`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                phone: customerPhone,
+                name: 'Kiosk Customer',
+                orderNumber,
+                tableNumber: 'Kiosk',
+                totalAmount: calculateTotal(),
+                paymentMethod: 'cash'
+              })
+            });
+          } catch (waErr) {
+            console.error('WhatsApp Kiosk confirmation failed:', waErr);
+          }
+        }
+
+        setCart([]);
+        setCustomerName('');
+        setCustomerPhone('');
+        setPhoneError('');
+        setDiscount(0);
+        setShowDiscountInput(false);
+        setActiveTab('menu');
+
+        const successMsg = (selectedMethod || paymentMethod) === 'upi'
+          ? `Order #${orderNumber} Placed! Paid successfully via UPI.`
+          : `Order #${orderNumber} Placed! Please pay Cash at the counter.`;
+        showNotice('success', successMsg);
+        playSuccessFeedback();
+        return;
+      }
+
+      // ADMIN MODE: Write sale directly to local Dexie
       const saleData = {
-        saleNumber: await generateSaleNumber(),
+        saleNumber: orderNumber,
         saleType: 'parcel',
         tableNumber: null,
-        customerName: isKiosk
-          ? 'Kiosk Customer'
-          : customerName || 'Walk-in Customer',
+        customerName: customerName || 'Walk-in Customer',
         customerPhone,
         items: cart.map((item) => ({
           productId: item.id,
@@ -515,20 +582,17 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         barSettings,
       };
 
-      // Save sale to database
       await dbService.createSale(saleData);
 
-      // Auto-send WhatsApp receipt silently if customer phone is available
       if (customerPhone && customerPhone.trim() !== '') {
         try {
           const relayUrl = APP_CONFIG.whatsappRelayUrl;
           await whatsappService.sendBill(relayUrl, barSettings || {}, saleData);
         } catch (waErr) {
-          // Silent fail — WhatsApp is optional
+          // Silent fail
         }
       }
 
-      // Clear cart and customer info
       setCart([]);
       setCustomerName('');
       setCustomerPhone('');
@@ -537,18 +601,14 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       setShowDiscountInput(false);
       setActiveTab('menu');
 
-      // Reload products to update stock
       await loadProducts();
-
-      // Trigger dashboard refresh by dispatching a custom event
       window.dispatchEvent(new CustomEvent('saleCompleted'));
       playSuccessFeedback();
       showNotice('success', 'Order Placed! Check WhatsApp for receipt.');
     } catch (error) {
-      // Failed to process sale
       console.error('Sale write error:', error);
       playErrorFeedback();
-      showNotice('error', 'error');
+      showNotice('error', error.message || 'Failed to place order.');
     } finally {
       setLoading(false);
     }
