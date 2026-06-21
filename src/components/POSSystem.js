@@ -42,6 +42,7 @@ import {
   doc,
   updateDoc,
   addDoc,
+  getDoc,
 } from 'firebase/firestore';
 
 const formatCurrency = (value) => `₹${Number(value || 0).toFixed(2)}`;
@@ -186,7 +187,27 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
   const loadBarSettings = async () => {
     try {
-      const settings = await dbService.getBarSettings();
+      let settings = await dbService.getBarSettings();
+
+      // Sync settings from Firestore if online
+      try {
+        const db = getFirebaseDb();
+        if (db) {
+          const settingsRef = doc(db, 'settings', 'bar_settings');
+          const settingsSnap = await getDoc(settingsRef);
+          if (settingsSnap.exists()) {
+            const cloudSettings = settingsSnap.data();
+            settings = {
+              ...settings,
+              ...cloudSettings,
+            };
+            await dbService.saveBarSettings(settings);
+          }
+        }
+      } catch (cloudErr) {
+        console.error('Failed to sync settings from Firestore:', cloudErr);
+      }
+
       setBarSettings(settings);
 
       // Check if WhatsApp is linked and active
@@ -1489,6 +1510,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
             flex: activeTab === 'cart' ? 1 : undefined,
             background: activeTab === 'cart' ? '#f6f3ee' : undefined,
             padding: activeTab === 'cart' ? '0' : undefined,
+            height: activeTab === 'cart' ? '100%' : undefined,
+            overflow: activeTab === 'cart' ? 'hidden' : undefined,
+            flexDirection: 'column',
           }}
         >
           {activeTab === 'cart' ? (
@@ -1497,7 +1521,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               style={{
                 background: '#f6f3ee',
                 color: '#221f1a',
-                padding: '16px 20px',
+                padding: '12px 16px',
                 borderBottom: '1px solid #e6ded3',
                 position: 'sticky',
                 top: 0,
@@ -1517,14 +1541,14 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   gap: '4px',
                   color: '#b6412c',
                   fontWeight: '700',
-                  fontSize: '1rem',
+                  fontSize: '0.95rem',
                   cursor: 'pointer',
                   padding: 0,
                 }}
               >
-                <ChevronLeft size={20} /> Back
+                <ChevronLeft size={18} /> Back
               </button>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#221f1a', margin: 0, marginLeft: '16px' }}>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#221f1a', margin: 0, marginLeft: '8px' }}>
                 Review Order
               </h2>
             </header>
@@ -1933,7 +1957,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                     opacity: cart.length === 0 || loading ? 0.8 : 1, 
                     transition: 'opacity 0.2s',
                     outline: 'none',
-                    marginBottom: '20px'
+                    marginBottom: '40px'
                   }}
                 >
                   {loading ? (
@@ -2058,22 +2082,24 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       </div>
 
       {/* Sticky Bottom Mobile Navigation */}
-      <div className="mobile-nav-bar">
-        <button
-          className={activeTab === 'menu' ? 'active' : ''}
-          onClick={() => setActiveTab('menu')}
-        >
-          <Package size={20} />
-          <span>Menu</span>
-        </button>
-        <button
-          className={activeTab === 'cart' ? 'active' : ''}
-          onClick={() => setActiveTab('cart')}
-        >
-          <ShoppingCart size={20} />
-          <span>Cart ({totalCartItems})</span>
-        </button>
-      </div>
+      {!isKiosk && (
+        <div className="mobile-nav-bar">
+          <button
+            className={activeTab === 'menu' ? 'active' : ''}
+            onClick={() => setActiveTab('menu')}
+          >
+            <Package size={20} />
+            <span>Menu</span>
+          </button>
+          <button
+            className={activeTab === 'cart' ? 'active' : ''}
+            onClick={() => setActiveTab('cart')}
+          >
+            <ShoppingCart size={20} />
+            <span>Cart ({totalCartItems})</span>
+          </button>
+        </div>
+      )}
 
       {/* Floating Cart Banner for Mobile */}
       {totalCartItems > 0 && activeTab === 'menu' && (

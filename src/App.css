@@ -11017,6 +11017,12 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
   .app.admin-unlocked .pos-system .pos-layout {
     background: #f6f3ee !important;
     height: 100% !important;
+    padding-bottom: 0 !important;
+  }
+  .app.kiosk-locked .cart-panel:not(.mobile-hidden),
+  .app.admin-unlocked .pos-system .cart-panel:not(.mobile-hidden) {
+    height: 100% !important;
+    overflow: hidden !important;
   }
   .app.kiosk-locked .product-panel,
   .app.admin-unlocked .pos-system .product-panel {
