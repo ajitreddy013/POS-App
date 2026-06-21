@@ -743,6 +743,12 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
         return_url: `${req.headers.origin || 'https://counterflow-kiosk.web.app'}/?payment=success&orderId=${orderId}`,
         notify_url: 'https://pos-app-nqsm.onrender.com/payment/cashfree/webhook',
       },
+      payment_methods_filters: {
+        methods: {
+          action: 'ALLOW',
+          values: ['upi']
+        }
+      }
     };
 
     console.log(`Creating Cashfree Order for ${orderId}, Amount: ${payload.order_amount}`);
