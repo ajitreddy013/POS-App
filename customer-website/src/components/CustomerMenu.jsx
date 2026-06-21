@@ -57,8 +57,10 @@ const CustomerMenu = () => {
   // Checkout Form State
   const [name, setName] = useState('Customer');
   const [phone, setPhone] = useState('');
+  const [phoneWarning, setPhoneWarning] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [submitting, setSubmitting] = useState(false);
+  const phoneInputRef = useRef(null);
 
   const [tableNumber, setTableNumber] = useState('Parcel');
 
@@ -206,10 +208,34 @@ const CustomerMenu = () => {
 
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
+  const handleSelectPaymentMethod = (method) => {
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (!phone.trim() || cleanPhone.length < 10) {
+      setPhoneWarning('Please enter a valid 10-digit WhatsApp number first!');
+      setTimeout(() => setPhoneWarning(''), 3000);
+      if (phoneInputRef.current) {
+        phoneInputRef.current.focus();
+      }
+      return;
+    }
+    setPhoneWarning('');
+    setPaymentMethod(method);
+  };
+
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     if (cartItemsList.length === 0) return;
-    if (!phone.trim()) { alert('Please enter your WhatsApp mobile number.'); return; }
+    
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (!phone.trim() || cleanPhone.length < 10) {
+      setPhoneWarning('Please enter a valid 10-digit WhatsApp number!');
+      setTimeout(() => setPhoneWarning(''), 3000);
+      if (phoneInputRef.current) {
+        phoneInputRef.current.focus();
+      }
+      return;
+    }
+    setPhoneWarning('');
     setSubmitting(true);
     const orderNumber = `W-${Date.now().toString().slice(-6)}`;
     try {
@@ -538,7 +564,29 @@ const CustomerMenu = () => {
               <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '10px' }}>Customer Information</h3>
               <div>
                 <label style={{ display: 'block', marginBottom: '6px', fontWeight: '700', fontSize: '0.88rem', color: '#7f766a' }}>WhatsApp Mobile Number</label>
-                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="e.g. 9876543210" style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '1.5px solid #e6ded3', outline: 'none', fontSize: '0.95rem', fontFamily: '"Outfit", sans-serif', color: '#221f1a', boxSizing: 'border-box' }} />
+                <input
+                  ref={phoneInputRef}
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                  placeholder="e.g. 9876543210"
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '1.5px solid #e6ded3', outline: 'none', fontSize: '0.95rem', fontFamily: '"Outfit", sans-serif', color: '#221f1a', boxSizing: 'border-box' }}
+                />
+                {phoneWarning && (
+                  <div style={{
+                    marginTop: '8px',
+                    color: '#b6412c',
+                    fontSize: '0.85rem',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    animation: 'fadeIn 0.2s ease-out'
+                  }}>
+                    ⚠️ {phoneWarning}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -575,10 +623,10 @@ const CustomerMenu = () => {
               <div style={{ background: '#ffffff', borderRadius: '20px', padding: '20px', marginBottom: '32px', border: '1.5px solid #e6ded3', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
                 <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '10px' }}>Select Payment Method</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <button type="button" onClick={() => setPaymentMethod('upi')} style={{ padding: '16px 12px', borderRadius: '12px', border: paymentMethod === 'upi' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: paymentMethod === 'upi' ? '#fbf7f4' : '#ffffff', color: paymentMethod === 'upi' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.92rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
+                  <button type="button" onClick={() => handleSelectPaymentMethod('upi')} style={{ padding: '16px 12px', borderRadius: '12px', border: paymentMethod === 'upi' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: paymentMethod === 'upi' ? '#fbf7f4' : '#ffffff', color: paymentMethod === 'upi' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.92rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
                     <span style={{ fontSize: '1.4rem' }}>📱</span><span>Pay Online (UPI)</span>
                   </button>
-                  <button type="button" onClick={() => setPaymentMethod('cash')} style={{ padding: '16px 12px', borderRadius: '12px', border: paymentMethod === 'cash' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: paymentMethod === 'cash' ? '#fbf7f4' : '#ffffff', color: paymentMethod === 'cash' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.92rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
+                  <button type="button" onClick={() => handleSelectPaymentMethod('cash')} style={{ padding: '16px 12px', borderRadius: '12px', border: paymentMethod === 'cash' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: paymentMethod === 'cash' ? '#fbf7f4' : '#ffffff', color: paymentMethod === 'cash' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.92rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
                     <span style={{ fontSize: '1.4rem' }}>💵</span><span>Pay at Counter</span>
                   </button>
                 </div>
