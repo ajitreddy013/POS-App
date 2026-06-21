@@ -1,0 +1,67 @@
+/* Customer Website - Kiosk Theme Styles */
+
+/* Reset & Base */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #f6f3ee;
+  color: #221f1a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Spin animation for loading spinners */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Hide scrollbar on horizontal scroll containers */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Inputs and selects */
+input,
+select,
+button {
+  font-family: inherit;
+}
+
+input:focus,
+select:focus {
+  border-color: #b6412c !important;
+  box-shadow: 0 0 0 3px rgba(182, 65, 44, 0.08);
+}
+
+/* Smooth link transitions */
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Prevent overscroll bounce on mobile */
+html, body {
+  overscroll-behavior: none;
+}

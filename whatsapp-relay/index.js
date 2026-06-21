@@ -472,6 +472,60 @@ app.post('/payment/create-qr', async (req, res) => {
   }
 });
 
+// Create Razorpay Payment Link for Direct Intent Redirection
+app.post('/payment/create-link', async (req, res) => {
+  const { amount, orderId, callbackUrl } = req.body;
+  const rzpKeyId = process.env.RAZORPAY_KEY_ID;
+  const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET;
+
+  if (!amount || !orderId || !rzpKeyId || !rzpKeySecret) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: amount and orderId must be provided, and Razorpay credentials must be configured on the server.',
+    });
+  }
+
+  try {
+    const amountInPaise = Math.round(parseFloat(amount) * 100);
+
+    const payload = {
+      amount: amountInPaise,
+      currency: 'INR',
+      accept_partial: false,
+      description: `Payment for Order #${orderId}`,
+      reference_id: String(orderId),
+      callback_url: callbackUrl || 'https://counterflow-kiosk.web.app/',
+      callback_method: 'get',
+      notes: {
+        order_id: String(orderId),
+        source: 'customer_website',
+      },
+    };
+
+    console.log(`Creating Razorpay Payment Link for Order #${orderId}, Amount: ${amountInPaise} paise`);
+    const response = await razorpayRequest(
+      'POST',
+      '/v1/payment_links',
+      payload,
+      rzpKeyId,
+      rzpKeySecret
+    );
+
+    res.json({
+      success: true,
+      paymentLinkId: response.id,
+      paymentLinkUrl: response.short_url,
+      status: response.status,
+    });
+  } catch (err) {
+    console.error('Razorpay Payment Link creation failed:', err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to create Payment Link.',
+    });
+  }
+});
+
 // Check Razorpay QR Payment Status
 app.post('/payment/status', async (req, res) => {
   const { qrCodeId, paymentLinkId } = req.body;
@@ -693,7 +747,7 @@ app.post('/payment/webhook', async (req, res) => {
   // Process payment successful captured event
   if (payload.event === 'payment.captured') {
     const payment = payload.payload.payment.entity;
-    const orderNumber = payment.receipt;
+    const orderNumber = payment.receipt || (payment.notes && payment.notes.order_id);
     const razorpayOrderId = payment.order_id;
 
     console.log(
