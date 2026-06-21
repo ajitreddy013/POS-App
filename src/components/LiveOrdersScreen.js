@@ -62,7 +62,13 @@ const LiveOrdersScreen = () => {
       (querySnapshot) => {
         const list = [];
         querySnapshot.forEach((doc) => {
-          list.push({ id: doc.id, ...doc.data() });
+          const data = doc.data();
+          // Filter: Only display Cash orders or PAID UPI orders in kitchen
+          const isCash = data.paymentMethod === 'cash';
+          const isPaidUPI = data.paymentMethod === 'upi' && data.paymentStatus === 'paid';
+          if (isCash || isPaidUPI) {
+            list.push({ id: doc.id, ...data });
+          }
         });
         setOrders(list);
 
