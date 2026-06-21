@@ -519,7 +519,9 @@ app.post('/payment/create-link', async (req, res) => {
             upi: true
           },
           prefill: {
-            method: 'upi'
+            method: 'upi',
+            contact: formattedPhone,
+            email: 'customer@malabarwaffle.com'
           }
         }
       },
