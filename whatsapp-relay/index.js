@@ -209,6 +209,21 @@ async function cleanupSession() {
   }, 3000);
 }
 
+// Helper to format phone number to WhatsApp format (e.g. 919876543210@s.whatsapp.net)
+function formatWhatsAppNumber(phone) {
+  if (!phone) return '';
+  let clean = phone.replace(/\D/g, '');
+  // If it's exactly 10 digits, assume it's an Indian number and prepend country code 91
+  if (clean.length === 10) {
+    clean = `91${clean}`;
+  }
+  // Ensure it ends with @s.whatsapp.net suffix
+  if (!clean.endsWith('@s.whatsapp.net')) {
+    clean = `${clean}@s.whatsapp.net`;
+  }
+  return clean;
+}
+
 // --- EXPRESS ENDPOINTS ---
 
 // Health / deployment diagnostics
@@ -256,11 +271,8 @@ app.post('/send', async (req, res) => {
     });
   }
 
-  // Format phone number to WhatsApp format (e.g. 919876543210@s.whatsapp.net)
-  let cleanNumber = to.replace(/\D/g, '');
-  if (!cleanNumber.endsWith('@s.whatsapp.net')) {
-    cleanNumber = `${cleanNumber}@s.whatsapp.net`;
-  }
+  // Format phone number to WhatsApp format
+  const cleanNumber = formatWhatsAppNumber(to);
 
   try {
     console.log(`Sending message to: ${cleanNumber}`);
@@ -752,10 +764,7 @@ app.post('/payment/send-confirmation', async (req, res) => {
     });
   }
 
-  let cleanNumber = phone.replace(/\D/g, '');
-  if (!cleanNumber.endsWith('@s.whatsapp.net')) {
-    cleanNumber = `${cleanNumber}@s.whatsapp.net`;
-  }
+  const cleanNumber = formatWhatsAppNumber(phone);
 
   const messageText = `*Malabar Waffle 🧇*\n\nHi *${name || 'Customer'}*,\nWe have received your order *#${orderNumber}* for *Table ${tableNumber || 'Takeaway'}*.\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}* (via ${paymentMethod.toUpperCase()}).\n\nPlease wait while the kitchen prepares your delicious waffle! 😋`;
 
@@ -814,10 +823,7 @@ app.post('/payment/webhook', async (req, res) => {
               const tableNumber = orderData.tableNumber || 'Parcel';
               
               if (phone) {
-                let cleanNumber = phone.replace(/\D/g, '');
-                if (!cleanNumber.endsWith('@s.whatsapp.net')) {
-                  cleanNumber = `${cleanNumber}@s.whatsapp.net`;
-                }
+                const cleanNumber = formatWhatsAppNumber(phone);
 
                 const messageText = `*Malabar Waffle 🧇*\n\nHi *${name}*,\nWe have received your payment & order *#${orderNumber}* for *${tableNumber === 'Parcel' ? 'Parcel / Takeaway' : 'Table ' + tableNumber}*.\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}* (via UPI).\n\nPlease wait while the kitchen prepares your delicious waffle! 😋`;
 
