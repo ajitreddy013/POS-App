@@ -1536,16 +1536,19 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               padding: activeTab === 'cart' ? '20px 16px' : '0 16px 16px 16px',
               overflowY: 'auto',
               flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
             }}
           >
 
+            {/* 1. Customer Information Card */}
             <div
               className="form-row cart-phone-row"
               style={{
                 background: '#ffffff',
                 borderRadius: '20px',
                 padding: '20px',
-                marginBottom: '24px',
+                marginBottom: '20px',
                 border: '1.5px solid #e6ded3',
                 boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
               }}
@@ -1556,17 +1559,17 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               <label
                 style={{
                   display: 'block',
-                  marginBottom: '6px',
+                  marginBottom: '8px',
                   fontWeight: '700',
                   fontSize: '0.88rem',
                   color: '#7f766a',
                 }}
               >
-                {isKiosk ? 'Enter 10-digit Phone Number (Mandatory)' : 'Phone Number'}
+                WhatsApp Mobile Number
               </label>
               <input
                 type="tel"
-                placeholder="Phone Number"
+                placeholder="e.g. 9876543210"
                 value={customerPhone}
                 ref={phoneInputRef}
                 onChange={(e) => {
@@ -1579,22 +1582,23 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   }
                 }}
                 className={`form-input cart-phone-input ${phoneError ? 'error' : ''}`}
-                style={{ padding: '12px 14px', fontSize: '1rem', width: '100%', borderRadius: '12px' }}
+                style={{ padding: '12px 14px', fontSize: '1rem', width: '100%', borderRadius: '12px', border: '1.5px solid #e6ded3', outline: 'none' }}
                 maxLength="10"
               />
               {phoneError && (
-                <div className="cart-phone-error" role="alert">
+                <div className="cart-phone-error" role="alert" style={{ color: '#b6412c', fontSize: '0.85rem', marginTop: '6px', fontWeight: '600' }}>
                   {phoneError}
                 </div>
               )}
             </div>
 
+            {/* 2. Selected Items Card */}
             <div
               style={{
                 background: '#ffffff',
                 borderRadius: '20px',
                 padding: '20px',
-                marginBottom: '24px',
+                marginBottom: '20px',
                 border: '1.5px solid #e6ded3',
                 boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
               }}
@@ -1655,6 +1659,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                               cursor: 'pointer',
                               color: '#b6412c',
                               fontSize: '1rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                             }}
                           >
                             -
@@ -1682,6 +1689,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                               cursor: 'pointer',
                               color: '#b6412c',
                               fontSize: '1rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                             }}
                           >
                             +
@@ -1701,240 +1711,306 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                             alignItems: 'center',
                           }}
                         >
-                          <Trash2 size={18} />
+                          <Trash2 size={16} />
                         </button>
-                      </div>
 
-                      <strong style={{ fontSize: '1rem', marginLeft: '12px', minWidth: '70px', textAlign: 'right' }}>
-                        {formatCurrency(item.price * item.quantity)}
-                      </strong>
+                        <strong style={{ fontSize: '1rem', color: '#221f1a', minWidth: '75px', textAlign: 'right' }}>
+                          {formatCurrency(item.price * item.quantity)}
+                        </strong>
+                      </div>
                     </div>
                   ))
                 )}
               </div>
-            </div>
-          </div>
-          <div
-            className="billing-section payment-checkout-panel"
-            style={{
-              background: '#ffffff',
-              borderRadius: '20px',
-              padding: '20px',
-              border: '1.5px solid #e6ded3',
-              boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
-              marginBottom: '20px',
-            }}
-          >
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '10px' }}>
-              Billing Summary
-            </h3>
 
-            {!isKiosk && (
-              <div
-                className="billing-controls"
-                style={{
-                  marginBottom: '16px',
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                }}
-              >
-                <div
-                  className="payment-method-row"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}
-                >
+              {/* Grand Total section at the bottom of Selected Items card */}
+              <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {!isKiosk && (
                   <div
                     style={{
                       display: 'flex',
+                      justifyContent: 'space-between',
                       alignItems: 'center',
-                      gap: '4px',
+                      marginBottom: '8px',
                     }}
                   >
-                    <button
-                      type="button"
-                      style={{
-                        fontSize: '11px',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        border: '1px solid #e6ded3',
-                        background: showDiscountInput
-                          ? '#f2e7db'
-                          : 'transparent',
-                        color: '#7f766a',
-                        cursor: 'pointer',
-                      }}
-                      onClick={() => setShowDiscountInput((prev) => !prev)}
-                    >
-                      % Discount
-                    </button>
-                    {showDiscountInput && (
-                      <input
-                        type="number"
-                        value={discount === 0 ? '' : discount}
-                        onChange={(e) =>
-                          setDiscount(parseFloat(e.target.value) || 0)
-                        }
-                        min="0"
-                        className="form-input"
-                        placeholder="Amt"
+                    <span style={{ color: '#7f766a', fontSize: '0.95rem', fontWeight: '600' }}>Apply Discount</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        type="button"
                         style={{
-                          width: '60px',
-                          padding: '4px 8px',
                           fontSize: '11px',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid #e6ded3',
+                          background: showDiscountInput ? '#f2e7db' : 'transparent',
+                          color: '#7f766a',
+                          cursor: 'pointer',
                         }}
-                      />
-                    )}
+                        onClick={() => setShowDiscountInput((prev) => !prev)}
+                      >
+                        % Discount
+                      </button>
+                      {showDiscountInput && (
+                        <input
+                          type="number"
+                          value={discount === 0 ? '' : discount}
+                          onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                          min="0"
+                          className="form-input"
+                          placeholder="Amt"
+                          style={{
+                            width: '60px',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            border: '1px solid #e6ded3',
+                            borderRadius: '4px',
+                            outline: 'none',
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+                {!isKiosk && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem', fontWeight: '600' }}>
+                    <span style={{ color: '#7f766a' }}>Subtotal</span>
+                    <span style={{ color: '#221f1a' }}>{formatCurrency(calculateSubtotal())}</span>
+                  </div>
+                )}
+                {!isKiosk && discount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem', fontWeight: '600', color: '#b6412c' }}>
+                    <span>Discount</span>
+                    <span>-{formatCurrency(calculateDiscountAmount())}</span>
+                  </div>
+                )}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginTop: '8px',
+                    paddingTop: '12px',
+                    borderTop: '1px solid #f6f3ee',
+                    fontSize: '1.25rem',
+                    fontWeight: '700',
+                  }}
+                >
+                  <span style={{ color: '#221f1a' }}>Grand Total</span>
+                  <span style={{ color: '#b6412c' }}>{formatCurrency(calculateTotal())}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Render Payment Method and Checkout Button inside scrollable area only for activeTab === 'cart' (mobile view) */}
+            {activeTab === 'cart' && (
+              <>
+                {/* 3. Select Payment Method Card */}
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '20px',
+                    padding: '20px',
+                    marginBottom: '20px',
+                    border: '1.5px solid #e6ded3',
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
+                  }}
+                >
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '10px' }}>
+                    Select Payment Method
+                  </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => setPaymentMethod('upi')} 
+                      style={{ 
+                        padding: '16px 8px', 
+                        borderRadius: '16px', 
+                        border: paymentMethod === 'upi' ? '2.5px solid #b6412c' : '1.5px solid #e6ded3', 
+                        background: paymentMethod === 'upi' ? '#fbf7f4' : '#ffffff', 
+                        color: paymentMethod === 'upi' ? '#b6412c' : '#7f766a', 
+                        fontWeight: '700', 
+                        cursor: 'pointer', 
+                        fontSize: '0.9rem', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        alignItems: 'center', 
+                        gap: '6px', 
+                        transition: 'all 0.2s',
+                        outline: 'none'
+                      }}
+                    >
+                      <span style={{ fontSize: '1.5rem' }}>📱</span>
+                      <span>Pay Online (UPI)</span>
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setPaymentMethod('cash')} 
+                      style={{ 
+                        padding: '16px 8px', 
+                        borderRadius: '16px', 
+                        border: paymentMethod === 'cash' ? '2.5px solid #b6412c' : '1.5px solid #e6ded3', 
+                        background: paymentMethod === 'cash' ? '#fbf7f4' : '#ffffff', 
+                        color: paymentMethod === 'cash' ? '#b6412c' : '#7f766a', 
+                        fontWeight: '700', 
+                        cursor: 'pointer', 
+                        fontSize: '0.9rem', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        alignItems: 'center', 
+                        gap: '6px', 
+                        transition: 'all 0.2s',
+                        outline: 'none'
+                      }}
+                    >
+                      <span style={{ fontSize: '1.5rem' }}>💵</span>
+                      <span>Pay at Counter</span>
+                    </button>
                   </div>
                 </div>
-              </div>
+
+                {/* 4. Checkout Button */}
+                <button 
+                  onClick={() => processSale(paymentMethod)} 
+                  disabled={cart.length === 0 || loading} 
+                  style={{ 
+                    width: '100%', 
+                    background: '#b6412c', 
+                    color: '#ffffff', 
+                    border: 'none', 
+                    padding: '16px', 
+                    borderRadius: '30px', 
+                    fontSize: '1.05rem', 
+                    fontWeight: '700', 
+                    cursor: cart.length === 0 || loading ? 'not-allowed' : 'pointer', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    gap: '8px', 
+                    boxShadow: '0 6px 20px rgba(182,65,44,0.3)', 
+                    opacity: cart.length === 0 || loading ? 0.8 : 1, 
+                    transition: 'opacity 0.2s',
+                    outline: 'none',
+                    marginBottom: '24px'
+                  }}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="animate-spin" size={18} />
+                      Processing Payment...
+                    </>
+                  ) : isKiosk ? (
+                    paymentMethod === 'upi' ? 'Pay & Place Order' : 'Place Order (Pay Cash)'
+                  ) : (
+                    paymentMethod === 'upi' ? 'Pay & Complete Bill' : 'Complete Bill (Cash)'
+                  )}
+                </button>
+              </>
             )}
+          </div>
 
+          {/* Render the legacy billing-section ONLY for desktop view (activeTab !== 'cart') */}
+          {activeTab !== 'cart' && (
             <div
-              className="bill-summary payment-total-card cart-summary-card"
-              style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}
-            >
-              {!isKiosk && (
-                <div
-                  className="summary-line cart-summary-row"
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: '1.05rem',
-                    fontWeight: '600',
-                  }}
-                >
-                  <span style={{ color: '#7f766a' }}>Subtotal</span>
-                  <span style={{ color: '#221f1a' }}>
-                    {formatCurrency(calculateSubtotal())}
-                  </span>
-                </div>
-              )}
-              {!isKiosk && discount > 0 && (
-                <div
-                  className="summary-line discount cart-summary-row"
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: '1.05rem',
-                    fontWeight: '600',
-                    color: '#b6412c',
-                  }}
-                >
-                  <span>Discount</span>
-                  <span>-{formatCurrency(calculateDiscountAmount())}</span>
-                </div>
-              )}
-              <div
-                className="summary-line total cart-summary-total"
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  marginTop: '12px',
-                  paddingTop: '12px',
-                  borderTop: '1px solid #f6f3ee',
-                  fontSize: '1.25rem',
-                  fontWeight: '700',
-                }}
-              >
-                <span style={{ color: '#221f1a' }}>Grand Total</span>
-                <span style={{ color: '#b6412c' }}>
-                  {formatCurrency(calculateTotal())}
-                </span>
-              </div>
-            </div>
-
-            {/* Select Payment Method Card (Website Design Match) */}
-            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '16px', marginBottom: '20px', border: '1.5px solid #f6f3ee' }}>
-              <h3 style={{ margin: '0 0 12px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '6px' }}>Select Payment Method</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <button 
-                  type="button" 
-                  onClick={() => setPaymentMethod('upi')} 
-                  style={{ 
-                    padding: '12px 8px', 
-                    borderRadius: '12px', 
-                    border: paymentMethod === 'upi' ? '2.5px solid #b6412c' : '1.5px solid #e6ded3', 
-                    background: paymentMethod === 'upi' ? '#fbf7f4' : '#ffffff', 
-                    color: paymentMethod === 'upi' ? '#b6412c' : '#7f766a', 
-                    fontWeight: '700', 
-                    cursor: 'pointer', 
-                    fontSize: '0.85rem', 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    gap: '4px', 
-                    transition: 'all 0.2s',
-                    outline: 'none'
-                  }}
-                >
-                  <span style={{ fontSize: '1.25rem' }}>📱</span>
-                  <span>Pay Online (UPI)</span>
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setPaymentMethod('cash')} 
-                  style={{ 
-                    padding: '12px 8px', 
-                    borderRadius: '12px', 
-                    border: paymentMethod === 'cash' ? '2.5px solid #b6412c' : '1.5px solid #e6ded3', 
-                    background: paymentMethod === 'cash' ? '#fbf7f4' : '#ffffff', 
-                    color: paymentMethod === 'cash' ? '#b6412c' : '#7f766a', 
-                    fontWeight: '700', 
-                    cursor: 'pointer', 
-                    fontSize: '0.85rem', 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    gap: '4px', 
-                    transition: 'all 0.2s',
-                    outline: 'none'
-                  }}
-                >
-                  <span style={{ fontSize: '1.25rem' }}>💵</span>
-                  <span>Pay at Counter</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Checkout Button */}
-            <button 
-              onClick={() => processSale(paymentMethod)} 
-              disabled={cart.length === 0 || loading} 
-              style={{ 
-                width: '100%', 
-                background: '#b6412c', 
-                color: '#ffffff', 
-                border: 'none', 
-                padding: '14px', 
-                borderRadius: '24px', 
-                fontSize: '1rem', 
-                fontWeight: '700', 
-                cursor: cart.length === 0 || loading ? 'not-allowed' : 'pointer', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                gap: '8px', 
-                boxShadow: '0 6px 20px rgba(182,65,44,0.3)', 
-                opacity: cart.length === 0 || loading ? 0.8 : 1, 
-                transition: 'opacity 0.2s',
-                outline: 'none'
+              className="billing-section payment-checkout-panel"
+              style={{
+                background: '#ffffff',
+                borderRadius: '20px',
+                padding: '20px',
+                border: '1.5px solid #e6ded3',
+                boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
+                marginBottom: '20px',
               }}
             >
-              {loading ? (
-                <>
-                  <Loader2 className="animate-spin" size={18} />
-                  Processing Payment...
-                </>
-              ) : isKiosk ? (
-                paymentMethod === 'upi' ? 'Pay & Place Order' : 'Place Order (Pay Cash)'
-              ) : (
-                paymentMethod === 'upi' ? 'Pay & Complete Bill' : 'Complete Bill (Cash)'
-              )}
-            </button>
-          </div>
+              {/* Select Payment Method */}
+              <div style={{ background: '#ffffff', borderRadius: '16px', padding: '16px', marginBottom: '20px', border: '1.5px solid #f6f3ee' }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '6px' }}>Select Payment Method</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => setPaymentMethod('upi')} 
+                    style={{ 
+                      padding: '12px 8px', 
+                      borderRadius: '12px', 
+                      border: paymentMethod === 'upi' ? '2.5px solid #b6412c' : '1.5px solid #e6ded3', 
+                      background: paymentMethod === 'upi' ? '#fbf7f4' : '#ffffff', 
+                      color: paymentMethod === 'upi' ? '#b6412c' : '#7f766a', 
+                      fontWeight: '700', 
+                      cursor: 'pointer', 
+                      fontSize: '0.85rem', 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'center', 
+                      gap: '4px', 
+                      transition: 'all 0.2s',
+                      outline: 'none'
+                    }}
+                  >
+                    <span style={{ fontSize: '1.25rem' }}>📱</span>
+                    <span>Pay Online (UPI)</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setPaymentMethod('cash')} 
+                    style={{ 
+                      padding: '12px 8px', 
+                      borderRadius: '12px', 
+                      border: paymentMethod === 'cash' ? '2.5px solid #b6412c' : '1.5px solid #e6ded3', 
+                      background: paymentMethod === 'cash' ? '#fbf7f4' : '#ffffff', 
+                      color: paymentMethod === 'cash' ? '#b6412c' : '#7f766a', 
+                      fontWeight: '700', 
+                      cursor: 'pointer', 
+                      fontSize: '0.85rem', 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'center', 
+                      gap: '4px', 
+                      transition: 'all 0.2s',
+                      outline: 'none'
+                    }}
+                  >
+                    <span style={{ fontSize: '1.25rem' }}>💵</span>
+                    <span>Pay at Counter</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Checkout Button */}
+              <button 
+                onClick={() => processSale(paymentMethod)} 
+                disabled={cart.length === 0 || loading} 
+                style={{ 
+                  width: '100%', 
+                  background: '#b6412c', 
+                  color: '#ffffff', 
+                  border: 'none', 
+                  padding: '14px', 
+                  borderRadius: '24px', 
+                  fontSize: '1rem', 
+                  fontWeight: '700', 
+                  cursor: cart.length === 0 || loading ? 'not-allowed' : 'pointer', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '8px', 
+                  boxShadow: '0 6px 20px rgba(182,65,44,0.3)', 
+                  opacity: cart.length === 0 || loading ? 0.8 : 1, 
+                  transition: 'opacity 0.2s',
+                  outline: 'none'
+                }}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="animate-spin" size={18} />
+                    Processing Payment...
+                  </>
+                ) : isKiosk ? (
+                  paymentMethod === 'upi' ? 'Pay & Place Order' : 'Place Order (Pay Cash)'
+                ) : (
+                  paymentMethod === 'upi' ? 'Pay & Complete Bill' : 'Complete Bill (Cash)'
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
