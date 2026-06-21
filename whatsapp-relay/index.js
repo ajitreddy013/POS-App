@@ -488,6 +488,15 @@ app.post('/payment/create-link', async (req, res) => {
   try {
     const amountInPaise = Math.round(parseFloat(amount) * 100);
 
+    let formattedPhone = (phone || '').replace(/\D/g, '');
+    if (formattedPhone.length === 10) {
+      formattedPhone = `+91${formattedPhone}`;
+    } else if (formattedPhone.length === 12 && formattedPhone.startsWith('91')) {
+      formattedPhone = `+${formattedPhone}`;
+    } else if (formattedPhone.length > 0 && !formattedPhone.startsWith('+')) {
+      formattedPhone = `+${formattedPhone}`;
+    }
+
     const payload = {
       amount: amountInPaise,
       currency: 'INR',
@@ -498,7 +507,8 @@ app.post('/payment/create-link', async (req, res) => {
       callback_method: 'get',
       customer: {
         name: name || 'Customer',
-        contact: phone || '',
+        contact: formattedPhone,
+        email: 'customer@malabarwaffle.com',
       },
       options: {
         checkout: {
