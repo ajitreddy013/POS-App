@@ -644,8 +644,12 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       setPaymentMethod(method);
     }
 
-    // Check if payment method is UPI and automated QR is enabled
-    const isUpiEnabled = barSettings && barSettings.razorpay_enabled === 1;
+    // Check if payment method is UPI and automated QR is enabled or direct VPA configured
+    const isUpiEnabled = barSettings && (
+      barSettings.razorpay_enabled === 1 || 
+      !!barSettings.upi_vpa || 
+      barSettings.upi_provider === 'cashfree'
+    );
     if (selectedMethod === 'upi' && isUpiEnabled) {
       await startUpiQrPayment(selectedMethod);
       return;
@@ -754,32 +758,45 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         };
 
       } else {
-        // Razorpay UPI QR Flow
-        const response = await fetch(`${relayUrl}/payment/create-qr`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount, orderId }),
-        });
-        const data = await response.json();
-        setLoading(false);
+        // Razorpay UPI QR Flow or Static VPA QR Flow
+        let qrImage = '';
+        let paymentLinkId = null;
+        let qrCodeId = null;
 
-        if (!data.success) throw new Error(data.error || 'Unknown error creating QR code.');
+        const isAutomatedRazorpay = barSettings?.razorpay_enabled === 1;
 
-        let qrImage = data.qrImageUrl;
+        if (isAutomatedRazorpay) {
+          const response = await fetch(`${relayUrl}/payment/create-qr`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount, orderId }),
+          });
+          const data = await response.json();
+          setLoading(false);
+
+          if (!data.success) throw new Error(data.error || 'Unknown error creating Razorpay QR code.');
+          qrImage = data.qrImageUrl;
+          paymentLinkId = data.paymentLinkId || null;
+          qrCodeId = data.qrCodeId || null;
+        }
+
         try {
           if (barSettings && barSettings.upi_vpa) {
             const upiUri = `upi://pay?pa=${encodeURIComponent(barSettings.upi_vpa)}&pn=${encodeURIComponent(
               barSettings.bar_name || ''
             )}&am=${encodeURIComponent(Number(amount).toFixed(2))}&cu=INR&tn=${encodeURIComponent('Order ' + orderId)}`;
             qrImage = await QRCode.toDataURL(upiUri, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
+          } else if (!isAutomatedRazorpay) {
+            throw new Error("Automated UPI is disabled and no Merchant UPI VPA is configured.");
           }
         } catch (qrErr) {
           console.error('Failed to generate local UPI QR:', qrErr);
-          qrImage = data.qrImageUrl;
+          if (!qrImage) throw qrErr;
         }
 
+        setLoading(false);
         qrPaymentPendingRef.current = true;
-        setUpiQrPayment({ orderId, amount, qrImageUrl: qrImage, paymentLinkId: data.paymentLinkId || null });
+        setUpiQrPayment({ orderId, amount, qrImageUrl: qrImage, paymentLinkId, qrCodeId });
         setUpiQrStatus('Waiting for customer payment...');
 
         if (qrPollIntervalRef.current) {
@@ -787,36 +804,38 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           else clearInterval(qrPollIntervalRef.current);
         }
 
-        const intervalId = setInterval(async () => {
-          try {
-            const statusResponse = await fetch(`${relayUrl}/payment/status`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                qrCodeId: data.qrCodeId || null,
-                paymentLinkId: data.paymentLinkId || null,
-              }),
-            });
+        if (isAutomatedRazorpay) {
+          const intervalId = setInterval(async () => {
+            try {
+              const statusResponse = await fetch(`${relayUrl}/payment/status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  qrCodeId: qrCodeId || null,
+                  paymentLinkId: paymentLinkId || null,
+                }),
+              });
 
-            const statusData = await statusResponse.json();
-            if (statusData.success && statusData.paid) {
-              qrPaymentPendingRef.current = false;
-              clearInterval(intervalId);
-              setUpiQrStatus('Payment received. Completing order...');
-              setTimeout(async () => {
-                setUpiQrPayment(null);
-                setUpiQrStatus('');
-                await executeSaleWrite(selectedMethod);
-              }, 1000);
+              const statusData = await statusResponse.json();
+              if (statusData.success && statusData.paid) {
+                qrPaymentPendingRef.current = false;
+                clearInterval(intervalId);
+                setUpiQrStatus('Payment received. Completing order...');
+                setTimeout(async () => {
+                  setUpiQrPayment(null);
+                  setUpiQrStatus('');
+                  await executeSaleWrite(selectedMethod);
+                }, 1000);
+              }
+            } catch (pollError) {
+              console.error('Error polling Razorpay QR status:', pollError);
             }
-          } catch (pollError) {
-            console.error('Error polling Razorpay QR status:', pollError);
-          }
-        }, 2000);
+          }, 2000);
 
-        qrPollIntervalRef.current = {
-          clearInterval: () => clearInterval(intervalId)
-        };
+          qrPollIntervalRef.current = {
+            clearInterval: () => clearInterval(intervalId)
+          };
+        }
       }
     } catch (err) {
       setLoading(false);
@@ -2077,13 +2096,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         </div>
       )}
 
-      {/* Razorpay UPI QR Modal */}
+      {/* UPI QR Modal */}
       {upiQrPayment && (
         <div
           className="upi-qr-overlay"
           role="dialog"
           aria-modal="true"
-          aria-label="Razorpay UPI QR payment"
+          aria-label="UPI QR payment"
         >
           <div className="upi-qr-sheet">
             <div className="upi-qr-header">
@@ -2092,7 +2111,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   <QrCode size={20} />
                 </span>
                 <div>
-                  <h3>Scan Razorpay UPI QR</h3>
+                  <h3>Scan UPI QR to Pay</h3>
                   <p>Order #{upiQrPayment.orderId}</p>
                 </div>
               </div>
@@ -2116,7 +2135,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 {upiQrPayment.qrImageUrl ? (
                   <img
                     src={upiQrPayment.qrImageUrl}
-                    alt="Razorpay UPI QR code"
+                    alt="UPI QR code"
                   />
                 ) : (
                   <div className="upi-qr-placeholder">
