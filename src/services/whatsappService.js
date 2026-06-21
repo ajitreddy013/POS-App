@@ -52,7 +52,6 @@ export const whatsappService = {
     }
 
     const name = billData.customerName || 'Customer';
-    const tableText = billData.tableNumber === 'Parcel' || !billData.tableNumber ? 'Parcel / Takeaway' : `Table ${billData.tableNumber}`;
     const orderNumber = billData.billNumber || billData.saleNumber;
 
     const isCash = billData.paymentMethod.toLowerCase() === "cash";
@@ -60,9 +59,11 @@ export const whatsappService = {
       ? `*🔴 CASH PAYMENT - PAY AT COUNTER 🔴*`
       : `*🟢 PAID VIA UPI (ONLINE) 🟢*`;
 
-    const greeting = `Hi *${name}*,\nWe have received your order *#${orderNumber}* for *${tableText}*.`;
+    const hasTable = billData.tableNumber && billData.tableNumber !== 'Parcel' && billData.tableNumber !== 'Takeaway' && billData.tableNumber !== 'Kiosk';
+    const tableSuffix = hasTable ? ` for *Table ${billData.tableNumber}*` : '';
+    const greeting = `Hi *${name}*,\nWe have received your order *#${orderNumber}*${tableSuffix}.`;
 
-    let storeHeader = `🍔 *${settings.bar_name || "CounterFlow Food Truck"}* 🍔`;
+    let storeHeader = `*${settings.bar_name || "CounterFlow Food Truck"}*`;
     if (settings.address) {
       storeHeader += `\n📍 ${settings.address}`;
     }

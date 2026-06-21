@@ -269,7 +269,6 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
   } = orderData;
 
   const name = customerName || 'Customer';
-  const tableText = tableNumber === 'Parcel' || !tableNumber ? 'Parcel / Takeaway' : `Table ${tableNumber}`;
   
   // Status Header
   const isPaid = paymentStatus === 'paid' || paymentMethod === 'upi';
@@ -278,10 +277,12 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
     : `*🔴 CASH PAYMENT - PAY AT COUNTER 🔴*`;
 
   // Personalized greeting
-  const greeting = `Hi *${name}*,\nWe have received your ${isPaid ? 'payment & ' : ''}order *#${orderNumber}* for *${tableText}*.`;
+  const hasTable = tableNumber && tableNumber !== 'Parcel' && tableNumber !== 'Takeaway' && tableNumber !== 'Kiosk';
+  const tableSuffix = hasTable ? ` for *Table ${tableNumber}*` : '';
+  const greeting = `Hi *${name}*,\nWe have received your ${isPaid ? 'payment & ' : ''}order *#${orderNumber}*${tableSuffix}.`;
 
   // Store info header
-  let storeHeader = `🍔 *${shopName}* 🍔`;
+  let storeHeader = `*${shopName}*`;
   if (settings.address) {
     storeHeader += `\n📍 ${settings.address}`;
   }

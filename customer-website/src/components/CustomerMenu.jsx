@@ -399,7 +399,7 @@ const CustomerMenu = () => {
         <CheckCircle2 size={84} style={{ color: '#f2e7db', marginBottom: '24px' }} />
         <h1 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '16px' }}>Order Placed!</h1>
         <p style={{ fontSize: '1.15rem', opacity: 0.95, maxWidth: '380px', margin: '0 auto 28px auto', lineHeight: '1.7' }}>
-          Thank you! Your order <strong>#{orderSuccess}</strong> has been received as a <strong>Parcel / Takeaway Order</strong>. We&apos;ve sent a confirmation receipt to your WhatsApp.
+          Thank you! Your order <strong>#{orderSuccess}</strong> has been received. We&apos;ve sent a confirmation receipt to your WhatsApp.
         </p>
         <div style={{ background: 'rgba(255,255,255,0.12)', padding: '20px 28px', borderRadius: '16px', border: '1.5px solid rgba(255,255,255,0.2)', marginBottom: '40px' }}>
           <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>Current Status</span>
