@@ -550,20 +550,20 @@ const CustomerMenu = () => {
         </>
       ) : (
         <>
-          {/* ═══ CART & PAYMENT SCREEN (Page 2) ═══ */}
-          <header style={{ background: '#b6412c', color: '#ffffff', padding: '20px 16px', borderBottomLeftRadius: '24px', borderBottomRightRadius: '24px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 6px 20px rgba(182,65,44,0.15)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-            <button onClick={() => setActiveTab('menu')} style={{ border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '6px', color: '#ffffff', fontWeight: '700', fontSize: '1rem', cursor: 'pointer', padding: '4px 8px' }}>
-              <ChevronLeft size={20} /> Menu
+          {/* ═══ COMPACT CART & PAYMENT SCREEN (Page 2) ═══ */}
+          <div style={{ display: 'flex', alignItems: 'center', padding: '12px 14px 4px', gap: '8px', borderBottom: '1px solid #e6ded3', background: '#f6f3ee' }}>
+            <button onClick={() => setActiveTab('menu')} style={{ border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '4px', color: '#b6412c', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', padding: 0 }}>
+              <ChevronLeft size={18} /> Back
             </button>
-            <h2 style={{ fontSize: '1.3rem', fontWeight: '700', margin: '0 auto', transform: 'translateX(-20px)' }}>Review Order</h2>
-          </header>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#221f1a', margin: '0 auto 0 4px' }}>Review Order</h2>
+          </div>
 
-          <main style={{ padding: '20px 16px' }}>
+          <main style={{ padding: '8px 12px 16px' }}>
             {/* Customer Info */}
-            <div style={{ background: '#ffffff', borderRadius: '20px', padding: '20px', marginBottom: '24px', border: '1.5px solid #e6ded3', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '10px' }}>Customer Information</h3>
+            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '12px', marginBottom: '12px', border: '1.5px solid #e6ded3', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
+              <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '6px' }}>Customer Information</h3>
               <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '700', fontSize: '0.88rem', color: '#7f766a' }}>WhatsApp Mobile Number</label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: '700', fontSize: '0.78rem', color: '#7f766a' }}>WhatsApp Mobile Number</label>
                 <input
                   ref={phoneInputRef}
                   type="tel"
@@ -571,13 +571,13 @@ const CustomerMenu = () => {
                   onChange={(e) => setPhone(e.target.value)}
                   required
                   placeholder="e.g. 9876543210"
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '1.5px solid #e6ded3', outline: 'none', fontSize: '0.95rem', fontFamily: '"Outfit", sans-serif', color: '#221f1a', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #e6ded3', outline: 'none', fontSize: '0.88rem', fontFamily: '"Outfit", sans-serif', color: '#221f1a', boxSizing: 'border-box' }}
                 />
                 {phoneWarning && (
                   <div style={{
-                    marginTop: '8px',
+                    marginTop: '6px',
                     color: '#b6412c',
-                    fontSize: '0.85rem',
+                    fontSize: '0.82rem',
                     fontWeight: '600',
                     display: 'flex',
                     alignItems: 'center',
@@ -591,28 +591,28 @@ const CustomerMenu = () => {
             </div>
 
             {/* Cart Items */}
-            <div style={{ background: '#ffffff', borderRadius: '20px', padding: '20px', marginBottom: '24px', border: '1.5px solid #e6ded3', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '10px' }}>Selected Items ({totalQuantity})</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '12px', marginBottom: '12px', border: '1.5px solid #e6ded3', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
+              <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '6px' }}>Selected Items ({totalQuantity})</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {cartItemsList.map((item) => (
-                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid #f6f3ee' }}>
-                    <div style={{ flex: 1, minWidth: 0, marginRight: '12px' }}>
-                      <span style={{ fontWeight: '700', fontSize: '0.98rem', display: 'block', color: '#221f1a' }}>{item.name}</span>
-                      <span style={{ color: '#b6412c', fontSize: '0.88rem', fontWeight: '600' }}>{formatCurrency(item.price)} each</span>
+                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: '1px solid #f6f3ee' }}>
+                    <div style={{ flex: 1, minWidth: 0, marginRight: '10px' }}>
+                      <span style={{ fontWeight: '700', fontSize: '0.9rem', display: 'block', color: '#221f1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</span>
+                      <span style={{ color: '#b6412c', fontSize: '0.8rem', fontWeight: '600' }}>{formatCurrency(item.price)} each</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', background: '#fbf7f4', border: '1px solid #e6ded3', borderRadius: '20px', padding: '2px' }}>
-                        <button type="button" onClick={() => removeFromCart(item.id)} style={{ border: 'none', background: 'transparent', width: '26px', height: '26px', fontWeight: '700', cursor: 'pointer', color: '#b6412c', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Minus size={14} /></button>
-                        <span style={{ minWidth: '18px', textAlign: 'center', fontWeight: '700', fontSize: '0.9rem', color: '#221f1a' }}>{item.quantity}</span>
-                        <button type="button" onClick={() => addToCart(item.id)} style={{ border: 'none', background: 'transparent', width: '26px', height: '26px', fontWeight: '700', cursor: 'pointer', color: '#b6412c', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={14} /></button>
+                        <button type="button" onClick={() => removeFromCart(item.id)} style={{ border: 'none', background: 'transparent', width: '22px', height: '22px', fontWeight: '700', cursor: 'pointer', color: '#b6412c', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Minus size={12} /></button>
+                        <span style={{ minWidth: '16px', textAlign: 'center', fontWeight: '700', fontSize: '0.8rem', color: '#221f1a' }}>{item.quantity}</span>
+                        <button type="button" onClick={() => addToCart(item.id)} style={{ border: 'none', background: 'transparent', width: '22px', height: '22px', fontWeight: '700', cursor: 'pointer', color: '#b6412c', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={12} /></button>
                       </div>
-                      <button type="button" onClick={() => deleteFromCart(item.id)} style={{ border: 'none', background: 'transparent', color: '#7f766a', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}><Trash2 size={18} /></button>
+                      <button type="button" onClick={() => deleteFromCart(item.id)} style={{ border: 'none', background: 'transparent', color: '#7f766a', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}><Trash2 size={16} /></button>
                     </div>
-                    <strong style={{ fontSize: '1rem', marginLeft: '12px', minWidth: '70px', textAlign: 'right' }}>{formatCurrency(item.price * item.quantity)}</strong>
+                    <strong style={{ fontSize: '0.9rem', marginLeft: '8px', minWidth: '60px', textAlign: 'right' }}>{formatCurrency(item.price * item.quantity)}</strong>
                   </div>
                 ))}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', fontSize: '1.25rem', fontWeight: '700', paddingTop: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '1.05rem', fontWeight: '700', paddingTop: '4px' }}>
                 <span>Grand Total</span>
                 <span style={{ color: '#b6412c' }}>{formatCurrency(totalAmount)}</span>
               </div>
@@ -620,19 +620,19 @@ const CustomerMenu = () => {
 
             {/* Payment Method */}
             <form onSubmit={handlePlaceOrder}>
-              <div style={{ background: '#ffffff', borderRadius: '20px', padding: '20px', marginBottom: '32px', border: '1.5px solid #e6ded3', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
-                <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '10px' }}>Select Payment Method</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <button type="button" onClick={() => handleSelectPaymentMethod('upi')} style={{ padding: '16px 12px', borderRadius: '12px', border: paymentMethod === 'upi' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: paymentMethod === 'upi' ? '#fbf7f4' : '#ffffff', color: paymentMethod === 'upi' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.92rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
-                    <span style={{ fontSize: '1.4rem' }}>📱</span><span>Pay Online (UPI)</span>
+              <div style={{ background: '#ffffff', borderRadius: '16px', padding: '12px', marginBottom: '16px', border: '1.5px solid #e6ded3', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '6px' }}>Select Payment Method</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <button type="button" onClick={() => handleSelectPaymentMethod('upi')} style={{ padding: '10px 8px', borderRadius: '12px', border: paymentMethod === 'upi' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: paymentMethod === 'upi' ? '#fbf7f4' : '#ffffff', color: paymentMethod === 'upi' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}>
+                    <span style={{ fontSize: '1.2rem' }}>📱</span><span>Pay Online (UPI)</span>
                   </button>
-                  <button type="button" onClick={() => handleSelectPaymentMethod('cash')} style={{ padding: '16px 12px', borderRadius: '12px', border: paymentMethod === 'cash' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: paymentMethod === 'cash' ? '#fbf7f4' : '#ffffff', color: paymentMethod === 'cash' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.92rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
-                    <span style={{ fontSize: '1.4rem' }}>💵</span><span>Pay at Counter</span>
+                  <button type="button" onClick={() => handleSelectPaymentMethod('cash')} style={{ padding: '10px 8px', borderRadius: '12px', border: paymentMethod === 'cash' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: paymentMethod === 'cash' ? '#fbf7f4' : '#ffffff', color: paymentMethod === 'cash' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}>
+                    <span style={{ fontSize: '1.2rem' }}>💵</span><span>Pay at Counter</span>
                   </button>
                 </div>
               </div>
-              <button type="submit" disabled={submitting} style={{ width: '100%', background: '#b6412c', color: '#ffffff', border: 'none', padding: '18px', borderRadius: '30px', fontSize: '1.15rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 6px 20px rgba(182,65,44,0.3)', opacity: submitting ? 0.8 : 1, transition: 'opacity 0.2s' }}>
-                {submitting ? (<><Loader2 className="animate-spin" size={22} />Processing Payment...</>) : paymentMethod === 'upi' ? 'Pay & Place Order' : 'Place Order (Pay Cash)'}
+              <button type="submit" disabled={submitting} style={{ width: '100%', background: '#b6412c', color: '#ffffff', border: 'none', padding: '12px', borderRadius: '24px', fontSize: '0.98rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 6px 20px rgba(182,65,44,0.3)', opacity: submitting ? 0.8 : 1, transition: 'opacity 0.2s' }}>
+                {submitting ? (<><Loader2 className="animate-spin" size={18} />Processing Payment...</>) : paymentMethod === 'upi' ? 'Pay & Place Order' : 'Place Order (Pay Cash)'}
               </button>
             </form>
           </main>
