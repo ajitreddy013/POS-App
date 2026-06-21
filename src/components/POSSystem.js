@@ -1478,7 +1478,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               style={{
                 background: '#f6f3ee',
                 color: '#221f1a',
-                padding: '16px',
+                padding: '16px 20px',
                 borderBottom: '1px solid #e6ded3',
                 position: 'sticky',
                 top: 0,
@@ -1498,14 +1498,14 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   gap: '4px',
                   color: '#b6412c',
                   fontWeight: '700',
-                  fontSize: '0.9rem',
+                  fontSize: '1rem',
                   cursor: 'pointer',
                   padding: 0,
                 }}
               >
-                <ChevronLeft size={18} /> Back
+                <ChevronLeft size={20} /> Back
               </button>
-              <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#221f1a', margin: '0 auto 0 4px', transform: 'translateX(4px)' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#221f1a', margin: 0, marginLeft: '16px' }}>
                 Review Order
               </h2>
             </header>
@@ -1533,7 +1533,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           <div
             className="cart-section"
             style={{ 
-              padding: activeTab === 'cart' ? '20px 16px' : '0 16px 16px 16px',
+              padding: activeTab === 'cart' ? '16px 12px' : '0 16px 16px 16px',
               overflowY: 'auto',
               flex: 1,
               display: 'flex',
@@ -1546,22 +1546,28 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               className="form-row cart-phone-row"
               style={{
                 background: '#ffffff',
-                borderRadius: '20px',
-                padding: '20px',
-                marginBottom: '20px',
+                borderRadius: activeTab === 'cart' ? '16px' : '20px',
+                padding: activeTab === 'cart' ? '16px' : '20px',
+                marginBottom: activeTab === 'cart' ? '16px' : '20px',
                 border: '1.5px solid #e6ded3',
                 boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
               }}
             >
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '10px' }}>
+              <h3 style={{ 
+                margin: activeTab === 'cart' ? '0 0 12px 0' : '0 0 16px 0', 
+                fontSize: '1.05rem', 
+                fontWeight: '700', 
+                borderBottom: activeTab === 'cart' ? 'none' : '1.5px solid #f6f3ee', 
+                paddingBottom: activeTab === 'cart' ? '0' : '10px' 
+              }}>
                 Customer Information
               </h3>
               <label
                 style={{
                   display: 'block',
-                  marginBottom: '8px',
+                  marginBottom: activeTab === 'cart' ? '6px' : '8px',
                   fontWeight: '700',
-                  fontSize: '0.88rem',
+                  fontSize: '0.85rem',
                   color: '#7f766a',
                 }}
               >
@@ -1582,7 +1588,14 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   }
                 }}
                 className={`form-input cart-phone-input ${phoneError ? 'error' : ''}`}
-                style={{ padding: '12px 14px', fontSize: '1rem', width: '100%', borderRadius: '12px', border: '1.5px solid #e6ded3', outline: 'none' }}
+                style={{ 
+                  padding: activeTab === 'cart' ? '10px 12px' : '12px 14px', 
+                  fontSize: '0.95rem', 
+                  width: '100%', 
+                  borderRadius: '12px', 
+                  border: '1.5px solid #e6ded3', 
+                  outline: 'none' 
+                }}
                 maxLength="10"
               />
               {phoneError && (
@@ -1596,18 +1609,24 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
             <div
               style={{
                 background: '#ffffff',
-                borderRadius: '20px',
-                padding: '20px',
-                marginBottom: '20px',
+                borderRadius: activeTab === 'cart' ? '16px' : '20px',
+                padding: activeTab === 'cart' ? '16px' : '20px',
+                marginBottom: activeTab === 'cart' ? '16px' : '20px',
                 border: '1.5px solid #e6ded3',
                 boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
               }}
             >
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '10px' }}>
+              <h3 style={{ 
+                margin: activeTab === 'cart' ? '0 0 12px 0' : '0 0 16px 0', 
+                fontSize: '1.05rem', 
+                fontWeight: '700', 
+                borderBottom: activeTab === 'cart' ? 'none' : '1.5px solid #f6f3ee', 
+                paddingBottom: activeTab === 'cart' ? '0' : '10px' 
+              }}>
                 Selected Items ({totalCartItems})
               </h3>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: activeTab === 'cart' ? '0' : '14px' }}>
                 {cart.length === 0 ? (
                   <div className="empty-cart" style={{ padding: '20px 0', textAlign: 'center' }}>
                     <ShoppingCart size={32} color="#ccc" />
@@ -1623,7 +1642,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        paddingBottom: '12px',
+                        padding: activeTab === 'cart' ? '10px 0' : '0 0 12px 0',
                         borderBottom: '1px solid #f6f3ee',
                       }}
                     >
@@ -1636,7 +1655,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                         </span>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: activeTab === 'cart' ? '8px' : '12px' }}>
                         <div
                           style={{
                             display: 'flex',
@@ -1653,8 +1672,8 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                             style={{
                               border: 'none',
                               background: 'transparent',
-                              width: '26px',
-                              height: '26px',
+                              width: activeTab === 'cart' ? '24px' : '26px',
+                              height: activeTab === 'cart' ? '24px' : '26px',
                               fontWeight: '700',
                               cursor: 'pointer',
                               color: '#b6412c',
@@ -1683,8 +1702,8 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                             style={{
                               border: 'none',
                               background: 'transparent',
-                              width: '26px',
-                              height: '26px',
+                              width: activeTab === 'cart' ? '24px' : '26px',
+                              height: activeTab === 'cart' ? '24px' : '26px',
                               fontWeight: '700',
                               cursor: 'pointer',
                               color: '#b6412c',
@@ -1714,7 +1733,12 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                           <Trash2 size={16} />
                         </button>
 
-                        <strong style={{ fontSize: '1rem', color: '#221f1a', minWidth: '75px', textAlign: 'right' }}>
+                        <strong style={{ 
+                          fontSize: '0.95rem', 
+                          color: '#221f1a', 
+                          minWidth: activeTab === 'cart' ? '65px' : '75px', 
+                          textAlign: 'right' 
+                        }}>
                           {formatCurrency(item.price * item.quantity)}
                         </strong>
                       </div>
@@ -1724,7 +1748,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               </div>
 
               {/* Grand Total section at the bottom of Selected Items card */}
-              <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ marginTop: activeTab === 'cart' ? '12px' : '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {!isKiosk && (
                   <div
                     style={{
@@ -1788,10 +1812,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
-                    marginTop: '8px',
-                    paddingTop: '12px',
+                    marginTop: activeTab === 'cart' ? '6px' : '8px',
+                    paddingTop: activeTab === 'cart' ? '10px' : '12px',
                     borderTop: '1px solid #f6f3ee',
-                    fontSize: '1.25rem',
+                    fontSize: activeTab === 'cart' ? '1.15rem' : '1.25rem',
                     fontWeight: '700',
                   }}
                 >
@@ -1808,14 +1832,14 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 <div
                   style={{
                     background: '#ffffff',
-                    borderRadius: '20px',
-                    padding: '20px',
-                    marginBottom: '20px',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    marginBottom: '16px',
                     border: '1.5px solid #e6ded3',
                     boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
                   }}
                 >
-                  <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '10px' }}>
+                  <h3 style={{ margin: '0 0 12px 0', fontSize: '1.05rem', fontWeight: '700', borderBottom: 'none', paddingBottom: 0 }}>
                     Select Payment Method
                   </h3>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -1823,46 +1847,46 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                       type="button" 
                       onClick={() => setPaymentMethod('upi')} 
                       style={{ 
-                        padding: '16px 8px', 
-                        borderRadius: '16px', 
-                        border: paymentMethod === 'upi' ? '2.5px solid #b6412c' : '1.5px solid #e6ded3', 
+                        padding: '12px 8px', 
+                        borderRadius: '12px', 
+                        border: paymentMethod === 'upi' ? '2px solid #b6412c' : '1.5px solid #e6ded3', 
                         background: paymentMethod === 'upi' ? '#fbf7f4' : '#ffffff', 
                         color: paymentMethod === 'upi' ? '#b6412c' : '#7f766a', 
                         fontWeight: '700', 
                         cursor: 'pointer', 
-                        fontSize: '0.9rem', 
+                        fontSize: '0.88rem', 
                         display: 'flex', 
                         flexDirection: 'column', 
                         alignItems: 'center', 
-                        gap: '6px', 
+                        gap: '4px', 
                         transition: 'all 0.2s',
                         outline: 'none'
                       }}
                     >
-                      <span style={{ fontSize: '1.5rem' }}>📱</span>
+                      <span style={{ fontSize: '1.3rem' }}>📱</span>
                       <span>Pay Online (UPI)</span>
                     </button>
                     <button 
                       type="button" 
                       onClick={() => setPaymentMethod('cash')} 
                       style={{ 
-                        padding: '16px 8px', 
-                        borderRadius: '16px', 
-                        border: paymentMethod === 'cash' ? '2.5px solid #b6412c' : '1.5px solid #e6ded3', 
+                        padding: '12px 8px', 
+                        borderRadius: '12px', 
+                        border: paymentMethod === 'cash' ? '2px solid #b6412c' : '1.5px solid #e6ded3', 
                         background: paymentMethod === 'cash' ? '#fbf7f4' : '#ffffff', 
                         color: paymentMethod === 'cash' ? '#b6412c' : '#7f766a', 
                         fontWeight: '700', 
                         cursor: 'pointer', 
-                        fontSize: '0.9rem', 
+                        fontSize: '0.88rem', 
                         display: 'flex', 
                         flexDirection: 'column', 
                         alignItems: 'center', 
-                        gap: '6px', 
+                        gap: '4px', 
                         transition: 'all 0.2s',
                         outline: 'none'
                       }}
                     >
-                      <span style={{ fontSize: '1.5rem' }}>💵</span>
+                      <span style={{ fontSize: '1.3rem' }}>💵</span>
                       <span>Pay at Counter</span>
                     </button>
                   </div>
@@ -1877,20 +1901,20 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                     background: '#b6412c', 
                     color: '#ffffff', 
                     border: 'none', 
-                    padding: '16px', 
-                    borderRadius: '30px', 
-                    fontSize: '1.05rem', 
+                    padding: '14px', 
+                    borderRadius: '24px', 
+                    fontSize: '1rem', 
                     fontWeight: '700', 
                     cursor: cart.length === 0 || loading ? 'not-allowed' : 'pointer', 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center', 
                     gap: '8px', 
-                    boxShadow: '0 6px 20px rgba(182,65,44,0.3)', 
+                    boxShadow: '0 4px 14px rgba(182,65,44,0.25)', 
                     opacity: cart.length === 0 || loading ? 0.8 : 1, 
                     transition: 'opacity 0.2s',
                     outline: 'none',
-                    marginBottom: '24px'
+                    marginBottom: '20px'
                   }}
                 >
                   {loading ? (
