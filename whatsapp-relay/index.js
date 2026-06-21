@@ -798,12 +798,39 @@ app.post('/payment/webhook', async (req, res) => {
           );
         } else {
           snapshot.forEach(async (doc) => {
+            const orderData = doc.data();
             await doc.ref.update({
               paymentStatus: 'paid',
             });
             console.log(
               `Updated Firestore Order ID: ${doc.id} paymentStatus to "paid"`
             );
+
+            // Send WhatsApp confirmation receipt upon successful online payment
+            if (connectionStatus === 'CONNECTED' && sock) {
+              const phone = orderData.customerPhone;
+              const name = orderData.customerName || 'Customer';
+              const totalAmount = orderData.totalAmount;
+              const tableNumber = orderData.tableNumber || 'Parcel';
+              
+              if (phone) {
+                let cleanNumber = phone.replace(/\D/g, '');
+                if (!cleanNumber.endsWith('@s.whatsapp.net')) {
+                  cleanNumber = `${cleanNumber}@s.whatsapp.net`;
+                }
+
+                const messageText = `*Malabar Waffle 🧇*\n\nHi *${name}*,\nWe have received your payment & order *#${orderNumber}* for *${tableNumber === 'Parcel' ? 'Parcel / Takeaway' : 'Table ' + tableNumber}*.\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}* (via UPI).\n\nPlease wait while the kitchen prepares your delicious waffle! 😋`;
+
+                try {
+                  await sock.sendMessage(cleanNumber, { text: messageText });
+                  console.log(`Sent payment confirmation WhatsApp for Order #${orderNumber} to: ${cleanNumber}`);
+                } catch (waErr) {
+                  console.error(`Failed to send payment confirmation to ${cleanNumber}:`, waErr);
+                }
+              }
+            } else {
+              console.warn('WhatsApp Client is not connected. Cannot send payment confirmation.');
+            }
           });
         }
       } catch (dbErr) {
