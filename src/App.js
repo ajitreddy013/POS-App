@@ -34,8 +34,11 @@
  */
 
 // React core imports
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { HashRouter as Router, Routes, Route, Link, useLocation, Navigate, useNavigate } from "react-router-dom";
+import { getFirebaseDb } from "./firebase";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { playIncomingOrderChime } from "./utils/feedbackUtils";
 
 // Icon imports for navigation menu
 import {
@@ -93,6 +96,58 @@ function AppContent() {
   // Router state
   const location = useLocation();
   const navigate = useNavigate();
+
+  const [globalNotice, setGlobalNotice] = useState(null);
+
+  useEffect(() => {
+    if (!isAdminUnlocked) return;
+
+    const db = getFirebaseDb();
+    if (!db) return;
+
+    const q = query(
+      collection(db, 'orders'),
+      where('orderStatus', '==', 'pending_acceptance')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      let hasNewOrder = false;
+      let newOrderNumber = '';
+
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const orderData = change.doc.data();
+          const createdAt = orderData.createdAt?.toDate ? orderData.createdAt.toDate() : new Date(orderData.createdAt);
+          const diffMs = Date.now() - createdAt.getTime();
+          
+          // Only notify for orders placed in the last 2 minutes to prevent spamming on reload/reconnect
+          if (diffMs < 120000) {
+            hasNewOrder = true;
+            newOrderNumber = orderData.orderNumber;
+          }
+        }
+      });
+
+      if (hasNewOrder && newOrderNumber) {
+        playIncomingOrderChime();
+        setGlobalNotice({
+          type: 'info',
+          message: `New Order Received! #${newOrderNumber}`
+        });
+
+        // Trigger custom event to notify current screen of new order if needed
+        window.dispatchEvent(new CustomEvent('newOrderReceived', { detail: { orderNumber: newOrderNumber } }));
+
+        setTimeout(() => {
+          setGlobalNotice(null);
+        }, 6000);
+      }
+    }, (error) => {
+      console.error('Global orders listener error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [isAdminUnlocked]);
 
   /**
    * Toggle sidebar visibility
@@ -359,6 +414,49 @@ function AppContent() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+      {/* Global Notice Toast */}
+      {globalNotice && (
+        <div style={{
+          position: 'fixed',
+          top: '24px',
+          right: '24px',
+          background: '#1C5C3A',
+          color: '#ffffff',
+          padding: '16px 20px',
+          borderRadius: '16px',
+          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',
+          zIndex: 10000,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          fontFamily: 'Outfit, sans-serif',
+          animation: 'posNoticeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+          maxWidth: '350px',
+        }}>
+          <span style={{ fontSize: '20px' }}>🔔</span>
+          <div style={{ flex: 1 }}>
+            <strong style={{ display: 'block', fontSize: '0.95rem', margin: 0 }}>New Order Alert</strong>
+            <span style={{ fontSize: '0.85rem', opacity: 0.9 }}>{globalNotice.message}</span>
+          </div>
+          <button 
+            onClick={() => setGlobalNotice(null)} 
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#ffffff',
+              cursor: 'pointer',
+              marginLeft: '12px',
+              padding: '4px',
+              opacity: 0.8,
+              display: 'flex',
+              alignItems: 'center',
+              outline: 'none',
+            }}
+          >
+            <X size={16} />
+          </button>
         </div>
       )}
     </div>

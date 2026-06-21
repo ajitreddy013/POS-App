@@ -391,6 +391,13 @@ const CustomerMenu = () => {
             tableNumber,
             totalAmount,
             paymentMethod,
+            items: cartItemsList.map((item) => ({
+              name: item.name,
+              quantity: item.quantity,
+              unitPrice: item.price,
+              totalPrice: item.price * item.quantity
+            })),
+            subtotal: totalAmount
           }),
         });
       } catch (waErr) {

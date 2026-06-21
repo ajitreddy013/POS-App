@@ -51,6 +51,31 @@ export const whatsappService = {
       phone = `${defaultCountryCode}${phone}`;
     }
 
+    const name = billData.customerName || 'Customer';
+    const tableText = billData.tableNumber === 'Parcel' || !billData.tableNumber ? 'Parcel / Takeaway' : `Table ${billData.tableNumber}`;
+    const orderNumber = billData.billNumber || billData.saleNumber;
+
+    const isCash = billData.paymentMethod.toLowerCase() === "cash";
+    const paymentHeader = isCash 
+      ? `*🔴 CASH PAYMENT - PAY AT COUNTER 🔴*`
+      : `*🟢 PAID VIA UPI (ONLINE) 🟢*`;
+
+    const greeting = `Hi *${name}*,\nWe have received your order *#${orderNumber}* for *${tableText}*.`;
+
+    let storeHeader = `🍔 *${settings.bar_name || "CounterFlow Food Truck"}* 🍔`;
+    if (settings.address) {
+      storeHeader += `\n📍 ${settings.address}`;
+    }
+    if (settings.contact_number) {
+      storeHeader += `\n📞 ${settings.contact_number}`;
+    }
+    if (settings.gst_number) {
+      storeHeader += `\nGSTIN: ${settings.gst_number}`;
+    }
+
+    const divider = `------------------------------------`;
+    const dateStr = `Date: ${billData.saleDate || getLocalDateTimeString()}`;
+
     // Format receipt items list in a monospaced block for perfect alignment on WhatsApp
     // Total width = 24 characters to prevent wrapping on narrow mobile screens
     const itemsHeader = `Item         Qty   Amt\n------------------------`;
@@ -76,41 +101,27 @@ export const whatsappService = {
     // Triple backticks force WhatsApp to use a monospaced font
     const receiptTable = "```\n" + itemsHeader + "\n" + itemsList + "\n" + summaryList + "\n```";
 
-    const divider = `------------------------------------`;
-    let headerTitle = `🍔 *${settings.bar_name || "CounterFlow Food Truck"}* 🍔`;
-    if (settings.address) {
-      headerTitle += `\n📍 ${settings.address}`;
-    }
-    if (settings.contact_number) {
-      headerTitle += `\n📞 ${settings.contact_number}`;
-    }
-    if (settings.gst_number) {
-      headerTitle += `\nGSTIN: ${settings.gst_number}`;
-    }
+    const footerInstruction = isCash 
+      ? `*Please pay Cash at the counter* while the kitchen prepares your delicious order! 😋`
+      : `Please wait while the kitchen prepares your delicious order! 😋`;
 
-    const billNo = `Bill No: ${billData.billNumber || billData.saleNumber}`;
-    const dateStr = `Date: ${billData.saleDate || getLocalDateTimeString()}`;
-
-    const paymentStr = `Payment: ${billData.paymentMethod.toUpperCase()}`;
-    const footerStr = settings.thank_you_message || "Thank you for visiting! Please visit again.";
-
-    const isCash = billData.paymentMethod.toLowerCase() === "cash";
-    const paymentHeader = isCash 
-      ? `*🔴 CASH PAYMENT - PAY AT COUNTER 🔴*\n`
-      : `*🟢 PAID VIA UPI (ONLINE) 🟢*\n`;
+    const footerText = settings.thank_you_message || "Thank you for visiting! Please visit again.";
 
     // Assemble the complete message
     const message = `${paymentHeader}
-${headerTitle}
+
+${greeting}
+
+${storeHeader}
 ${divider}
-${billNo}
+Order No: ${orderNumber}
 ${dateStr}
 
 ${receiptTable}
 
-${paymentStr}
 ${divider}
-${footerStr}`;
+${footerInstruction}
+${footerText}`;
 
     try {
       const cleanUrl = relayUrl.replace(/\/$/, "");

@@ -173,6 +173,81 @@ const LiveOrdersScreen = () => {
     }
   };
 
+  // Quick Complete: Accept first if pending_acceptance, then complete
+  const handleQuickComplete = async (order) => {
+    try {
+      const db = getFirebaseDb();
+      if (!db) return;
+
+      if (!window.confirm(`Are you sure you want to mark Order #${order.orderNumber} as Completed?`)) {
+        return;
+      }
+
+      // If pending acceptance, we must first run the accept order logic to record the sale locally
+      if (order.orderStatus === 'pending_acceptance') {
+        const saleData = {
+          saleNumber: order.orderNumber,
+          saleType: 'parcel',
+          tableNumber: order.tableNumber || null,
+          customerName: order.customerName || 'Online Customer',
+          customerPhone: order.customerPhone || '',
+          items: order.items.map((item) => ({
+            productId: Number(item.productId),
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice,
+          })),
+          subtotal: order.totalAmount,
+          taxAmount: 0,
+          discountAmount: 0,
+          totalAmount: order.totalAmount,
+          paymentMethod: order.paymentMethod,
+          saleDate: new Date().toISOString(),
+          barSettings,
+        };
+
+        // Record sale locally in Dexie (deducts stock, updates dashboard/reports)
+        await dbService.createSale(saleData);
+        // Trigger local dashboard refresh custom event
+        window.dispatchEvent(new CustomEvent('saleCompleted'));
+      }
+
+      // Update status in Firestore to completed
+      const orderRef = doc(db, 'orders', order.id);
+      await updateDoc(orderRef, { orderStatus: 'completed' });
+
+      // Trigger WhatsApp receipt
+      if (order.customerPhone) {
+        try {
+          const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+          const saleDataForReceipt = {
+            saleNumber: order.orderNumber,
+            saleType: 'parcel',
+            tableNumber: order.tableNumber || null,
+            customerName: order.customerName,
+            customerPhone: order.customerPhone,
+            items: order.items,
+            subtotal: order.totalAmount,
+            taxAmount: 0,
+            discountAmount: 0,
+            totalAmount: order.totalAmount,
+            paymentMethod: order.paymentMethod,
+            saleDate: new Date().toISOString(),
+          };
+          await whatsappService.sendBill(relayUrl, barSettings || {}, saleDataForReceipt);
+        } catch (waErr) {
+          console.error('WhatsApp final receipt failed:', waErr);
+        }
+      }
+      
+      console.log(`Quick completed Order #${order.orderNumber} successfully.`);
+    } catch (err) {
+      console.error('Failed to quick complete order:', err);
+      alert(`Error completing order: ${err.message || err}`);
+    }
+  };
+
   // Reject Order: Update Firestore status to cancelled
   const handleCancelOrder = async (order) => {
     if (!window.confirm(`Are you sure you want to reject and cancel Order #${order.orderNumber}?`)) {
@@ -232,6 +307,34 @@ const LiveOrdersScreen = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <strong style={{ fontSize: '1.05rem', color: '#221f1a' }}>Order #{order.orderNumber}</strong>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {/* Check/Tick complete button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleQuickComplete(order);
+                        }}
+                        style={{
+                          background: '#1c8d3c',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '24px',
+                          height: '24px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 5px rgba(28,141,60,0.2)',
+                          outline: 'none',
+                          padding: 0,
+                          marginRight: '4px',
+                        }}
+                        title="Quick Complete Order"
+                      >
+                        <Check size={13} strokeWidth={3} style={{ display: 'block' }} />
+                      </button>
+
                       {isWeb ? (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '3px', background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '700' }}>
                           <Smartphone size={10} /> Web

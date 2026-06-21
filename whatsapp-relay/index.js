@@ -224,21 +224,127 @@ function formatWhatsAppNumber(phone) {
   return clean;
 }
 
-// Helper to retrieve the shop name dynamically from Firestore
-async function getShopName() {
-  let shopName = 'Malabar Waffle';
+// Helper to retrieve settings dynamically from Firestore
+async function getShopSettings() {
+  let settings = {
+    bar_name: 'Malabar Waffle',
+    address: '',
+    contact_number: '',
+    gst_number: '',
+    thank_you_message: 'Thank you for visiting! Please visit again.'
+  };
   if (admin.apps.length > 0) {
     try {
       const db = admin.firestore();
       const settingsDoc = await db.collection('settings').doc('bar_settings').get();
       if (settingsDoc.exists) {
-        shopName = settingsDoc.data().bar_name || shopName;
+        const data = settingsDoc.data();
+        settings.bar_name = data.bar_name || settings.bar_name;
+        settings.address = data.address || '';
+        settings.contact_number = data.contact_number || '';
+        settings.gst_number = data.gst_number || '';
+        settings.thank_you_message = data.thank_you_message || settings.thank_you_message;
       }
     } catch (err) {
-      console.warn('Failed to load shop settings for WhatsApp template:', err.message);
+      console.warn('Failed to load shop settings:', err.message);
     }
   }
-  return shopName;
+  return settings;
+}
+
+// Unified template formatting builder
+function buildUnifiedReceiptMessage(shopName, settings, orderData) {
+  const {
+    orderNumber,
+    customerName,
+    customerPhone,
+    tableNumber,
+    totalAmount,
+    paymentMethod,
+    paymentStatus,
+    items = [],
+    subtotal = 0,
+    discountAmount = 0,
+    taxAmount = 0
+  } = orderData;
+
+  const name = customerName || 'Customer';
+  const tableText = tableNumber === 'Parcel' || !tableNumber ? 'Parcel / Takeaway' : `Table ${tableNumber}`;
+  
+  // Status Header
+  const isPaid = paymentStatus === 'paid' || paymentMethod === 'upi';
+  const statusHeader = isPaid 
+    ? `*🟢 PAID VIA UPI (ONLINE) 🟢*`
+    : `*🔴 CASH PAYMENT - PAY AT COUNTER 🔴*`;
+
+  // Personalized greeting
+  const greeting = `Hi *${name}*,\nWe have received your ${isPaid ? 'payment & ' : ''}order *#${orderNumber}* for *${tableText}*.`;
+
+  // Store info header
+  let storeHeader = `🍔 *${shopName}* 🍔`;
+  if (settings.address) {
+    storeHeader += `\n📍 ${settings.address}`;
+  }
+  if (settings.contact_number) {
+    storeHeader += `\n📞 ${settings.contact_number}`;
+  }
+  if (settings.gst_number) {
+    storeHeader += `\nGSTIN: ${settings.gst_number}`;
+  }
+
+  // Receipt details
+  const divider = `------------------------------------`;
+  const dateStr = `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+  // Items list monospaced table (if items are available)
+  let receiptTable = '';
+  if (items && items.length > 0) {
+    const itemsHeader = `Item         Qty   Amt\n------------------------`;
+    const itemsList = items.map(item => {
+      const nameStr = (item.name || '').substring(0, 12).padEnd(12);
+      const qtyStr = (item.quantity || 1).toString().padStart(2);
+      const amtStr = (item.totalPrice || (item.unitPrice * item.quantity) || 0).toFixed(2).padStart(8);
+      return `${nameStr} ${qtyStr} ${amtStr}`;
+    }).join('\n');
+
+    const calcSubtotal = subtotal || items.reduce((sum, item) => sum + (item.totalPrice || (item.unitPrice * item.quantity) || 0), 0);
+    
+    let summaryList = `------------------------\n`;
+    summaryList += "Subtotal:".padStart(15) + " " + calcSubtotal.toFixed(2).padStart(8);
+    
+    if (discountAmount > 0) {
+      summaryList += "\n" + "Discount:".padStart(15) + " " + ("-" + Number(discountAmount).toFixed(2)).padStart(8);
+    }
+    if (taxAmount > 0) {
+      summaryList += "\n" + "Tax:".padStart(15) + " " + Number(taxAmount).toFixed(2).padStart(8);
+    }
+    summaryList += "\n" + "Total:".padStart(15) + " " + ("₹" + Number(totalAmount).toFixed(2)).padStart(8);
+
+    receiptTable = "\n```\n" + itemsHeader + "\n" + itemsList + "\n" + summaryList + "\n```\n";
+  } else {
+    receiptTable = `\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}*\n`;
+  }
+
+  // Footer instruction
+  const footerInstruction = isPaid 
+    ? `Please wait while the kitchen prepares your delicious order! 😋`
+    : `*Please pay Cash at the counter* while the kitchen prepares your delicious order! 😋`;
+
+  const footerText = settings.thank_you_message || "Thank you for visiting! Please visit again.";
+
+  // Assemble the message
+  return `${statusHeader}
+
+${greeting}
+
+${storeHeader}
+${divider}
+Order No: ${orderNumber}
+${dateStr}
+${receiptTable}
+${divider}
+${footerInstruction}
+${footerText}`;
 }
 
 // --- EXPRESS ENDPOINTS ---
@@ -828,15 +934,14 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
 
               if (connectionStatus === 'CONNECTED' && sock) {
                 const phone = orderData.customerPhone;
-                const name = orderData.customerName || 'Customer';
-                const totalAmount = orderData.totalAmount;
-                const tableNumber = orderData.tableNumber || 'Parcel';
-                
                 if (phone) {
                   const cleanNumber = formatWhatsAppNumber(phone);
-                  const dynamicShopName = await getShopName();
-
-                  const messageText = `*${dynamicShopName}*\n\nHi *${name}*,\nWe have received your payment & order *#${orderNumber}* for *${tableNumber === 'Parcel' ? 'Parcel / Takeaway' : 'Table ' + tableNumber}*.\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}* (Paid successfully via UPI).\n\nPlease wait while the kitchen prepares your delicious order! 😋`;
+                  const settings = await getShopSettings();
+                  const messageText = buildUnifiedReceiptMessage(settings.bar_name, settings, {
+                    ...orderData,
+                    orderNumber,
+                    paymentStatus: 'paid'
+                  });
 
                   try {
                     await sock.sendMessage(cleanNumber, { text: messageText });
@@ -978,8 +1083,20 @@ app.post('/payment/link-status', async (req, res) => {
 
 // Send Order Confirmation message on WhatsApp
 app.post('/payment/send-confirmation', async (req, res) => {
-  const { phone, name, orderNumber, tableNumber, totalAmount, paymentMethod } =
-    req.body;
+  const {
+    phone,
+    name,
+    orderNumber,
+    tableNumber,
+    totalAmount,
+    paymentMethod,
+    paymentStatus,
+    items,
+    subtotal,
+    discountAmount,
+    taxAmount
+  } = req.body;
+
   if (!phone || !orderNumber) {
     return res
       .status(400)
@@ -998,12 +1115,22 @@ app.post('/payment/send-confirmation', async (req, res) => {
   }
 
   const cleanNumber = formatWhatsAppNumber(phone);
-  const dynamicShopName = await getShopName();
-
-  const tableText = tableNumber === 'Parcel' ? 'Parcel / Takeaway' : `Table ${tableNumber}`;
-  const messageText = `*${dynamicShopName}*\n\nHi *${name || 'Customer'}*,\nWe have received your order *#${orderNumber}* for *${tableText}*.\nAmount to pay: *₹${Number(totalAmount).toFixed(2)}*.\n\n*Please pay Cash at the counter* while the kitchen prepares your delicious order! 😋`;
-
   try {
+    const settings = await getShopSettings();
+    const messageText = buildUnifiedReceiptMessage(settings.bar_name, settings, {
+      orderNumber,
+      customerName: name,
+      customerPhone: phone,
+      tableNumber,
+      totalAmount,
+      paymentMethod,
+      paymentStatus: paymentStatus || (paymentMethod === 'upi' ? 'paid' : 'pending'),
+      items,
+      subtotal,
+      discountAmount,
+      taxAmount
+    });
+
     console.log(`Sending order confirmation WhatsApp to: ${cleanNumber}`);
     await sock.sendMessage(cleanNumber, { text: messageText });
     res.json({ success: true });
@@ -1053,15 +1180,14 @@ app.post('/payment/webhook', async (req, res) => {
             // Send WhatsApp confirmation receipt upon successful online payment
             if (connectionStatus === 'CONNECTED' && sock) {
               const phone = orderData.customerPhone;
-              const name = orderData.customerName || 'Customer';
-              const totalAmount = orderData.totalAmount;
-              const tableNumber = orderData.tableNumber || 'Parcel';
-              
               if (phone) {
                 const cleanNumber = formatWhatsAppNumber(phone);
-                const dynamicShopName = await getShopName();
-
-                const messageText = `*${dynamicShopName}*\n\nHi *${name}*,\nWe have received your payment & order *#${orderNumber}* for *${tableNumber === 'Parcel' ? 'Parcel / Takeaway' : 'Table ' + tableNumber}*.\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}* (Paid successfully via UPI).\n\nPlease wait while the kitchen prepares your delicious order! 😋`;
+                const settings = await getShopSettings();
+                const messageText = buildUnifiedReceiptMessage(settings.bar_name, settings, {
+                  ...orderData,
+                  orderNumber,
+                  paymentStatus: 'paid'
+                });
 
                 try {
                   await sock.sendMessage(cleanNumber, { text: messageText });

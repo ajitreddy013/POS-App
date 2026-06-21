@@ -340,7 +340,21 @@ const CustomerMenu = () => {
           const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
           await fetch(`${relayUrl}/payment/send-confirmation`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone, name, orderNumber, tableNumber, totalAmount, paymentMethod }),
+            body: JSON.stringify({
+              phone,
+              name,
+              orderNumber,
+              tableNumber,
+              totalAmount,
+              paymentMethod,
+              items: cartItemsList.map((item) => ({
+                name: item.name,
+                quantity: item.quantity,
+                unitPrice: item.price,
+                totalPrice: item.price * item.quantity
+              })),
+              subtotal: totalAmount
+            }),
           });
         } catch (waErr) { console.error('WhatsApp notification failed:', waErr); }
 

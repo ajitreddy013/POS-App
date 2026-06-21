@@ -383,6 +383,8 @@ const Settings = () => {
             whatsapp_language_code: barSettings.whatsapp_language_code || 'en',
             whatsapp_default_country_code: barSettings.whatsapp_default_country_code || '91',
             razorpay_enabled: barSettings.razorpay_enabled !== undefined ? Number(barSettings.razorpay_enabled) : 1,
+            upi_provider: barSettings.upi_provider || 'razorpay',
+            upi_vpa: barSettings.upi_vpa || '',
             hosted_app_url: barSettings.hosted_app_url || '',
           });
           console.log('Bar settings successfully synced to Firestore.');
@@ -847,10 +849,10 @@ const Settings = () => {
         </div>
       </div>
 
-      {/* Razorpay UPI Card */}
+      {/* UPI Payment Card */}
       <div className="settings-card-modern" style={{ marginTop: '24px' }}>
         <div className="settings-card-hdr">
-          <h2><CreditCard size={20} style={{ color: '#3399FF' }} /> Razorpay UPI Settings</h2>
+          <h2><CreditCard size={20} style={{ color: '#3399FF' }} /> UPI Payment Settings</h2>
           <button 
             onClick={() => setIsEditingRazorpayInfo(!isEditingRazorpayInfo)}
             className="btn-modern btn-modern-secondary"
@@ -870,13 +872,59 @@ const Settings = () => {
                   <div className={`switch-track ${barSettings.razorpay_enabled ? 'active' : ''}`}>
                     <div className="switch-thumb"></div>
                   </div>
-                  <span className="switch-label">Enable Razorpay UPI QR Codes</span>
+                  <span className="switch-label">Enable Automated UPI QR Codes</span>
                 </div>
                 <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0', paddingLeft: '62px' }}>
-                  Generates dynamic payment QR codes using Render environment credentials.
+                  Generates payment QR codes dynamically using gateway credentials.
                 </p>
               </div>
-              <div className="form-group-modern" style={{ marginTop: '10px' }}>
+
+              {barSettings.razorpay_enabled === 1 && (
+                <div className="form-group-modern" style={{ marginTop: '16px' }}>
+                  <label className="form-label-modern" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155' }}>Payment Gateway Provider</label>
+                  <select
+                    value={barSettings.upi_provider || 'razorpay'}
+                    onChange={(e) => handleBarSettingsChange('upi_provider', e.target.value)}
+                    className="form-select-modern"
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #e2e8f0',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                      background: '#ffffff'
+                    }}
+                  >
+                    <option value="razorpay">Razorpay</option>
+                    <option value="cashfree">Cashfree</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="form-group-modern" style={{ marginTop: '16px' }}>
+                <label className="form-label-modern" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155' }}>Merchant UPI VPA (Direct UPI ID)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. merchant@okaxis"
+                  value={barSettings.upi_vpa || ''}
+                  onChange={(e) => handleBarSettingsChange('upi_vpa', e.target.value)}
+                  className="form-input-modern"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #e2e8f0',
+                    fontSize: '0.9rem',
+                    outline: 'none'
+                  }}
+                />
+                <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0' }}>
+                  Optional. If provided, the app will generate a direct UPI QR locally, bypassing/falling back from the payment gateway.
+                </p>
+              </div>
+
+              <div className="form-group-modern" style={{ marginTop: '16px' }}>
                 <button 
                   onClick={saveBarSettings}
                   disabled={loading}
@@ -889,15 +937,23 @@ const Settings = () => {
               </div>
             </div>
           ) : (
-            <div className="display-grid">
+            <div className="display-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div className="display-item">
                 <h4>Integration Status</h4>
                 <p style={{ marginTop: '6px' }}>
                   {barSettings.razorpay_enabled === 1 ? (
-                    <span style={{ color: '#16a34a', fontWeight: '700' }}>✓ Enabled (Razorpay UPI active using Render credentials)</span>
+                    <span style={{ color: '#16a34a', fontWeight: '700' }}>
+                      ✓ Enabled ({String(barSettings.upi_provider || 'razorpay').toUpperCase()} active)
+                    </span>
                   ) : (
-                    <span style={{ color: '#ef4444', fontWeight: '700' }}>✗ Disabled (UPI QR generation is manual)</span>
+                    <span style={{ color: '#ef4444', fontWeight: '700' }}>✗ Disabled (Manual QR only)</span>
                   )}
+                </p>
+              </div>
+              <div className="display-item">
+                <h4>Merchant UPI VPA</h4>
+                <p style={{ marginTop: '6px', fontWeight: '600', color: '#334155' }}>
+                  {barSettings.upi_vpa || 'Not Configured'}
                 </p>
               </div>
             </div>

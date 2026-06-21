@@ -41,6 +41,7 @@ import {
   onSnapshot,
   doc,
   updateDoc,
+  addDoc,
 } from 'firebase/firestore';
 
 const formatCurrency = (value) => `₹${Number(value || 0).toFixed(2)}`;
@@ -535,7 +536,16 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 orderNumber,
                 tableNumber: 'Kiosk',
                 totalAmount: calculateTotal(),
-                paymentMethod: 'cash'
+                paymentMethod: 'cash',
+                items: cart.map((item) => ({
+                  name: item.name,
+                  quantity: item.quantity,
+                  unitPrice: item.price,
+                  totalPrice: item.price * item.quantity
+                })),
+                subtotal: calculateSubtotal(),
+                discountAmount: calculateDiscountAmount(),
+                taxAmount: 0
               })
             });
           } catch (waErr) {
@@ -634,83 +644,180 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       setPaymentMethod(method);
     }
 
-    // Check if payment method is UPI and automated Razorpay QR is enabled
-    const isRazorpayEnabled = barSettings && barSettings.razorpay_enabled === 1;
-    if (selectedMethod === 'upi' && isRazorpayEnabled) {
-      await startRazorpayPayment(selectedMethod);
+    // Check if payment method is UPI and automated QR is enabled
+    const isUpiEnabled = barSettings && barSettings.razorpay_enabled === 1;
+    if (selectedMethod === 'upi' && isUpiEnabled) {
+      await startUpiQrPayment(selectedMethod);
       return;
     }
 
     executeSaleWrite(selectedMethod);
   };
 
-  const startRazorpayPayment = async (selectedMethod) => {
+  const startUpiQrPayment = async (selectedMethod) => {
     const relayUrl =
       barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+    const upiProvider = barSettings?.upi_provider || 'razorpay';
 
     try {
       const orderId = await generateSaleNumber();
       const amount = calculateTotal();
       setLoading(true);
-      const response = await fetch(`${relayUrl}/payment/create-qr`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, orderId }),
-      });
-      const data = await response.json();
-      setLoading(false);
 
-      if (!data.success) throw new Error(data.error || 'Unknown error creating QR code.');
-
-      // If merchant VPA is configured, prefer showing a direct UPI QR generated locally
-      let qrImage = data.qrImageUrl;
-      try {
-        if (barSettings && barSettings.upi_vpa) {
-          const upiUri = `upi://pay?pa=${encodeURIComponent(barSettings.upi_vpa)}&pn=${encodeURIComponent(
-            barSettings.bar_name || ''
-          )}&am=${encodeURIComponent(Number(amount).toFixed(2))}&cu=INR&tn=${encodeURIComponent('Order ' + orderId)}`;
-          qrImage = await QRCode.toDataURL(upiUri, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
+      if (upiProvider === 'cashfree') {
+        const db = getFirebaseDb();
+        if (!db) {
+          throw new Error("Firestore not configured. Cashfree integration requires Firestore.");
         }
-      } catch (qrErr) {
-        console.error('Failed to generate local UPI QR:', qrErr);
-        qrImage = data.qrImageUrl;
-      }
 
-      qrPaymentPendingRef.current = true;
-      setUpiQrPayment({ orderId, amount, qrImageUrl: qrImage, paymentLinkId: data.paymentLinkId || null });
-      setUpiQrStatus('Waiting for customer payment...');
+        const orderData = {
+          orderNumber: orderId,
+          customerName: isKiosk ? 'Kiosk Customer' : (customerName || 'Walk-in Customer'),
+          customerPhone: customerPhone || '',
+          tableNumber: isKiosk ? 'Kiosk' : 'Counter',
+          items: cart.map((item) => ({
+            productId: String(item.id),
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            totalPrice: item.price * item.quantity,
+          })),
+          totalAmount: amount,
+          paymentMethod: 'upi',
+          paymentStatus: 'pending',
+          orderStatus: 'pending_acceptance',
+          createdAt: new Date(),
+        };
 
-      if (qrPollIntervalRef.current) clearInterval(qrPollIntervalRef.current);
+        const docRef = await addDoc(collection(db, 'orders'), orderData);
+        console.log(`Created Cashfree-tracked Firestore order with ID: ${docRef.id}`);
 
-      qrPollIntervalRef.current = setInterval(async () => {
+        const response = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount,
+            orderId,
+            phone: customerPhone || '9999999999',
+            name: isKiosk ? 'Kiosk Customer' : (customerName || 'Walk-in Customer')
+          }),
+        });
+        const data = await response.json();
+        setLoading(false);
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to generate Cashfree payment.');
+        }
+
+        const upiLink = data.upiLink;
+        if (!upiLink) {
+          throw new Error("No UPI link returned from Cashfree.");
+        }
+
+        let qrImage = '';
         try {
-          const statusResponse = await fetch(`${relayUrl}/payment/status`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              qrCodeId: data.qrCodeId || null,
-              paymentLinkId: data.paymentLinkId || null,
-            }),
-          });
-
-          const statusData = await statusResponse.json();
-          if (statusData.success && statusData.paid) {
-            qrPaymentPendingRef.current = false;
-            if (qrPollIntervalRef.current) {
-              clearInterval(qrPollIntervalRef.current);
-              qrPollIntervalRef.current = null;
-            }
-            setUpiQrStatus('Payment received. Completing order...');
-            setTimeout(async () => {
-              setUpiQrPayment(null);
-              setUpiQrStatus('');
-              await executeSaleWrite(selectedMethod);
-            }, 1000);
-          }
-        } catch (pollError) {
-          console.error('Error polling Razorpay QR status:', pollError);
+          qrImage = await QRCode.toDataURL(upiLink, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
+        } catch (qrErr) {
+          console.error('Failed to generate local UPI QR from Cashfree link:', qrErr);
+          throw qrErr;
         }
-      }, 2000);
+
+        qrPaymentPendingRef.current = true;
+        setUpiQrPayment({ orderId, amount, qrImageUrl: qrImage });
+        setUpiQrStatus('Waiting for customer payment...');
+
+        if (qrPollIntervalRef.current) {
+          if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
+          else clearInterval(qrPollIntervalRef.current);
+        }
+
+        const unsubscribe = onSnapshot(docRef, async (snap) => {
+          if (snap.exists()) {
+            const snapData = snap.data();
+            if (snapData.paymentStatus === 'paid') {
+              unsubscribe();
+              qrPaymentPendingRef.current = false;
+              setUpiQrStatus('Payment received! Completing sale...');
+              setTimeout(async () => {
+                setUpiQrPayment(null);
+                setUpiQrStatus('');
+                await executeSaleWrite('upi');
+              }, 1500);
+            }
+          }
+        }, (error) => {
+          console.error("Error listening to Cashfree order status in Firestore:", error);
+        });
+
+        qrPollIntervalRef.current = {
+          unsubscribe
+        };
+
+      } else {
+        // Razorpay UPI QR Flow
+        const response = await fetch(`${relayUrl}/payment/create-qr`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount, orderId }),
+        });
+        const data = await response.json();
+        setLoading(false);
+
+        if (!data.success) throw new Error(data.error || 'Unknown error creating QR code.');
+
+        let qrImage = data.qrImageUrl;
+        try {
+          if (barSettings && barSettings.upi_vpa) {
+            const upiUri = `upi://pay?pa=${encodeURIComponent(barSettings.upi_vpa)}&pn=${encodeURIComponent(
+              barSettings.bar_name || ''
+            )}&am=${encodeURIComponent(Number(amount).toFixed(2))}&cu=INR&tn=${encodeURIComponent('Order ' + orderId)}`;
+            qrImage = await QRCode.toDataURL(upiUri, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
+          }
+        } catch (qrErr) {
+          console.error('Failed to generate local UPI QR:', qrErr);
+          qrImage = data.qrImageUrl;
+        }
+
+        qrPaymentPendingRef.current = true;
+        setUpiQrPayment({ orderId, amount, qrImageUrl: qrImage, paymentLinkId: data.paymentLinkId || null });
+        setUpiQrStatus('Waiting for customer payment...');
+
+        if (qrPollIntervalRef.current) {
+          if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
+          else clearInterval(qrPollIntervalRef.current);
+        }
+
+        const intervalId = setInterval(async () => {
+          try {
+            const statusResponse = await fetch(`${relayUrl}/payment/status`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                qrCodeId: data.qrCodeId || null,
+                paymentLinkId: data.paymentLinkId || null,
+              }),
+            });
+
+            const statusData = await statusResponse.json();
+            if (statusData.success && statusData.paid) {
+              qrPaymentPendingRef.current = false;
+              clearInterval(intervalId);
+              setUpiQrStatus('Payment received. Completing order...');
+              setTimeout(async () => {
+                setUpiQrPayment(null);
+                setUpiQrStatus('');
+                await executeSaleWrite(selectedMethod);
+              }, 1000);
+            }
+          } catch (pollError) {
+            console.error('Error polling Razorpay QR status:', pollError);
+          }
+        }, 2000);
+
+        qrPollIntervalRef.current = {
+          clearInterval: () => clearInterval(intervalId)
+        };
+      }
     } catch (err) {
       setLoading(false);
       setUpiQrPayment(null);
@@ -723,7 +830,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
   const closeUpiQrPayment = () => {
     if (qrPollIntervalRef.current) {
-      clearInterval(qrPollIntervalRef.current);
+      if (qrPollIntervalRef.current.unsubscribe) {
+        qrPollIntervalRef.current.unsubscribe();
+      } else if (qrPollIntervalRef.current.clearInterval) {
+        qrPollIntervalRef.current.clearInterval();
+      } else {
+        clearInterval(qrPollIntervalRef.current);
+      }
       qrPollIntervalRef.current = null;
     }
     qrPaymentPendingRef.current = false;
@@ -1355,7 +1468,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
             minWidth: activeTab === 'cart' ? '0' : undefined,
             width: activeTab === 'cart' ? '100%' : undefined,
             flex: activeTab === 'cart' ? 1 : undefined,
-            background: activeTab === 'cart' ? '#fcfcfc' : undefined,
+            background: activeTab === 'cart' ? '#f6f3ee' : undefined,
             padding: activeTab === 'cart' ? '0' : undefined,
           }}
         >
@@ -1363,15 +1476,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
             <header
               className="menu-header"
               style={{
-                background: '#b6412c',
-                color: '#ffffff',
-                padding: '20px 16px',
-                borderBottomLeftRadius: '24px',
-                borderBottomRightRadius: '24px',
+                background: '#f6f3ee',
+                color: '#221f1a',
+                padding: '16px',
+                borderBottom: '1px solid #e6ded3',
                 position: 'sticky',
                 top: 0,
                 zIndex: 100,
-                boxShadow: '0 6px 20px rgba(182,65,44,0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 flexShrink: 0,
@@ -1384,17 +1495,17 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   background: 'transparent',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  color: '#ffffff',
+                  gap: '4px',
+                  color: '#b6412c',
                   fontWeight: '700',
-                  fontSize: '1rem',
+                  fontSize: '0.9rem',
                   cursor: 'pointer',
-                  padding: '4px 8px',
+                  padding: 0,
                 }}
               >
-                <ChevronLeft size={20} /> Menu
+                <ChevronLeft size={18} /> Back
               </button>
-              <h2 style={{ fontSize: '1.3rem', fontWeight: '700', margin: '0 auto', transform: 'translateX(-20px)' }}>
+              <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#221f1a', margin: '0 auto 0 4px', transform: 'translateX(4px)' }}>
                 Review Order
               </h2>
             </header>
@@ -1683,7 +1794,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
             <div
               className="bill-summary payment-total-card cart-summary-card"
-              style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+              style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}
             >
               {!isKiosk && (
                 <div
@@ -1735,93 +1846,94 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               </div>
             </div>
 
-            <div
-              className="action-buttons payment-action-grid"
-              style={{ display: 'flex', gap: '12px', marginTop: '20px' }}
-            >
-              <button
-                className="payment-action-card payment-action-upi"
-                onClick={() => processSale('upi')}
-                disabled={cart.length === 0 || loading}
-                style={{
-                  flex: 1,
-                  background: cart.length === 0 || loading ? '#f9f9f9' : '#fff5f3',
-                  border: cart.length === 0 || loading ? '2px solid #e2e8f0' : '2px solid #b6412c',
-                  borderRadius: '16px',
-                  padding: '12px 6px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  cursor: cart.length === 0 || loading ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s ease',
-                  height: '92px',
-                  outline: 'none',
-                }}
-              >
-                <img
-                  src="upi-logo.png"
-                  alt="UPI Payment"
-                  style={{
-                    height: '36px',
-                    maxWidth: '100%',
-                    objectFit: 'contain',
-                    opacity: cart.length === 0 || loading ? 0.4 : 1,
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: '0.85rem',
-                    color: cart.length === 0 || loading ? '#9ca3af' : '#b6412c',
-                    fontWeight: '700',
+            {/* Select Payment Method Card (Website Design Match) */}
+            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '16px', marginBottom: '20px', border: '1.5px solid #f6f3ee' }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '6px' }}>Select Payment Method</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <button 
+                  type="button" 
+                  onClick={() => setPaymentMethod('upi')} 
+                  style={{ 
+                    padding: '12px 8px', 
+                    borderRadius: '12px', 
+                    border: paymentMethod === 'upi' ? '2.5px solid #b6412c' : '1.5px solid #e6ded3', 
+                    background: paymentMethod === 'upi' ? '#fbf7f4' : '#ffffff', 
+                    color: paymentMethod === 'upi' ? '#b6412c' : '#7f766a', 
+                    fontWeight: '700', 
+                    cursor: 'pointer', 
+                    fontSize: '0.85rem', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    gap: '4px', 
+                    transition: 'all 0.2s',
+                    outline: 'none'
                   }}
                 >
-                  Razorpay QR
-                </span>
-              </button>
-              <button
-                className="payment-action-card payment-action-cash"
-                onClick={() => processSale('cash')}
-                disabled={cart.length === 0 || loading}
-                style={{
-                  flex: 1,
-                  background: cart.length === 0 || loading ? '#f9f9f9' : '#f0fdf4',
-                  border: cart.length === 0 || loading ? '2px solid #e2e8f0' : '2px solid #16a34a',
-                  borderRadius: '16px',
-                  padding: '12px 6px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  cursor: cart.length === 0 || loading ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s ease',
-                  height: '92px',
-                  outline: 'none',
-                }}
-              >
-                <img
-                  src="cash-logo.png"
-                  alt="Cash Payment"
-                  style={{
-                    height: '36px',
-                    maxWidth: '100%',
-                    objectFit: 'contain',
-                    opacity: cart.length === 0 || loading ? 0.4 : 1,
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: '0.85rem',
-                    color: cart.length === 0 || loading ? '#9ca3af' : '#16a34a',
-                    fontWeight: '700',
+                  <span style={{ fontSize: '1.25rem' }}>📱</span>
+                  <span>Pay Online (UPI)</span>
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setPaymentMethod('cash')} 
+                  style={{ 
+                    padding: '12px 8px', 
+                    borderRadius: '12px', 
+                    border: paymentMethod === 'cash' ? '2.5px solid #b6412c' : '1.5px solid #e6ded3', 
+                    background: paymentMethod === 'cash' ? '#fbf7f4' : '#ffffff', 
+                    color: paymentMethod === 'cash' ? '#b6412c' : '#7f766a', 
+                    fontWeight: '700', 
+                    cursor: 'pointer', 
+                    fontSize: '0.85rem', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    gap: '4px', 
+                    transition: 'all 0.2s',
+                    outline: 'none'
                   }}
                 >
-                  Pay at Counter
-                </span>
-              </button>
+                  <span style={{ fontSize: '1.25rem' }}>💵</span>
+                  <span>Pay at Counter</span>
+                </button>
+              </div>
             </div>
+
+            {/* Checkout Button */}
+            <button 
+              onClick={() => processSale(paymentMethod)} 
+              disabled={cart.length === 0 || loading} 
+              style={{ 
+                width: '100%', 
+                background: '#b6412c', 
+                color: '#ffffff', 
+                border: 'none', 
+                padding: '14px', 
+                borderRadius: '24px', 
+                fontSize: '1rem', 
+                fontWeight: '700', 
+                cursor: cart.length === 0 || loading ? 'not-allowed' : 'pointer', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: '8px', 
+                boxShadow: '0 6px 20px rgba(182,65,44,0.3)', 
+                opacity: cart.length === 0 || loading ? 0.8 : 1, 
+                transition: 'opacity 0.2s',
+                outline: 'none'
+              }}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" size={18} />
+                  Processing Payment...
+                </>
+              ) : isKiosk ? (
+                paymentMethod === 'upi' ? 'Pay & Place Order' : 'Place Order (Pay Cash)'
+              ) : (
+                paymentMethod === 'upi' ? 'Pay & Complete Bill' : 'Complete Bill (Cash)'
+              )}
+            </button>
           </div>
         </div>
       </div>
