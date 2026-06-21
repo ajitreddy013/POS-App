@@ -375,6 +375,64 @@ function razorpayRequest(method, path, body, keyId, keySecret) {
   });
 }
 
+// Helper to make authenticated requests to Cashfree
+function cashfreeRequest(method, path, body) {
+  return new Promise((resolve, reject) => {
+    const clientId = process.env.CASHFREE_CLIENT_ID;
+    const clientSecret = process.env.CASHFREE_CLIENT_SECRET;
+    const isProd = process.env.CASHFREE_ENV === 'PRODUCTION';
+    
+    if (!clientId || !clientSecret) {
+      return reject(new Error('Cashfree credentials (CASHFREE_CLIENT_ID, CASHFREE_CLIENT_SECRET) are missing.'));
+    }
+
+    const hostname = isProd ? 'api.cashfree.com' : 'sandbox.cashfree.com';
+    const basePath = `/pg${path}`;
+    const data = body ? JSON.stringify(body) : '';
+
+    const options = {
+      hostname: hostname,
+      port: 443,
+      path: basePath,
+      method: method,
+      headers: {
+        'x-api-version': '2023-08-01',
+        'x-client-id': clientId,
+        'x-client-secret': clientSecret,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data),
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let responseBody = '';
+      res.on('data', (chunk) => { responseBody += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(responseBody);
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(parsed);
+          } else {
+            const errorMessage = parsed.message || `HTTP Error ${res.statusCode}: ${responseBody}`;
+            reject(new Error(errorMessage));
+          }
+        } catch (err) {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            reject(new Error(`Failed to parse response: ${responseBody}`));
+          } else {
+            reject(new Error(`HTTP Error ${res.statusCode}: ${responseBody}`));
+          }
+        }
+      });
+    });
+
+    req.on('error', (err) => { reject(err); });
+
+    if (data) { req.write(data); }
+    req.end();
+  });
+}
+
 // Create Razorpay Dynamic QR Code
 app.post('/payment/create-qr', async (req, res) => {
   const { amount, orderId } = req.body;
@@ -629,6 +687,132 @@ app.post('/payment/status', async (req, res) => {
       error: err.message || 'Failed to fetch QR status.',
     });
   }
+});
+
+// Create Cashfree PG Order
+app.post('/payment/cashfree/create-order', async (req, res) => {
+  const { amount, orderId, phone, name } = req.body;
+  const cfClientId = process.env.CASHFREE_CLIENT_ID;
+  const cfClientSecret = process.env.CASHFREE_CLIENT_SECRET;
+  const cfEnv = process.env.CASHFREE_ENV || 'TEST';
+
+  if (!amount || !orderId || !cfClientId || !cfClientSecret) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: amount and orderId must be provided, and Cashfree credentials must be configured on the server.',
+    });
+  }
+
+  try {
+    let formattedPhone = (phone || '').replace(/\D/g, '');
+    if (formattedPhone.length === 10) {
+      formattedPhone = `91${formattedPhone}`;
+    }
+    if (formattedPhone.length < 10) {
+      formattedPhone = '919999999999';
+    }
+
+    const payload = {
+      order_id: String(orderId),
+      order_amount: Number(Number(amount).toFixed(2)),
+      order_currency: 'INR',
+      customer_details: {
+        customer_id: `cust_${String(orderId)}`,
+        customer_phone: formattedPhone.slice(-10),
+        customer_name: name || 'Customer',
+        customer_email: 'customer@malabarwaffle.com',
+      },
+      order_meta: {
+        return_url: `${req.headers.origin || 'https://counterflow-kiosk.web.app'}/?payment=success&orderId=${orderId}`,
+        notify_url: 'https://pos-app-nqsm.onrender.com/payment/cashfree/webhook',
+      },
+    };
+
+    console.log(`Creating Cashfree Order for ${orderId}, Amount: ${payload.order_amount}`);
+    const response = await cashfreeRequest('POST', '/orders', payload);
+
+    res.json({
+      success: true,
+      paymentSessionId: response.payment_session_id,
+      orderId: response.order_id,
+      environment: cfEnv.toLowerCase() === 'production' ? 'production' : 'sandbox',
+    });
+  } catch (err) {
+    console.error('Cashfree Order creation failed:', err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to create Cashfree Order.',
+    });
+  }
+});
+
+// Cashfree PG Webhook Endpoint
+app.post('/payment/cashfree/webhook', async (req, res) => {
+  const payload = req.body;
+
+  console.log('Cashfree Webhook received event:', payload.type);
+
+  if (payload.type === 'PAYMENT_SUCCESS_WEBHOOK') {
+    const orderNumber = payload.data.order.order_id;
+    console.log(`Cashfree Webhook: Payment success event for Order #${orderNumber}`);
+
+    try {
+      const orderDetails = await cashfreeRequest('GET', `/orders/${orderNumber}`);
+      console.log(`Cashfree Active Verification for Order #${orderNumber}: status = ${orderDetails.order_status}`);
+
+      if (orderDetails.order_status === 'PAID') {
+        if (admin.apps.length > 0) {
+          const db = admin.firestore();
+          const ordersRef = db.collection('orders');
+          const snapshot = await ordersRef
+            .where('orderNumber', '==', orderNumber)
+            .get();
+
+          if (snapshot.empty) {
+            console.warn(`No Firestore order found with orderNumber: ${orderNumber}`);
+          } else {
+            snapshot.forEach(async (doc) => {
+              const orderData = doc.data();
+              await doc.ref.update({
+                paymentStatus: 'paid',
+              });
+              console.log(`Updated Firestore Order ID: ${doc.id} paymentStatus to "paid"`);
+
+              if (connectionStatus === 'CONNECTED' && sock) {
+                const phone = orderData.customerPhone;
+                const name = orderData.customerName || 'Customer';
+                const totalAmount = orderData.totalAmount;
+                const tableNumber = orderData.tableNumber || 'Parcel';
+                
+                if (phone) {
+                  const cleanNumber = formatWhatsAppNumber(phone);
+
+                  const messageText = `*Malabar Waffle 🧇*\n\nHi *${name}*,\nWe have received your payment & order *#${orderNumber}* for *${tableNumber === 'Parcel' ? 'Parcel / Takeaway' : 'Table ' + tableNumber}*.\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}* (Paid successfully via UPI).\n\nPlease wait while the kitchen prepares your delicious waffle! 😋`;
+
+                  try {
+                    await sock.sendMessage(cleanNumber, { text: messageText });
+                    console.log(`Sent Cashfree payment confirmation WhatsApp for Order #${orderNumber} to: ${cleanNumber}`);
+                  } catch (waErr) {
+                    console.error(`Failed to send WhatsApp confirmation:`, waErr);
+                  }
+                }
+              } else {
+                console.warn('WhatsApp Client is not connected. Cannot send payment confirmation.');
+              }
+            });
+          }
+        } else {
+          console.warn('Firebase Admin SDK not initialized. Cannot update paymentStatus in Firestore.');
+        }
+      } else {
+        console.warn(`Webhook said paid, but Cashfree API check returned: ${orderDetails.order_status}`);
+      }
+    } catch (err) {
+      console.error(`Cashfree active verification failed for Order #${orderNumber}:`, err.message);
+    }
+  }
+
+  res.json({ status: 'ok' });
 });
 
 // ─── Device License Verification ─────────────────────────────────────────────
