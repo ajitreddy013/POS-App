@@ -12,6 +12,8 @@ import {
   getDocs,
   addDoc,
   serverTimestamp,
+  doc,
+  onSnapshot,
 } from 'firebase/firestore';
 import { APP_CONFIG } from '../config';
 import {
@@ -25,6 +27,7 @@ import {
   Minus,
   Trash2,
   Search,
+  ChevronLeft,
 } from 'lucide-react';
 import useBarSettings from '../utils/useBarSettings';
 import QRCode from 'qrcode';
@@ -44,7 +47,7 @@ const CustomerMenu = () => {
   const qrPaymentPromiseRef = useRef({ resolve: null, reject: null });
 
   // Checkout Form State
-  const [name, setName] = useState('');
+  const [name, setName] = useState('Customer');
   const [phone, setPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('upi'); // 'upi' or 'cash'
   const [submitting, setSubmitting] = useState(false);
@@ -214,7 +217,11 @@ const CustomerMenu = () => {
 
   const closeUpiQrPayment = (shouldReject = true) => {
     if (qrPollIntervalRef.current) {
-      clearInterval(qrPollIntervalRef.current);
+      if (qrPollIntervalRef.current.unsubscribe) {
+        qrPollIntervalRef.current.unsubscribe();
+      } else {
+        clearInterval(qrPollIntervalRef.current);
+      }
       qrPollIntervalRef.current = null;
     }
 
@@ -230,8 +237,8 @@ const CustomerMenu = () => {
     }
   };
 
-  // Razorpay UPI QR integration
-  const startRazorpayPayment = async (orderNumber) => {
+  // Cashfree Dynamic UPI QR flow
+  const startCashfreePayment = async (orderNumber, docRef) => {
     const relayUrl = APP_CONFIG.whatsappRelayUrl;
 
     return new Promise((resolve, reject) => {
@@ -244,10 +251,15 @@ const CustomerMenu = () => {
         qrImageUrl: '',
       });
 
-      fetch(`${relayUrl}/payment/create-qr`, {
+      fetch(`${relayUrl}/payment/cashfree/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: totalAmount, orderId: orderNumber }),
+        body: JSON.stringify({
+          amount: totalAmount,
+          orderId: orderNumber,
+          phone: phone || '9999999999',
+          name: name || 'Customer',
+        }),
       })
         .then((response) => response.json())
         .then(async (data) => {
@@ -255,58 +267,41 @@ const CustomerMenu = () => {
             throw new Error(data.error || 'Failed to create UPI QR code.');
           }
 
-          setUpiQrLoading(false);
-
-          // Prefer a locally-generated direct UPI QR (upi://) when merchant VPA is available in settings.
-          let qrImage = data.qrImageUrl;
-          try {
-            if (barSettings && barSettings.upi_vpa) {
-              const upiUri = `upi://pay?pa=${encodeURIComponent(
-                barSettings.upi_vpa
-              )}&pn=${encodeURIComponent(barSettings.bar_name || '')}&am=${encodeURIComponent(
-                Number(totalAmount).toFixed(2)
-              )}&cu=INR&tn=${encodeURIComponent('Order ' + orderNumber)}`;
-              qrImage = await QRCode.toDataURL(upiUri, {
-                errorCorrectionLevel: 'M',
-                margin: 2,
-                scale: 6,
-              });
-            }
-          } catch (qrErr) {
-            console.error('Failed to generate local UPI QR:', qrErr);
-            // fallback to server-provided QR image
-            qrImage = data.qrImageUrl;
+          const upiLink = data.upiLink;
+          if (!upiLink) {
+            throw new Error('No UPI link returned from Cashfree.');
           }
 
+          let qrImage = '';
+          try {
+            qrImage = await QRCode.toDataURL(upiLink, {
+              errorCorrectionLevel: 'M',
+              margin: 2,
+              scale: 6,
+            });
+          } catch (qrErr) {
+            console.error('Failed to generate local UPI QR from Cashfree link:', qrErr);
+            throw qrErr;
+          }
+
+          setUpiQrLoading(false);
           setUpiQrPayment({
             orderId: orderNumber,
             amount: totalAmount,
             qrImageUrl: qrImage,
-            paymentLinkId: data.paymentLinkId || null,
           });
           setUpiQrStatus('Waiting for customer payment...');
 
           if (qrPollIntervalRef.current) {
-            clearInterval(qrPollIntervalRef.current);
+            if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
+            else clearInterval(qrPollIntervalRef.current);
           }
 
-          qrPollIntervalRef.current = setInterval(async () => {
-            try {
-              const statusResponse = await fetch(`${relayUrl}/payment/status`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  qrCodeId: data.qrCodeId || null,
-                  paymentLinkId: data.paymentLinkId || null,
-                }),
-              });
-
-              const statusData = await statusResponse.json();
-              if (statusData.success && statusData.paid) {
-                if (qrPollIntervalRef.current) {
-                  clearInterval(qrPollIntervalRef.current);
-                  qrPollIntervalRef.current = null;
-                }
+          const unsubscribe = onSnapshot(docRef, async (snap) => {
+            if (snap.exists()) {
+              const snapData = snap.data();
+              if (snapData.paymentStatus === 'paid') {
+                unsubscribe();
                 setUpiQrStatus('Payment received. Completing order...');
                 setTimeout(() => {
                   setUpiQrLoading(false);
@@ -314,17 +309,22 @@ const CustomerMenu = () => {
                   setUpiQrStatus('');
                   const pendingResolve = qrPaymentPromiseRef.current.resolve;
                   qrPaymentPromiseRef.current = { resolve: null, reject: null };
-                  pendingResolve({ success: true });
+                  if (pendingResolve) pendingResolve({ success: true });
                 }, 1000);
               }
-            } catch (error) {
-              console.error('Error polling Razorpay QR status:', error);
             }
-          }, 2000);
+          }, (error) => {
+            console.error("Error listening to Cashfree order status in Firestore:", error);
+          });
+
+          qrPollIntervalRef.current = {
+            unsubscribe
+          };
         })
         .catch((error) => {
           if (qrPollIntervalRef.current) {
-            clearInterval(qrPollIntervalRef.current);
+            if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
+            else clearInterval(qrPollIntervalRef.current);
             qrPollIntervalRef.current = null;
           }
           setUpiQrLoading(false);
@@ -334,6 +334,70 @@ const CustomerMenu = () => {
           reject(error);
         });
     });
+  };
+
+  // Static Local VPA UPI QR flow
+  const startStaticUpiPayment = (orderNumber) => {
+    return new Promise((resolve, reject) => {
+      qrPaymentPromiseRef.current = { resolve, reject };
+      setUpiQrLoading(true);
+      setUpiQrStatus('Generating UPI QR code...');
+      setUpiQrPayment({
+        orderId: orderNumber,
+        amount: totalAmount,
+        qrImageUrl: '',
+        isStatic: true,
+      });
+
+      if (barSettings && barSettings.upi_vpa) {
+        const upiUri = `upi://pay?pa=${encodeURIComponent(
+          barSettings.upi_vpa
+        )}&pn=${encodeURIComponent(barSettings.bar_name || '')}&am=${encodeURIComponent(
+          Number(totalAmount).toFixed(2)
+        )}&cu=INR&tn=${encodeURIComponent('Order ' + orderNumber)}`;
+
+        QRCode.toDataURL(upiUri, {
+          errorCorrectionLevel: 'M',
+          margin: 2,
+          scale: 6,
+        })
+          .then((qrImage) => {
+            setUpiQrLoading(false);
+            setUpiQrPayment({
+              orderId: orderNumber,
+              amount: totalAmount,
+              qrImageUrl: qrImage,
+              isStatic: true,
+            });
+            setUpiQrStatus('Scan QR code & complete your payment.');
+          })
+          .catch((error) => {
+            setUpiQrLoading(false);
+            setUpiQrStatus('');
+            setUpiQrPayment(null);
+            qrPaymentPromiseRef.current = { resolve: null, reject: null };
+            reject(error);
+          });
+      } else {
+        setUpiQrLoading(false);
+        setUpiQrStatus('');
+        setUpiQrPayment(null);
+        qrPaymentPromiseRef.current = { resolve: null, reject: null };
+        reject(new Error('Automated UPI is disabled and no Merchant UPI VPA is configured.'));
+      }
+    });
+  };
+
+  const handleStaticPaymentConfirm = () => {
+    setUpiQrStatus('Recording payment confirmation...');
+    setTimeout(() => {
+      setUpiQrLoading(false);
+      setUpiQrPayment(null);
+      setUpiQrStatus('');
+      const pendingResolve = qrPaymentPromiseRef.current.resolve;
+      qrPaymentPromiseRef.current = { resolve: null, reject: null };
+      if (pendingResolve) pendingResolve({ success: true });
+    }, 1000);
   };
 
   // Submit order to cloud database
@@ -349,34 +413,65 @@ const CustomerMenu = () => {
     const orderNumber = `W-${Date.now().toString().slice(-6)}`;
 
     try {
-      let payStatus = 'pending';
+      const isAutomatedUpi = paymentMethod === 'upi' && barSettings?.razorpay_enabled === 1;
 
-      if (paymentMethod === 'upi') {
-        await startRazorpayPayment(orderNumber);
-        payStatus = 'paid';
+      if (isAutomatedUpi) {
+        // 1. Save order to Firestore as pending first so Cashfree webhook finds it
+        const orderData = {
+          orderNumber,
+          customerName: name,
+          customerPhone: phone,
+          tableNumber,
+          items: cartItemsList.map((item) => ({
+            productId: String(item.id),
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            totalPrice: item.price * item.quantity,
+          })),
+          totalAmount,
+          paymentMethod: 'upi',
+          paymentStatus: 'pending',
+          orderStatus: 'pending_acceptance',
+          createdAt: serverTimestamp(),
+        };
+
+        const docRef = await addDoc(collection(db, 'orders'), orderData);
+        console.log(`Created Cashfree Firestore order with ID: ${docRef.id}`);
+
+        // 2. Start Cashfree dynamic QR flow (resolves once paid)
+        await startCashfreePayment(orderNumber, docRef);
+      } else {
+        let payStatus = 'pending';
+
+        if (paymentMethod === 'upi') {
+          // Static UPI Payment (Local VPA QR)
+          await startStaticUpiPayment(orderNumber);
+          payStatus = 'pending'; // marked as pending until verified by merchant
+        }
+
+        // Save order to Firestore
+        const orderData = {
+          orderNumber,
+          customerName: name,
+          customerPhone: phone,
+          tableNumber,
+          items: cartItemsList.map((item) => ({
+            productId: String(item.id),
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            totalPrice: item.price * item.quantity,
+          })),
+          totalAmount,
+          paymentMethod,
+          paymentStatus: payStatus,
+          orderStatus: 'pending_acceptance',
+          createdAt: serverTimestamp(),
+        };
+
+        await addDoc(collection(db, 'orders'), orderData);
       }
-
-      // Save order to Firestore
-      const orderData = {
-        orderNumber,
-        customerName: name,
-        customerPhone: phone,
-        tableNumber,
-        items: cartItemsList.map((item) => ({
-          productId: String(item.id),
-          name: item.name,
-          quantity: item.quantity,
-          unitPrice: item.price,
-          totalPrice: item.price * item.quantity,
-        })),
-        totalAmount,
-        paymentMethod,
-        paymentStatus: payStatus,
-        orderStatus: 'pending_acceptance',
-        createdAt: serverTimestamp(),
-      };
-
-      await addDoc(collection(db, 'orders'), orderData);
 
       // Trigger automatic WhatsApp confirmation via Render backend
       try {
@@ -391,6 +486,7 @@ const CustomerMenu = () => {
             tableNumber,
             totalAmount,
             paymentMethod,
+            paymentStatus: paymentMethod === 'upi' && barSettings?.razorpay_enabled === 1 ? 'paid' : 'pending',
             items: cartItemsList.map((item) => ({
               name: item.name,
               quantity: item.quantity,
@@ -955,17 +1051,16 @@ const CustomerMenu = () => {
           {/* Header Row */}
           <header
             style={{
-              background: '#b6412c',
-              color: '#ffffff',
-              padding: '20px 16px',
-              borderBottomLeftRadius: '24px',
-              borderBottomRightRadius: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              padding: 'calc(var(--android-status-offset, 0px) + 12px) 16px 12px 16px',
+              gap: '8px',
+              borderBottom: '1px solid #e6ded3',
+              background: '#f6f3ee',
               position: 'sticky',
               top: 0,
               zIndex: 100,
-              boxShadow: '0 6px 20px rgba(182,65,44,0.15)',
-              display: 'flex',
-              alignItems: 'center',
+              flexShrink: 0,
             }}
           >
             <button
@@ -975,17 +1070,24 @@ const CustomerMenu = () => {
                 background: 'transparent',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                color: '#ffffff',
+                gap: '4px',
+                color: '#b6412c',
                 fontWeight: '700',
-                fontSize: '1rem',
+                fontSize: '0.9rem',
                 cursor: 'pointer',
-                padding: '4px 8px',
+                padding: 0,
               }}
             >
-              <ArrowLeft size={20} /> Menu
+              <ChevronLeft size={18} /> Back
             </button>
-            <h2 style={{ fontSize: '1.3rem', fontWeight: '700', margin: '0 auto', transform: 'translateX(-20px)' }}>
+            <h2
+              style={{
+                fontSize: '1.05rem',
+                fontWeight: '800',
+                color: '#221f1a',
+                margin: '0 auto 0 8px',
+              }}
+            >
               Review Order
             </h2>
           </header>
@@ -1131,105 +1233,73 @@ const CustomerMenu = () => {
               <div
                 style={{
                   background: '#ffffff',
-                  borderRadius: '20px',
-                  padding: '20px',
-                  marginBottom: '24px',
+                  borderRadius: '16px',
+                  padding: '12px',
+                  marginBottom: '12px',
                   border: '1.5px solid #e6ded3',
                   boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
                 }}
               >
-                <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '10px' }}>
-                  Customer Information
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: 'none', paddingBottom: '0' }}>
+                  WhatsApp Mobile Number
                 </h3>
-
-                <div style={{ marginBottom: '16px' }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      marginBottom: '6px',
-                      fontWeight: '700',
-                      fontSize: '0.88rem',
-                      color: '#7f766a',
-                    }}
-                  >
-                    Your Name
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    placeholder="e.g. John Doe"
-                    style={{
-                      width: '100%',
-                      padding: '12px 16px',
-                      borderRadius: '10px',
-                      border: '1.5px solid #e6ded3',
-                      outline: 'none',
-                      fontSize: '0.95rem',
-                      fontFamily: '"Outfit", sans-serif',
-                      color: '#221f1a',
-                    }}
-                  />
-                </div>
-
-                <div style={{ marginBottom: '16px' }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      marginBottom: '6px',
-                      fontWeight: '700',
-                      fontSize: '0.88rem',
-                      color: '#7f766a',
-                    }}
-                  >
-                    WhatsApp Mobile Number
-                  </label>
+                <div style={{ marginTop: '10px' }}>
                   <input
                     type="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '');
+                      if (value.length <= 10) {
+                        setPhone(value);
+                      }
+                    }}
                     required
-                    placeholder="10-digit number for order updates"
+                    placeholder="e.g. 9876543210"
                     style={{
                       width: '100%',
-                      padding: '12px 16px',
-                      borderRadius: '10px',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
                       border: '1.5px solid #e6ded3',
                       outline: 'none',
-                      fontSize: '0.95rem',
+                      fontSize: '0.88rem',
                       fontFamily: '"Outfit", sans-serif',
                       color: '#221f1a',
+                      boxSizing: 'border-box',
                     }}
                   />
                 </div>
+              </div>
 
-                <div style={{ marginBottom: '8px' }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      marginBottom: '6px',
-                      fontWeight: '700',
-                      fontSize: '0.88rem',
-                      color: '#7f766a',
-                    }}
-                  >
-                    Table / Dining Option
-                  </label>
+              {/* Dining Option Card */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  padding: '12px',
+                  marginBottom: '12px',
+                  border: '1.5px solid #e6ded3',
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
+                }}
+              >
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: 'none', paddingBottom: '0' }}>
+                  Table / Dining Option
+                </h3>
+                <div style={{ marginTop: '10px' }}>
                   <select
                     value={tableNumber}
                     onChange={(e) => setTableNumber(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '12px 16px',
-                      borderRadius: '10px',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
                       border: '1.5px solid #e6ded3',
                       outline: 'none',
-                      fontSize: '0.95rem',
+                      fontSize: '0.88rem',
                       fontFamily: '"Outfit", sans-serif',
                       color: '#221f1a',
                       background: '#ffffff',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      boxSizing: 'border-box',
                     }}
                   >
                     <option value="Parcel">Parcel / Takeaway</option>
@@ -1363,7 +1433,7 @@ const CustomerMenu = () => {
         </>
       )}
 
-      {/* Razorpay UPI QR Modal */}
+      {/* UPI QR Modal */}
       {upiQrPayment && (
         <div
           style={{
@@ -1398,7 +1468,7 @@ const CustomerMenu = () => {
                 fontWeight: '700',
               }}
             >
-              Scan Razorpay UPI QR
+              Scan UPI QR to Pay
             </h3>
             <p style={{ margin: '0 0 18px 0', color: '#7f766a', fontWeight: '600' }}>
               Order ID: #{upiQrPayment.orderId}
@@ -1458,7 +1528,7 @@ const CustomerMenu = () => {
               ) : (
                 <img
                   src={upiQrPayment.qrImageUrl}
-                  alt="Razorpay UPI QR code"
+                  alt="UPI QR code"
                   style={{
                     width: '200px',
                     height: '200px',
@@ -1478,6 +1548,29 @@ const CustomerMenu = () => {
             >
               {upiQrStatus || 'Waiting for customer payment...'}
             </p>
+
+            {upiQrPayment.isStatic && (
+              <button
+                type="button"
+                onClick={handleStaticPaymentConfirm}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  borderRadius: '24px',
+                  border: 'none',
+                  background: '#b6412c',
+                  color: '#ffffff',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  marginBottom: '10px',
+                  boxShadow: '0 4px 12px rgba(182,65,44,0.2)',
+                  transition: 'background-color 0.2s',
+                }}
+              >
+                Confirm Payment (I Have Paid)
+              </button>
+            )}
 
             <button
               type="button"

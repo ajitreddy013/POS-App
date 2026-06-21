@@ -668,8 +668,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     // Check if payment method is UPI and automated QR is enabled or direct VPA configured
     const isUpiEnabled = barSettings && (
       barSettings.razorpay_enabled === 1 || 
-      !!barSettings.upi_vpa || 
-      barSettings.upi_provider === 'cashfree'
+      !!barSettings.upi_vpa
     );
     if (selectedMethod === 'upi' && isUpiEnabled) {
       await startUpiQrPayment(selectedMethod);
@@ -682,14 +681,14 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const startUpiQrPayment = async (selectedMethod) => {
     const relayUrl =
       barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-    const upiProvider = barSettings?.upi_provider || 'razorpay';
+    const isAutomatedUpi = barSettings?.razorpay_enabled === 1;
 
     try {
       const orderId = await generateSaleNumber();
       const amount = calculateTotal();
       setLoading(true);
 
-      if (upiProvider === 'cashfree') {
+      if (isAutomatedUpi) {
         const db = getFirebaseDb();
         if (!db) {
           throw new Error("Firestore not configured. Cashfree integration requires Firestore.");
@@ -779,27 +778,8 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         };
 
       } else {
-        // Razorpay UPI QR Flow or Static VPA QR Flow
+        // Static VPA QR Flow (Local QR code generation)
         let qrImage = '';
-        let paymentLinkId = null;
-        let qrCodeId = null;
-
-        const isAutomatedRazorpay = barSettings?.razorpay_enabled === 1;
-
-        if (isAutomatedRazorpay) {
-          const response = await fetch(`${relayUrl}/payment/create-qr`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amount, orderId }),
-          });
-          const data = await response.json();
-          setLoading(false);
-
-          if (!data.success) throw new Error(data.error || 'Unknown error creating Razorpay QR code.');
-          qrImage = data.qrImageUrl;
-          paymentLinkId = data.paymentLinkId || null;
-          qrCodeId = data.qrCodeId || null;
-        }
 
         try {
           if (barSettings && barSettings.upi_vpa) {
@@ -807,55 +787,22 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               barSettings.bar_name || ''
             )}&am=${encodeURIComponent(Number(amount).toFixed(2))}&cu=INR&tn=${encodeURIComponent('Order ' + orderId)}`;
             qrImage = await QRCode.toDataURL(upiUri, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
-          } else if (!isAutomatedRazorpay) {
+          } else {
             throw new Error("Automated UPI is disabled and no Merchant UPI VPA is configured.");
           }
         } catch (qrErr) {
           console.error('Failed to generate local UPI QR:', qrErr);
-          if (!qrImage) throw qrErr;
+          throw qrErr;
         }
 
         setLoading(false);
         qrPaymentPendingRef.current = true;
-        setUpiQrPayment({ orderId, amount, qrImageUrl: qrImage, paymentLinkId, qrCodeId });
+        setUpiQrPayment({ orderId, amount, qrImageUrl: qrImage, paymentLinkId: null, qrCodeId: null });
         setUpiQrStatus('Waiting for customer payment...');
 
         if (qrPollIntervalRef.current) {
           if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
           else clearInterval(qrPollIntervalRef.current);
-        }
-
-        if (isAutomatedRazorpay) {
-          const intervalId = setInterval(async () => {
-            try {
-              const statusResponse = await fetch(`${relayUrl}/payment/status`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  qrCodeId: qrCodeId || null,
-                  paymentLinkId: paymentLinkId || null,
-                }),
-              });
-
-              const statusData = await statusResponse.json();
-              if (statusData.success && statusData.paid) {
-                qrPaymentPendingRef.current = false;
-                clearInterval(intervalId);
-                setUpiQrStatus('Payment received. Completing order...');
-                setTimeout(async () => {
-                  setUpiQrPayment(null);
-                  setUpiQrStatus('');
-                  await executeSaleWrite(selectedMethod);
-                }, 1000);
-              }
-            } catch (pollError) {
-              console.error('Error polling Razorpay QR status:', pollError);
-            }
-          }, 2000);
-
-          qrPollIntervalRef.current = {
-            clearInterval: () => clearInterval(intervalId)
-          };
         }
       }
     } catch (err) {
@@ -1521,7 +1468,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               style={{
                 background: '#f6f3ee',
                 color: '#221f1a',
-                padding: '12px 16px',
+                padding: isKiosk ? 'calc(var(--android-status-offset) + 12px) 16px 12px 16px' : '12px 16px',
                 borderBottom: '1px solid #e6ded3',
                 position: 'sticky',
                 top: 0,
@@ -1603,19 +1550,8 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 borderBottom: activeTab === 'cart' ? 'none' : '1.5px solid #f6f3ee', 
                 paddingBottom: activeTab === 'cart' ? '0' : '10px' 
               }}>
-                Customer Information
-              </h3>
-              <label
-                style={{
-                  display: 'block',
-                  marginBottom: activeTab === 'cart' ? '6px' : '8px',
-                  fontWeight: '700',
-                  fontSize: '0.85rem',
-                  color: '#7f766a',
-                }}
-              >
                 WhatsApp Mobile Number
-              </label>
+              </h3>
               <input
                 type="tel"
                 placeholder="e.g. 9876543210"

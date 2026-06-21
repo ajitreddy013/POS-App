@@ -195,7 +195,7 @@ export const dbService = {
         settings.razorpay_enabled = 1;
       }
       if (settings.upi_provider === undefined) {
-        settings.upi_provider = "razorpay";
+        settings.upi_provider = "cashfree";
       }
       if (settings.upi_vpa === undefined) {
         settings.upi_vpa = "";
@@ -219,7 +219,7 @@ export const dbService = {
       whatsapp_language_code: "en",
       whatsapp_default_country_code: "91",
       razorpay_enabled: 1,
-      upi_provider: "razorpay",
+      upi_provider: "cashfree",
       upi_vpa: "",
       admin_password: "123456",
       hosted_app_url: ""
@@ -243,7 +243,7 @@ export const dbService = {
       whatsapp_language_code: settings.whatsapp_language_code || "en",
       whatsapp_default_country_code: settings.whatsapp_default_country_code || "91",
       razorpay_enabled: settings.razorpay_enabled !== undefined ? Number(settings.razorpay_enabled) : 1,
-      upi_provider: settings.upi_provider || settings.upiProvider || "razorpay",
+      upi_provider: settings.upi_provider || settings.upiProvider || "cashfree",
       upi_vpa: settings.upi_vpa || settings.upiVpa || "",
       admin_password: settings.admin_password || existing.admin_password || "123456",
       hosted_app_url: settings.hosted_app_url || ""

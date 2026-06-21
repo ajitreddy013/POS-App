@@ -383,7 +383,7 @@ const Settings = () => {
             whatsapp_language_code: barSettings.whatsapp_language_code || 'en',
             whatsapp_default_country_code: barSettings.whatsapp_default_country_code || '91',
             razorpay_enabled: barSettings.razorpay_enabled !== undefined ? Number(barSettings.razorpay_enabled) : 1,
-            upi_provider: barSettings.upi_provider || 'razorpay',
+            upi_provider: barSettings.upi_provider || 'cashfree',
             upi_vpa: barSettings.upi_vpa || '',
             hosted_app_url: barSettings.hosted_app_url || '',
           });
@@ -867,40 +867,24 @@ const Settings = () => {
               <div className="form-group-modern">
                 <div 
                   className="switch-wrapper" 
-                  onClick={() => handleBarSettingsChange('razorpay_enabled', barSettings.razorpay_enabled ? 0 : 1)}
+                  onClick={() => {
+                    const nextVal = barSettings.razorpay_enabled ? 0 : 1;
+                    setBarSettings(prev => ({
+                      ...prev,
+                      razorpay_enabled: nextVal,
+                      upi_provider: 'cashfree'
+                    }));
+                  }}
                 >
                   <div className={`switch-track ${barSettings.razorpay_enabled ? 'active' : ''}`}>
                     <div className="switch-thumb"></div>
                   </div>
-                  <span className="switch-label">Enable Automated UPI QR Codes</span>
+                  <span className="switch-label">Enable Automated Cashfree UPI QR Codes</span>
                 </div>
                 <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0', paddingLeft: '62px' }}>
-                  Generates payment QR codes dynamically using gateway credentials.
+                  Generates payment QR codes dynamically using Cashfree gateway credentials.
                 </p>
               </div>
-
-              {barSettings.razorpay_enabled === 1 && (
-                <div className="form-group-modern" style={{ marginTop: '16px' }}>
-                  <label className="form-label-modern" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155' }}>Payment Gateway Provider</label>
-                  <select
-                    value={barSettings.upi_provider || 'razorpay'}
-                    onChange={(e) => handleBarSettingsChange('upi_provider', e.target.value)}
-                    className="form-select-modern"
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      border: '1.5px solid #e2e8f0',
-                      fontSize: '0.9rem',
-                      outline: 'none',
-                      background: '#ffffff'
-                    }}
-                  >
-                    <option value="razorpay">Razorpay</option>
-                    <option value="cashfree">Cashfree</option>
-                  </select>
-                </div>
-              )}
 
               <div className="form-group-modern" style={{ marginTop: '16px' }}>
                 <label className="form-label-modern" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155' }}>Merchant UPI VPA (Direct UPI ID)</label>
@@ -943,7 +927,7 @@ const Settings = () => {
                 <p style={{ marginTop: '6px' }}>
                   {barSettings.razorpay_enabled === 1 ? (
                     <span style={{ color: '#16a34a', fontWeight: '700' }}>
-                      ✓ Enabled ({String(barSettings.upi_provider || 'razorpay').toUpperCase()} active)
+                      ✓ Enabled (CASHFREE active)
                     </span>
                   ) : (
                     <span style={{ color: '#ef4444', fontWeight: '700' }}>✗ Disabled (Manual QR only)</span>

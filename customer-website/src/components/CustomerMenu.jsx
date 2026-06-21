@@ -634,9 +634,8 @@ const CustomerMenu = () => {
           <main style={{ padding: '8px 12px 16px' }}>
             {/* Customer Info */}
             <div style={{ background: '#ffffff', borderRadius: '16px', padding: '12px', marginBottom: '12px', border: '1.5px solid #e6ded3', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
-              <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '6px' }}>Customer Information</h3>
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: '700', fontSize: '0.78rem', color: '#7f766a' }}>WhatsApp Mobile Number</label>
+              <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: 'none', paddingBottom: '0' }}>WhatsApp Mobile Number</h3>
+              <div style={{ marginTop: '10px' }}>
                 <input
                   ref={phoneInputRef}
                   type="tel"

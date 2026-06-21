@@ -19,6 +19,8 @@ const DEFAULT_SETTINGS = {
   whatsapp_language_code: "en",
   whatsapp_default_country_code: "91",
   razorpay_enabled: 1,
+  upi_provider: "cashfree",
+  upi_vpa: "",
   hosted_app_url: "",
 };
 

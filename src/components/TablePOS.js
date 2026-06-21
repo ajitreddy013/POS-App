@@ -465,109 +465,45 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       return;
     }
 
-    // Check if payment method is UPI and automated Razorpay checkout is enabled
-    const isRazorpayEnabled = barSettings && barSettings.razorpay_enabled === 1;
-    if (paymentMethod === 'upi' && isRazorpayEnabled) {
-      const cleanedPhone = customerPhone.replace(/\D/g, '');
-      if (!cleanedPhone || cleanedPhone.length !== 10) {
-        showNotice(
-          'error',
-          'Please enter a valid 10-digit phone number for UPI payment.',
-          6000
-        );
-        if (phoneInputRef.current) {
-          phoneInputRef.current.focus();
-        }
-        return;
-      }
-      startRazorpayPayment();
+    // Check if payment method is UPI and direct VPA configured
+    const isUpiEnabled = barSettings && !!barSettings.upi_vpa;
+    if (paymentMethod === 'upi' && isUpiEnabled) {
+      startUpiPayment();
       return;
     }
 
     executeSaleWrite();
   };
 
-  const startRazorpayPayment = async () => {
+  const startUpiPayment = async () => {
     setPaymentModalOpen(true);
-    setPaymentStatus('creating');
+    setPaymentStatus('pending');
     setPaymentQrUrl('');
-    setActiveQrId('');
-
-    const relayUrl =
-      barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
 
     try {
       const orderId = await generateSaleNumber();
       const amount = calculateTotal();
 
-      // Call relay to create QR code
-      const response = await fetch(`${relayUrl}/payment/create-qr`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount,
-          orderId,
-        }),
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setPaymentQrUrl(data.qrImageUrl);
-        setActiveQrId(data.qrCodeId);
-        setPaymentStatus('pending');
-
-        // Start polling for payment status
-        startPollingPayment(data.qrCodeId, relayUrl);
+      if (barSettings && barSettings.upi_vpa) {
+        const upiUri = `upi://pay?pa=${encodeURIComponent(barSettings.upi_vpa)}&pn=${encodeURIComponent(
+          barSettings.bar_name || ''
+        )}&am=${encodeURIComponent(Number(amount).toFixed(2))}&cu=INR&tn=${encodeURIComponent('Order ' + orderId)}`;
+        const qrImage = await QRCode.toDataURL(upiUri, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
+        setPaymentQrUrl(qrImage);
       } else {
-        setPaymentStatus('error');
-        showNotice(
-          'error',
-          `Failed to create Razorpay QR: ${data.error}`,
-          6000
-        );
+        throw new Error("No Merchant UPI VPA is configured.");
       }
     } catch (err) {
       setPaymentStatus('error');
       showNotice(
         'error',
-        `Error connecting to payment relay: ${err.message}`,
+        `Failed to generate local QR: ${err.message}`,
         6000
       );
     }
   };
 
-  const startPollingPayment = (qrCodeId, relayUrl) => {
-    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-
-    pollingIntervalRef.current = setInterval(async () => {
-      try {
-        const response = await fetch(`${relayUrl}/payment/status`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            qrCodeId,
-          }),
-        });
-
-        const data = await response.json();
-        if (data.success && data.paid) {
-          clearInterval(pollingIntervalRef.current);
-          setPaymentStatus('success');
-
-          // Wait 1 second to show success state, then complete checkout
-          setTimeout(() => {
-            setPaymentModalOpen(false);
-            executeSaleWrite();
-          }, 1000);
-        }
-      } catch (err) {
-        console.error('Error polling payment status:', err);
-      }
-    }, 2000);
-  };
-
-  const cancelRazorpayPayment = () => {
-    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+  const cancelUpiPayment = () => {
     setPaymentModalOpen(false);
   };
 
@@ -1344,7 +1280,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                   </p>
                   <img
                     src={paymentQrUrl}
-                    alt="Razorpay UPI QR"
+                    alt="UPI QR"
                     style={{
                       width: '200px',
                       height: '200px',
@@ -1389,7 +1325,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                       margin: 0,
                       fontWeight: 'bold',
                       fontSize: '1.2rem',
-                    }}
+                     }}
                   >
                     Payment Successful!
                   </p>
@@ -1409,7 +1345,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                   </p>
                   <p style={{ margin: '10px 0 0 0' }}>
                     <button
-                      onClick={() => startRazorpayPayment()}
+                      onClick={() => startUpiPayment()}
                       className="btn btn-secondary"
                       style={{ padding: '8px 15px' }}
                     >
@@ -1427,7 +1363,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                 }}
               >
                 <button
-                  onClick={cancelRazorpayPayment}
+                  onClick={cancelUpiPayment}
                   className="btn btn-secondary"
                   style={{
                     width: '100%',
