@@ -1295,12 +1295,50 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
             minWidth: activeTab === 'cart' ? '0' : undefined,
             width: activeTab === 'cart' ? '100%' : undefined,
             flex: activeTab === 'cart' ? 1 : undefined,
+            background: activeTab === 'cart' ? '#fcfcfc' : undefined,
+            padding: activeTab === 'cart' ? '0' : undefined,
           }}
         >
-          <div
-            className="cart-section"
-            style={{ paddingTop: 'calc(16px + env(safe-area-inset-top))' }}
-          >
+          {activeTab === 'cart' ? (
+            <header
+              className="menu-header"
+              style={{
+                background: '#b6412c',
+                color: '#ffffff',
+                padding: '20px 16px',
+                borderBottomLeftRadius: '24px',
+                borderBottomRightRadius: '24px',
+                position: 'sticky',
+                top: 0,
+                zIndex: 100,
+                boxShadow: '0 6px 20px rgba(182,65,44,0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <button
+                onClick={() => setActiveTab('menu')}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: '#ffffff',
+                  fontWeight: '700',
+                  fontSize: '1rem',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                }}
+              >
+                <ChevronLeft size={20} /> Menu
+              </button>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: '700', margin: '0 auto', transform: 'translateX(-20px)' }}>
+                Review Order
+              </h2>
+            </header>
+          ) : (
             <div
               className="cart-header-row"
               style={{
@@ -1308,16 +1346,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 alignItems: 'center',
                 marginBottom: '8px',
                 gap: '8px',
+                padding: '16px',
               }}
             >
-              <button
-                type="button"
-                className="mobile-back-btn"
-                style={{ display: 'inline-flex' }}
-                onClick={() => setActiveTab('menu')}
-              >
-                ← Menu
-              </button>
               <h3 style={{ margin: 0 }}>
                 <ShoppingCart
                   size={18}
@@ -1326,18 +1357,45 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 Current Order ({totalCartItems})
               </h3>
             </div>
+          )}
+
+          <div
+            className="cart-section"
+            style={{ 
+              padding: activeTab === 'cart' ? '20px 16px' : '0 16px 16px 16px',
+              overflowY: 'auto',
+              flex: 1,
+            }}
+          >
 
             <div
               className="form-row cart-phone-row"
-              style={{ marginTop: '16px', marginBottom: '16px' }}
+              style={{
+                background: '#ffffff',
+                borderRadius: '20px',
+                padding: '20px',
+                marginBottom: '24px',
+                border: '1.5px solid #e6ded3',
+                boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
+              }}
             >
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '10px' }}>
+                Customer Information
+              </h3>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: '6px',
+                  fontWeight: '700',
+                  fontSize: '0.88rem',
+                  color: '#7f766a',
+                }}
+              >
+                {isKiosk ? 'Enter 10-digit Phone Number (Mandatory)' : 'Phone Number'}
+              </label>
               <input
                 type="tel"
-                placeholder={
-                  isKiosk
-                    ? 'Enter 10-digit Phone Number (Mandatory)'
-                    : 'Phone Number'
-                }
+                placeholder="Phone Number"
                 value={customerPhone}
                 ref={phoneInputRef}
                 onChange={(e) => {
@@ -1350,7 +1408,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   }
                 }}
                 className={`form-input cart-phone-input ${phoneError ? 'error' : ''}`}
-                style={{ padding: '8px 12px', fontSize: '13px', width: '100%' }}
+                style={{ padding: '12px 14px', fontSize: '1rem', width: '100%', borderRadius: '12px' }}
                 maxLength="10"
               />
               {phoneError && (
@@ -1359,82 +1417,154 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 </div>
               )}
             </div>
-            <div className="cart-items">
-              {cart.length === 0 ? (
-                <div className="empty-cart" style={{ padding: '40px 0' }}>
-                  <ShoppingCart size={32} />
-                  <p style={{ color: '#6c757d', marginTop: '12px' }}>
-                    Cart is empty
-                  </p>
-                </div>
-              ) : (
-                cart.map((item) => (
-                  <div key={item.id} className="cart-item-minimal">
-                    <div className="cart-item-minimal-layout">
-                      <button
-                        onClick={() => removeFromCart(item.id)}
-                        className="remove-btn cart-item-delete-btn"
-                        style={{ padding: '0' }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                      <div className="cart-item-minimal-text">
-                        <h4
-                          className="cart-item-minimal-name"
-                          title={item.name}
-                        >
-                          {item.name}
-                        </h4>
-                      </div>
-                      <div
-                        className="quantity-controls cart-item-minimal-qty"
-                        style={{
-                          transform: 'scale(0.8)',
-                          transformOrigin: 'center',
-                        }}
-                      >
-                        <button
-                          onClick={() =>
-                            updateQuantity(item.id, item.quantity - 1)
-                          }
-                          className="qty-btn"
-                        >
-                          <Minus size={14} />
-                        </button>
-                        <span className="cart-item-qty-value">
-                          {item.quantity}
-                        </span>
-                        <button
-                          onClick={() =>
-                            updateQuantity(item.id, item.quantity + 1)
-                          }
-                          className="qty-btn"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                      <div className="cart-item-minimal-price-block">
-                        <div className="item-total cart-item-minimal-total">
-                          {formatCurrency(item.price * item.quantity)}
-                        </div>
-                        <p className="cart-item-minimal-unit-price">
-                          {formatCurrency(item.price)} each
-                        </p>
-                      </div>
-                    </div>
+
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: '20px',
+                padding: '20px',
+                marginBottom: '24px',
+                border: '1.5px solid #e6ded3',
+                boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
+              }}
+            >
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '10px' }}>
+                Selected Items ({totalCartItems})
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {cart.length === 0 ? (
+                  <div className="empty-cart" style={{ padding: '20px 0', textAlign: 'center' }}>
+                    <ShoppingCart size={32} color="#ccc" />
+                    <p style={{ color: '#6c757d', marginTop: '12px' }}>
+                      Cart is empty
+                    </p>
                   </div>
-                ))
-              )}
+                ) : (
+                  cart.map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        paddingBottom: '12px',
+                        borderBottom: '1px solid #f6f3ee',
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0, marginRight: '12px' }}>
+                        <span style={{ fontWeight: '700', fontSize: '0.98rem', display: 'block', color: '#221f1a' }}>
+                          {item.name}
+                        </span>
+                        <span style={{ color: '#b6412c', fontSize: '0.88rem', fontWeight: '600' }}>
+                          {formatCurrency(item.price)} each
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            background: '#fbf7f4',
+                            border: '1px solid #e6ded3',
+                            borderRadius: '20px',
+                            padding: '2px',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                            style={{
+                              border: 'none',
+                              background: 'transparent',
+                              width: '26px',
+                              height: '26px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              color: '#b6412c',
+                              fontSize: '1rem',
+                            }}
+                          >
+                            -
+                          </button>
+                          <span
+                            style={{
+                              minWidth: '18px',
+                              textAlign: 'center',
+                              fontWeight: '700',
+                              fontSize: '0.9rem',
+                              color: '#221f1a',
+                            }}
+                          >
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                            style={{
+                              border: 'none',
+                              background: 'transparent',
+                              width: '26px',
+                              height: '26px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              color: '#b6412c',
+                              fontSize: '1rem',
+                            }}
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(item.id)}
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#7f766a',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+
+                      <strong style={{ fontSize: '1rem', marginLeft: '12px', minWidth: '70px', textAlign: 'right' }}>
+                        {formatCurrency(item.price * item.quantity)}
+                      </strong>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
-          <div className="billing-section payment-checkout-panel">
+          <div
+            className="billing-section payment-checkout-panel"
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              padding: '20px',
+              border: '1.5px solid #e6ded3',
+              boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
+              marginBottom: '20px',
+            }}
+          >
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '10px' }}>
+              Billing Summary
+            </h3>
+
             {!isKiosk && (
               <div
                 className="billing-controls"
                 style={{
-                  padding: '8px 10px',
-                  borderTop: '1px solid #e6ded3',
-                  background: '#fffdf8',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
                 }}
               >
                 <div
@@ -1443,7 +1573,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    justifyContent: 'flex-end',
                   }}
                 >
                   <div
@@ -1494,15 +1623,20 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
             <div
               className="bill-summary payment-total-card cart-summary-card"
-              style={{ borderTop: '1px solid #e6ded3', paddingTop: '12px' }}
+              style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
             >
               {!isKiosk && (
                 <div
                   className="summary-line cart-summary-row"
-                  style={{ fontSize: '12px', marginBottom: '4px' }}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: '1.05rem',
+                    fontWeight: '600',
+                  }}
                 >
-                  <span style={{ color: '#7f766a' }}>Subtotal:</span>
-                  <span style={{ color: '#221f1a', fontWeight: '500' }}>
+                  <span style={{ color: '#7f766a' }}>Subtotal</span>
+                  <span style={{ color: '#221f1a' }}>
                     {formatCurrency(calculateSubtotal())}
                   </span>
                 </div>
@@ -1511,26 +1645,30 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 <div
                   className="summary-line discount cart-summary-row"
                   style={{
-                    fontSize: '12px',
-                    marginBottom: '4px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: '1.05rem',
+                    fontWeight: '600',
                     color: '#b6412c',
                   }}
                 >
-                  <span>Discount:</span>
+                  <span>Discount</span>
                   <span>-{formatCurrency(calculateDiscountAmount())}</span>
                 </div>
               )}
               <div
                 className="summary-line total cart-summary-total"
                 style={{
-                  marginTop: '8px',
-                  paddingTop: '8px',
-                  borderTop: '1px dashed #e6ded3',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginTop: '12px',
+                  paddingTop: '12px',
+                  borderTop: '1px solid #f6f3ee',
+                  fontSize: '1.25rem',
+                  fontWeight: '700',
                 }}
               >
-                <span style={{ color: '#221f1a' }}>Total:</span>
+                <span style={{ color: '#221f1a' }}>Grand Total</span>
                 <span style={{ color: '#b6412c' }}>
                   {formatCurrency(calculateTotal())}
                 </span>
@@ -1539,7 +1677,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
             <div
               className="action-buttons payment-action-grid"
-              style={{ display: 'flex', gap: '12px', marginTop: '10px' }}
+              style={{ display: 'flex', gap: '12px', marginTop: '20px' }}
             >
               <button
                 className="payment-action-card payment-action-upi"
@@ -1547,52 +1685,36 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 disabled={cart.length === 0 || loading}
                 style={{
                   flex: 1,
-                  background: '#ffffff',
-                  border: '2px solid #e2e8f0',
+                  background: cart.length === 0 || loading ? '#f9f9f9' : '#fff5f3',
+                  border: cart.length === 0 || loading ? '2px solid #e2e8f0' : '2px solid #b6412c',
                   borderRadius: '16px',
                   padding: '12px 6px',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '4px',
-                  cursor: 'pointer',
+                  gap: '6px',
+                  cursor: cart.length === 0 || loading ? 'not-allowed' : 'pointer',
                   transition: 'all 0.2s ease',
                   height: '92px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
                   outline: 'none',
-                }}
-                onMouseEnter={(e) => {
-                  if (cart.length > 0 && !loading) {
-                    e.currentTarget.style.borderColor = '#ef4444';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow =
-                      '0 10px 15px -3px rgba(239, 68, 68, 0.1)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#e2e8f0';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow =
-                    '0 4px 6px -1px rgba(0, 0, 0, 0.05)';
                 }}
               >
                 <img
                   src="upi-logo.png"
                   alt="UPI Payment"
                   style={{
-                    height: '40px',
+                    height: '36px',
                     maxWidth: '100%',
                     objectFit: 'contain',
-                    opacity: cart.length === 0 || loading ? 0.5 : 1,
+                    opacity: cart.length === 0 || loading ? 0.4 : 1,
                   }}
                 />
                 <span
                   style={{
-                    fontSize: '11px',
-                    color: '#4b5563',
-                    fontWeight: '600',
-                    opacity: cart.length === 0 || loading ? 0.6 : 1,
+                    fontSize: '0.85rem',
+                    color: cart.length === 0 || loading ? '#9ca3af' : '#b6412c',
+                    fontWeight: '700',
                   }}
                 >
                   Razorpay QR
@@ -1604,52 +1726,36 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 disabled={cart.length === 0 || loading}
                 style={{
                   flex: 1,
-                  background: '#ffffff',
-                  border: '2px solid #e2e8f0',
+                  background: cart.length === 0 || loading ? '#f9f9f9' : '#f0fdf4',
+                  border: cart.length === 0 || loading ? '2px solid #e2e8f0' : '2px solid #16a34a',
                   borderRadius: '16px',
                   padding: '12px 6px',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '4px',
-                  cursor: 'pointer',
+                  gap: '6px',
+                  cursor: cart.length === 0 || loading ? 'not-allowed' : 'pointer',
                   transition: 'all 0.2s ease',
                   height: '92px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
                   outline: 'none',
-                }}
-                onMouseEnter={(e) => {
-                  if (cart.length > 0 && !loading) {
-                    e.currentTarget.style.borderColor = '#16a34a';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow =
-                      '0 10px 15px -3px rgba(22, 163, 74, 0.1)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#e2e8f0';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow =
-                    '0 4px 6px -1px rgba(0, 0, 0, 0.05)';
                 }}
               >
                 <img
                   src="cash-logo.png"
                   alt="Cash Payment"
                   style={{
-                    height: '40px',
+                    height: '36px',
                     maxWidth: '100%',
                     objectFit: 'contain',
-                    opacity: cart.length === 0 || loading ? 0.5 : 1,
+                    opacity: cart.length === 0 || loading ? 0.4 : 1,
                   }}
                 />
                 <span
                   style={{
-                    fontSize: '11px',
-                    color: '#4b5563',
-                    fontWeight: '600',
-                    opacity: cart.length === 0 || loading ? 0.6 : 1,
+                    fontSize: '0.85rem',
+                    color: cart.length === 0 || loading ? '#9ca3af' : '#16a34a',
+                    fontWeight: '700',
                   }}
                 >
                   Pay at Counter
