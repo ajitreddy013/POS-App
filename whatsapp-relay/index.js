@@ -397,7 +397,7 @@ function cashfreeRequest(method, path, body) {
   return new Promise((resolve, reject) => {
     const clientId = process.env.CASHFREE_CLIENT_ID;
     const clientSecret = process.env.CASHFREE_CLIENT_SECRET;
-    const isProd = process.env.CASHFREE_ENV === 'PRODUCTION';
+    const isProd = (process.env.CASHFREE_ENV || '').toUpperCase() === 'PRODUCTION' || (process.env.CASHFREE_ENV || '').toUpperCase() === 'PROD';
     
     if (!clientId || !clientSecret) {
       return reject(new Error('Cashfree credentials (CASHFREE_CLIENT_ID, CASHFREE_CLIENT_SECRET) are missing.'));
