@@ -233,7 +233,7 @@ async function getShopSettings() {
     gst_number: '',
     thank_you_message: 'Thank you for visiting! Please visit again.'
   };
-  if (admin.apps.length > 0) {
+  if (admin && admin.apps && admin.apps.length > 0) {
     try {
       const db = admin.firestore();
       const settingsDoc = await db.collection('settings').doc('bar_settings').get();
@@ -915,7 +915,7 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
       console.log(`Cashfree Active Verification for Order #${orderNumber}: status = ${orderDetails.order_status}`);
 
       if (orderDetails.order_status === 'PAID') {
-        if (admin.apps.length > 0) {
+        if (admin && admin.apps && admin.apps.length > 0) {
           const db = admin.firestore();
           const ordersRef = db.collection('orders');
           const snapshot = await ordersRef
@@ -1155,7 +1155,7 @@ app.post('/payment/webhook', async (req, res) => {
     );
 
     // Query Firestore using admin SDK and update paymentStatus
-    if (admin.apps.length > 0) {
+    if (admin && admin.apps && admin.apps.length > 0) {
       try {
         const db = admin.firestore();
         const ordersRef = db.collection('orders');
