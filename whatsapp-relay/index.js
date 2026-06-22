@@ -97,7 +97,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-22-cashfree-v1';
+const relayVersion = '2026-06-23-cashfree-fix-url';
 
 app.use(cors());
 app.use(express.json());
@@ -452,9 +452,6 @@ function cashfreeRequest(method, path, body) {
         'x-api-version': '2023-08-01',
         'x-client-id': clientId,
         'x-client-secret': clientSecret,
-        'x-client-device': 'mobile',
-        'x-client-os': 'android',
-        'x-client-rendering-type': 'mweb',
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(data),
       },
@@ -544,10 +541,17 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
     const response = await cashfreeRequest('POST', '/orders', payload);
 
     const isProd = cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
+
+    // Use the payment_link directly from Cashfree API response (most reliable)
+    // Fallback: construct the correct Cashfree hosted checkout URL
+    // NOTE: The URL must use query param format (?payment_session_id=...) NOT hash (#session_...)
+    // Using hash causes "client session invalid" error on the Cashfree page
     const paymentLink = response.payment_link || 
       (isProd 
-        ? `https://payments.cashfree.com/order/#${response.payment_session_id}`
-        : `https://payments-test.cashfree.com/order/#${response.payment_session_id}`);
+        ? `https://payments.cashfree.com/order/${response.order_id}?payment_session_id=${response.payment_session_id}`
+        : `https://payments-test.cashfree.com/order/${response.order_id}?payment_session_id=${response.payment_session_id}`);
+
+    console.log(`Cashfree Order ${response.order_id} created. Payment link: ${paymentLink}`);
 
     res.json({
       success: true,
