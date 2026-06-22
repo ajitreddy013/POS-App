@@ -54,12 +54,18 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const longPressTimerRef = useRef(null);
 
   const startLongPress = (e) => {
+    if (e && e.cancelable) {
+      e.preventDefault();
+    }
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
     }
     setLongPressActive(true);
     longPressTimerRef.current = setTimeout(() => {
       if (onOpenUnlockModal) onOpenUnlockModal();
+      if (navigator.vibrate) {
+        navigator.vibrate(100); // Vibrate only when the unlock popup appears
+      }
       setLongPressActive(false);
     }, 2000); // 2 seconds
   };
