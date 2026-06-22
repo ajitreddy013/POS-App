@@ -112,6 +112,13 @@ const CustomerMenu = () => {
     }
   }, [searchParams, setSearchParams]);
 
+  useEffect(() => {
+    const tableParam = searchParams.get('table');
+    if (tableParam) {
+      setTableNumber(tableParam);
+    }
+  }, [searchParams]);
+
   // Pull-to-refresh handlers
   const handleTouchStart = useCallback((e) => {
     if (window.scrollY === 0 && activeTab === 'menu' && !refreshing) {
@@ -326,6 +333,42 @@ const CustomerMenu = () => {
         // 7. Determine checkout flow based on device & API availability (Cashfree only)
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
+        if (tableNumber.toLowerCase() === 'kiosk') {
+          // Kiosk Mode: Generate the QR code of the Cashfree hosted link on the tablet screen instead of redirecting
+          if (data.paymentLink) {
+            try {
+              const qrUrl = await QRCode.toDataURL(data.paymentLink, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
+              setUpiQrCodeDataUrl(qrUrl);
+              setUpiQrLoading(true);
+              setUpiQrStatus('Scan the QR code to pay');
+              return; // Stop here, do not redirect the kiosk tablet!
+            } catch (qrErr) {
+              console.error('Error generating Kiosk QR code URL:', qrErr);
+            }
+          }
+        }
+
+        if (window.Cashfree) {
+          setUpiQrLoading(true);
+          setUpiQrStatus('Redirecting to secure Cashfree payment screen...');
+          try {
+            const cashfree = window.Cashfree({
+              mode: data.environment || 'sandbox'
+            });
+            await cashfree.checkout({
+              paymentSessionId: data.paymentSessionId,
+              redirectTarget: '_self'
+            });
+            return;
+          } catch (sdkErr) {
+            console.warn('Cashfree SDK checkout failed, falling back to direct link:', sdkErr);
+            if (data.paymentLink) {
+              window.location.href = data.paymentLink;
+              return;
+            }
+          }
+        }
+
         if (data.paymentLink) {
           setUpiQrLoading(true);
           setUpiQrStatus('Redirecting to secure Cashfree payment screen...');
