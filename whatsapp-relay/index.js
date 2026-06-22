@@ -525,7 +525,7 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
         customer_email: 'customer@malabarwaffle.com',
       },
       order_meta: {
-        return_url: `${req.headers.origin || 'https://counterflow-kiosk.web.app'}/?payment=success&orderId=${orderId}`,
+        return_url: req.body.returnUrl || `${req.headers.origin || 'https://counterflow-kiosk.web.app'}/?payment=success&orderId=${orderId}`,
         notify_url: 'https://pos-app-nqsm.onrender.com/payment/cashfree/webhook',
       },
       order_note: `Order ${orderId}`,

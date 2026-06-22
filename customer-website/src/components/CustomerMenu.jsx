@@ -282,10 +282,11 @@ const CustomerMenu = () => {
         // 2. Initiate Cashfree checkout session
         const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
 
+        const returnUrl = `${window.location.origin}${window.location.pathname}?payment=success&orderId=${orderNumber}`;
         const res = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount: totalAmount, orderId: orderNumber, phone, name }),
+          body: JSON.stringify({ amount: totalAmount, orderId: orderNumber, phone, name, returnUrl }),
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Failed to generate payment session.');
