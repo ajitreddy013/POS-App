@@ -553,8 +553,8 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
     // Using hash causes "client session invalid" error on the Cashfree page
     const paymentLink = response.payment_link || 
       (isProd 
-        ? `https://payments.cashfree.com/order/${response.order_id}?payment_session_id=${response.payment_session_id}`
-        : `https://payments-test.cashfree.com/order/${response.order_id}?payment_session_id=${response.payment_session_id}`);
+        ? `https://payments.cashfree.com/order?payment_session_id=${response.payment_session_id}`
+        : `https://payments-test.cashfree.com/order?payment_session_id=${response.payment_session_id}`);
 
     console.log(`Cashfree Order ${response.order_id} created. Payment link: ${paymentLink}`);
 
