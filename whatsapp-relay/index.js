@@ -528,14 +528,19 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       order_note: `Order ${orderId}`,
       order_tags: {
         order_number: String(orderId)
-      },
-      payment_methods_filters: {
+      }
+    };
+
+    // If checkout is from customer website (has returnUrl), allow all methods.
+    // Otherwise (Kiosk/Counter app), restrict to UPI.
+    if (!req.body.returnUrl) {
+      payload.payment_methods_filters = {
         methods: {
           action: 'ALLOW',
           values: ['upi']
         }
-      }
-    };
+      };
+    }
 
     console.log(`Creating Cashfree Order for ${orderId}, Amount: ${payload.order_amount}`);
     const response = await cashfreeRequest('POST', '/orders', payload);

@@ -320,19 +320,17 @@ const CustomerMenu = () => {
           }
         });
 
-        // 6. Route: Kiosk shows QR, Web/Mobile redirects to Cashfree hosted page
         if (tableNumber.toLowerCase() === 'kiosk') {
-          // ── KIOSK MODE: show scannable QR on the tablet screen ──
+          // ── KIOSK MODE inside the app: redirect to external browser to show Cashfree hosted page ──
           if (data.paymentLink) {
-            try {
-              const qrUrl = await QRCode.toDataURL(data.paymentLink, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
-              setUpiQrCodeDataUrl(qrUrl);
-              setUpiQrLoading(true);
-              setUpiQrStatus('Scan the QR code to pay');
-              return; // Stop — do not redirect the kiosk tablet!
-            } catch (qrErr) {
-              console.error('Error generating Kiosk QR code URL:', qrErr);
+            if (window.open) {
+              window.open(data.paymentLink, '_system');
+            } else {
+              window.location.href = data.paymentLink;
             }
+            setUpiQrLoading(true);
+            setUpiQrStatus('Redirected to external browser. Waiting for payment...');
+            return; // Stop — do not redirect the kiosk webview itself!
           }
         } else {
           // ── WEB / MOBILE MODE: redirect to Cashfree hosted payment page ──

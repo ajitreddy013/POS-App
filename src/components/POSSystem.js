@@ -832,29 +832,44 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
       setLoading(false);
 
-      if (!upiLink && !paymentLink) {
-        throw new Error("Failed to generate automated Cashfree payment QR code.");
-      }
-
-      let qrImage = '';
-      try {
-        // Point the QR code to the official Cashfree hosted checkout page so the customer gets all options
-        const qrTarget = paymentLink || upiLink;
-        qrImage = await QRCode.toDataURL(qrTarget, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
-      } catch (qrErr) {
-        console.error('Failed to generate local UPI QR from link:', qrErr);
-        throw qrErr;
-      }
-
+      const qrTarget = paymentLink || upiLink;
       qrPaymentPendingRef.current = true;
-      setUpiQrPayment({ 
-        orderId, 
-        amount, 
-        qrImageUrl: qrImage, 
-        isFallback: false, 
-        docId: docRef.id 
-      });
-      setUpiQrStatus('Waiting for customer payment...');
+
+      if (isKiosk) {
+        // Kiosk Mode: open Cashfree hosted checkout page in device's system browser
+        if (window.open) {
+          window.open(qrTarget, '_system');
+        } else {
+          window.location.href = qrTarget;
+        }
+
+        setUpiQrPayment({
+          orderId,
+          amount,
+          isKioskRedirect: true,
+          paymentLink: qrTarget,
+          docId: docRef.id
+        });
+        setUpiQrStatus('Redirected to external browser. Waiting for payment...');
+      } else {
+        // Counter Mode: show QR code overlay inside the app
+        let qrImage = '';
+        try {
+          qrImage = await QRCode.toDataURL(qrTarget, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
+        } catch (qrErr) {
+          console.error('Failed to generate local UPI QR from link:', qrErr);
+          throw qrErr;
+        }
+
+        setUpiQrPayment({ 
+          orderId, 
+          amount, 
+          qrImageUrl: qrImage, 
+          isFallback: false, 
+          docId: docRef.id 
+        });
+        setUpiQrStatus('Waiting for customer payment...');
+      }
 
       if (qrPollIntervalRef.current) {
         if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
@@ -2234,18 +2249,40 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 <strong>{formatCurrency(upiQrPayment.amount)}</strong>
               </div>
 
-              <div className="upi-qr-image-frame">
-                {upiQrPayment.qrImageUrl ? (
-                  <img
-                    src={upiQrPayment.qrImageUrl}
-                    alt="UPI QR code"
-                  />
-                ) : (
-                  <div className="upi-qr-placeholder">
-                    <Loader2 size={28} className="spin" />
-                  </div>
-                )}
-              </div>
+              {upiQrPayment.isKioskRedirect ? (
+                <div style={{ padding: '20px 10px', textAlign: 'center' }}>
+                  <p style={{ margin: '0 0 15px 0', fontSize: '0.92rem', color: '#7f766a', fontWeight: '600', lineHeight: '1.5' }}>
+                    We have launched the Cashfree payment screen in your system web browser.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      if (window.open) {
+                        window.open(upiQrPayment.paymentLink, '_system');
+                      } else {
+                        window.location.href = upiQrPayment.paymentLink;
+                      }
+                    }}
+                    style={{ background: '#b6412c', border: 'none', padding: '10px 20px', borderRadius: '20px', fontWeight: 'bold', color: 'white', cursor: 'pointer', boxShadow: '0 4px 12px rgba(182,65,44,0.2)' }}
+                  >
+                    🔗 Re-open Payment Page
+                  </button>
+                </div>
+              ) : (
+                <div className="upi-qr-image-frame">
+                  {upiQrPayment.qrImageUrl ? (
+                    <img
+                      src={upiQrPayment.qrImageUrl}
+                      alt="UPI QR code"
+                    />
+                  ) : (
+                    <div className="upi-qr-placeholder">
+                      <Loader2 size={28} className="spin" />
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="upi-qr-status">
                 <Loader2 size={16} className="spin" />
