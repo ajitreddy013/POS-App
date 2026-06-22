@@ -49,6 +49,9 @@ const CustomerMenu = () => {
   const [orderSuccess, setOrderSuccess] = useState(null);
   const [upiQrStatus, setUpiQrStatus] = useState('');
   const [upiQrLoading, setUpiQrLoading] = useState(false);
+  const [upiQrCodeDataUrl, setUpiQrCodeDataUrl] = useState('');
+  const [cfSessionId, setCfSessionId] = useState('');
+  const [cfEnv, setCfEnv] = useState('');
   const searchInputRef = useRef(null);
 
   // Pull-to-refresh state
@@ -287,47 +290,75 @@ const CustomerMenu = () => {
         // 3. Clear cart locally
         setCart({});
 
-        // 4. Determine checkout redirection based on device
+        // 4. Save session info in state
+        setCfSessionId(data.paymentSessionId);
+        setCfEnv(data.environment || 'sandbox');
+
+        // 5. Generate and set QR code data URL
+        if (data.upiLink) {
+          try {
+            const qrUrl = await QRCode.toDataURL(data.upiLink);
+            setUpiQrCodeDataUrl(qrUrl);
+          } catch (qrErr) {
+            console.error('Error generating local QR code URL:', qrErr);
+          }
+        }
+
+        // 6. Listen to Firestore for payment success to automatically progress
+        const unsubscribe = onSnapshot(doc(db, 'orders', docRef.id), (snap) => {
+          if (snap.exists()) {
+            const currentData = snap.data();
+            if (currentData.paymentStatus === 'paid') {
+              unsubscribe();
+              setUpiQrLoading(false);
+              setUpiQrStatus('');
+              setUpiQrCodeDataUrl('');
+              setOrderSuccess(orderNumber);
+              setActiveTab('menu');
+            }
+          }
+        });
+
+        // 7. Determine checkout flow based on device
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
-        if (isMobile && data.upiLink) {
-          // Listen to Firestore for payment success to show success page automatically
-          const unsubscribe = onSnapshot(doc(db, 'orders', docRef.id), (snap) => {
-            if (snap.exists()) {
-              const currentData = snap.data();
-              if (currentData.paymentStatus === 'paid') {
-                unsubscribe();
-                setUpiQrLoading(false);
-                setUpiQrStatus('');
-                setOrderSuccess(orderNumber);
-                setActiveTab('menu');
-              }
-            }
-          });
-
-          // Show indicator and redirect to the UPI Intent deep link
+        if (isMobile) {
+          // Trigger direct UPI Apps chooser overlay (requires whitelisted domain)
           setUpiQrLoading(true);
           setUpiQrStatus('Redirecting to your UPI apps...');
-          window.location.href = data.upiLink;
 
-          // Provide manual update text in case user returns to browser
+          if (window.Cashfree) {
+            try {
+              const cashfree = window.Cashfree({
+                mode: data.environment || 'sandbox'
+              });
+              await cashfree.pay({
+                paymentSessionId: data.paymentSessionId,
+                paymentMethod: {
+                  upi: {
+                    channel: 'link'
+                  }
+                }
+              });
+              console.log('Successfully launched Cashfree direct UPI apps overlay.');
+            } catch (sdkErr) {
+              console.warn('Cashfree SDK direct pay failed, falling back to direct redirect:', sdkErr);
+              if (data.upiLink) {
+                window.location.href = data.upiLink;
+              }
+            }
+          } else if (data.upiLink) {
+            window.location.href = data.upiLink;
+          }
+
+          // Provide status updates in case user returns to browser
           setTimeout(() => {
             setUpiQrStatus('Waiting for payment confirmation. Please complete payment in your UPI app...');
           }, 3000);
         } else {
-          // Initialize Cashfree SDK and launch hosted checkout
-          if (!window.Cashfree) {
-            throw new Error('Cashfree SDK is not loaded. Please try again.');
-          }
-
-          const cashfree = window.Cashfree({
-            mode: data.environment || 'sandbox' // 'sandbox' or 'production'
-          });
-
-          await cashfree.checkout({
-            paymentSessionId: data.paymentSessionId,
-            redirectTarget: '_self'
-          });
+          // On Desktop, show the local QR code overlay directly!
+          setUpiQrLoading(true);
+          setUpiQrStatus('Waiting for payment...');
         }
       } else {
         // Cash payment
@@ -813,10 +844,47 @@ const CustomerMenu = () => {
       {/* ═══ LOADER / TRANSITION OVERLAY ═══ */}
       {upiQrLoading && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(34,31,26,0.65)', zIndex: 250, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', backdropFilter: 'blur(6px)' }}>
-          <div style={{ background: '#ffffff', width: '100%', maxWidth: '320px', borderRadius: '20px', padding: '32px 24px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', textAlign: 'center', border: '1.5px solid #e6ded3', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-            <Loader2 className="animate-spin" size={40} style={{ color: '#b6412c' }} />
-            <strong style={{ fontSize: '1.1rem', color: '#221f1a' }}>{upiQrStatus || 'Processing Payment...'}</strong>
-            <p style={{ margin: 0, fontSize: '0.85rem', color: '#7f766a' }}>Please do not close this window or press back.</p>
+          <div style={{ background: '#ffffff', width: '100%', maxWidth: '340px', borderRadius: '24px', padding: '28px 24px', boxShadow: '0 20px 60px rgba(0,0,0,0.22)', textAlign: 'center', border: '1.5px solid #e6ded3', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+            {upiQrCodeDataUrl ? (
+              <>
+                <strong style={{ fontSize: '1.1rem', color: '#221f1a', marginBottom: '4px' }}>Scan QR Code to Pay</strong>
+                <div style={{ padding: '12px', background: '#fbf7f4', borderRadius: '16px', border: '1px solid #e6ded3', display: 'inline-block', boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.04)' }}>
+                  <img src={upiQrCodeDataUrl} alt="UPI Payment QR Code" style={{ width: '180px', height: '180px', display: 'block' }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', margin: '4px 0' }}>
+                  <Loader2 className="animate-spin" size={16} style={{ color: '#b6412c' }} />
+                  <span style={{ fontSize: '0.88rem', fontWeight: '600', color: '#b6412c' }}>{upiQrStatus || 'Waiting for payment...'}</span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#7f766a', lineHeight: '1.4' }}>
+                  Scan with GPay, PhonePe, Paytm, or BHIM. Keep this window open after payment.
+                </p>
+                <div style={{ width: '100%', height: '1px', background: '#e6ded3', margin: '8px 0' }} />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      if (!window.Cashfree) throw new Error('Cashfree SDK not loaded.');
+                      const cashfree = window.Cashfree({ mode: cfEnv });
+                      await cashfree.checkout({
+                        paymentSessionId: cfSessionId,
+                        redirectTarget: '_self'
+                      });
+                    } catch (err) {
+                      alert('Could not launch hosted payment: ' + err.message);
+                    }
+                  }}
+                  style={{ background: 'transparent', border: 'none', color: '#b6412c', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', padding: '4px 8px', textDecoration: 'underline' }}
+                >
+                  Pay via Card / Net Banking / Wallet
+                </button>
+              </>
+            ) : (
+              <>
+                <Loader2 className="animate-spin" size={40} style={{ color: '#b6412c' }} />
+                <strong style={{ fontSize: '1.1rem', color: '#221f1a' }}>{upiQrStatus || 'Processing Payment...'}</strong>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#7f766a' }}>Please do not close this window or press back.</p>
+              </>
+            )}
           </div>
         </div>
       )}
