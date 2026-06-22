@@ -722,160 +722,119 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const startUpiQrPayment = async (selectedMethod) => {
     const relayUrl =
       barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-    const isAutomatedUpi = barSettings?.razorpay_enabled === 1;
 
     try {
       const orderId = await generateSaleNumber();
       const amount = calculateTotal();
       setLoading(true);
 
-      if (isAutomatedUpi) {
-        const db = getFirebaseDb();
-        if (!db) {
-          throw new Error("Firestore not configured. Cashfree integration requires Firestore.");
-        }
-
-        const orderData = {
-          orderNumber: orderId,
-          customerName: isKiosk ? 'Kiosk Customer' : (customerName || 'Walk-in Customer'),
-          customerPhone: customerPhone || '',
-          tableNumber: isKiosk ? 'Kiosk' : 'Counter',
-          items: cart.map((item) => ({
-            productId: String(item.id),
-            name: item.name,
-            quantity: item.quantity,
-            unitPrice: item.price,
-            totalPrice: item.price * item.quantity,
-          })),
-          totalAmount: amount,
-          paymentMethod: 'upi',
-          paymentStatus: 'pending',
-          orderStatus: 'pending_acceptance',
-          createdAt: new Date(),
-        };
-
-        const docRef = await addDoc(collection(db, 'orders'), orderData);
-        console.log(`Created Cashfree-tracked Firestore order with ID: ${docRef.id}`);
-
-        let upiLink = '';
-        let isUsingFallback = false;
-
-        try {
-          const response = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              amount,
-              orderId,
-              phone: customerPhone || '9999999999',
-              name: isKiosk ? 'Kiosk Customer' : (customerName || 'Walk-in Customer')
-            }),
-          });
-          const data = await response.json();
-          if (data.success && data.upiLink) {
-            upiLink = data.upiLink;
-          } else {
-            console.warn('Cashfree UPI QR code initiation failed:', data.error);
-          }
-        } catch (fetchErr) {
-          console.warn('Failed to call Cashfree create-order endpoint:', fetchErr);
-        }
-
-        setLoading(false);
-
-        if (!upiLink) {
-          if (barSettings && barSettings.upi_vpa) {
-            console.log('Automated Cashfree UPI failed or not supported. Falling back to static VPA.');
-            upiLink = `upi://pay?pa=${encodeURIComponent(barSettings.upi_vpa)}&pn=${encodeURIComponent(
-              barSettings.bar_name || ''
-            )}&am=${encodeURIComponent(Number(amount).toFixed(2))}&cu=INR&tn=${encodeURIComponent('Order ' + orderId)}`;
-            isUsingFallback = true;
-          } else {
-            throw new Error("Failed to generate automated Cashfree payment QR code, and no fallback Merchant UPI VPA is configured in Settings.");
-          }
-        }
-
-        let qrImage = '';
-        try {
-          qrImage = await QRCode.toDataURL(upiLink, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
-        } catch (qrErr) {
-          console.error('Failed to generate local UPI QR from link:', qrErr);
-          throw qrErr;
-        }
-
-        qrPaymentPendingRef.current = true;
-        setUpiQrPayment({ 
-          orderId, 
-          amount, 
-          qrImageUrl: qrImage, 
-          isFallback: isUsingFallback, 
-          docId: docRef.id 
-        });
-        setUpiQrStatus(isUsingFallback ? 'Scan QR to pay. Tap "I Have Paid" once done.' : 'Waiting for customer payment...');
-
-        if (qrPollIntervalRef.current) {
-          if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
-          else clearInterval(qrPollIntervalRef.current);
-        }
-
-        if (!isUsingFallback) {
-          const unsubscribe = onSnapshot(docRef, async (snap) => {
-            if (snap.exists()) {
-              const snapData = snap.data();
-              if (snapData.paymentStatus === 'paid') {
-                unsubscribe();
-                qrPaymentPendingRef.current = false;
-                setUpiQrStatus('Payment received! Completing sale...');
-                setTimeout(async () => {
-                  setUpiQrPayment(null);
-                  setUpiQrStatus('');
-                  await executeSaleWrite('upi');
-                }, 1500);
-              }
-            }
-          }, (error) => {
-            console.error("Error listening to Cashfree order status in Firestore:", error);
-          });
-
-          qrPollIntervalRef.current = {
-            unsubscribe
-          };
-        }
-
-      } else {
-        // Static VPA QR Flow (Local QR code generation)
-        let qrImage = '';
-
-        try {
-          if (barSettings && barSettings.upi_vpa) {
-            const upiUri = `upi://pay?pa=${encodeURIComponent(barSettings.upi_vpa)}&pn=${encodeURIComponent(
-              barSettings.bar_name || ''
-            )}&am=${encodeURIComponent(Number(amount).toFixed(2))}&cu=INR&tn=${encodeURIComponent('Order ' + orderId)}`;
-            qrImage = await QRCode.toDataURL(upiUri, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
-          } else {
-            throw new Error("Automated UPI is disabled and no Merchant UPI VPA is configured.");
-          }
-        } catch (qrErr) {
-          console.error('Failed to generate local UPI QR:', qrErr);
-          throw qrErr;
-        }
-
-        setLoading(false);
-        qrPaymentPendingRef.current = true;
-        setUpiQrPayment({ orderId, amount, qrImageUrl: qrImage, isFallback: true, docId: null });
-        setUpiQrStatus('Scan QR to pay. Tap "I Have Paid" once done.');
-
-        if (qrPollIntervalRef.current) {
-          if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
-          else clearInterval(qrPollIntervalRef.current);
-        }
+      const db = getFirebaseDb();
+      if (!db) {
+        throw new Error("Firestore not configured. Cashfree integration requires Firestore.");
       }
+
+      const orderData = {
+        orderNumber: orderId,
+        customerName: isKiosk ? 'Kiosk Customer' : (customerName || 'Walk-in Customer'),
+        customerPhone: customerPhone || '',
+        tableNumber: isKiosk ? 'Kiosk' : 'Counter',
+        items: cart.map((item) => ({
+          productId: String(item.id),
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.price,
+          totalPrice: item.price * item.quantity,
+        })),
+        totalAmount: amount,
+        paymentMethod: 'upi',
+        paymentStatus: 'pending',
+        orderStatus: 'pending_acceptance',
+        createdAt: new Date(),
+      };
+
+      const docRef = await addDoc(collection(db, 'orders'), orderData);
+      console.log(`Created Cashfree-tracked Firestore order with ID: ${docRef.id}`);
+
+      let upiLink = '';
+
+      try {
+        const response = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount,
+            orderId,
+            phone: customerPhone || '9999999999',
+            name: isKiosk ? 'Kiosk Customer' : (customerName || 'Walk-in Customer')
+          }),
+        });
+        const data = await response.json();
+        if (data.success && data.upiLink) {
+          upiLink = data.upiLink;
+        } else {
+          console.warn('Cashfree UPI QR code initiation failed:', data.error);
+        }
+      } catch (fetchErr) {
+        console.warn('Failed to call Cashfree create-order endpoint:', fetchErr);
+      }
+
+      setLoading(false);
+
+      if (!upiLink) {
+        throw new Error("Failed to generate automated Cashfree payment QR code.");
+      }
+
+      let qrImage = '';
+      try {
+        qrImage = await QRCode.toDataURL(upiLink, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
+      } catch (qrErr) {
+        console.error('Failed to generate local UPI QR from link:', qrErr);
+        throw qrErr;
+      }
+
+      qrPaymentPendingRef.current = true;
+      setUpiQrPayment({ 
+        orderId, 
+        amount, 
+        qrImageUrl: qrImage, 
+        isFallback: false, 
+        docId: docRef.id 
+      });
+      setUpiQrStatus('Waiting for customer payment...');
+
+      if (qrPollIntervalRef.current) {
+        if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
+        else clearInterval(qrPollIntervalRef.current);
+      }
+
+      const unsubscribe = onSnapshot(docRef, async (snap) => {
+        if (snap.exists()) {
+          const snapData = snap.data();
+          if (snapData.paymentStatus === 'paid') {
+            unsubscribe();
+            qrPaymentPendingRef.current = false;
+            setUpiQrStatus('Payment received! Completing sale...');
+            setTimeout(async () => {
+              setUpiQrPayment(null);
+              setUpiQrStatus('');
+              await executeSaleWrite('upi');
+            }, 1500);
+          }
+        }
+      }, (error) => {
+        console.error("Error listening to Cashfree order status in Firestore:", error);
+      });
+
+      qrPollIntervalRef.current = {
+        unsubscribe
+      };
+
     } catch (err) {
       setLoading(false);
       setUpiQrPayment(null);
       setUpiQrStatus('');
       alert(
-        `Cannot create payment QR at:\n${relayUrl}\n\nError: ${err.message}`
+        `Cannot create Cashfree payment QR at:\n${relayUrl}\n\nError: ${err.message}`
       );
     }
   };
