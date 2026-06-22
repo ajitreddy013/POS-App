@@ -711,12 +711,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       setPaymentMethod(method);
     }
 
-    // Check if payment method is UPI and automated QR is enabled or direct VPA configured
-    const isUpiEnabled = barSettings && (
-      barSettings.razorpay_enabled === 1 || 
-      !!barSettings.upi_vpa
-    );
-    if (selectedMethod === 'upi' && isUpiEnabled) {
+    if (selectedMethod === 'upi') {
       await startUpiQrPayment(selectedMethod);
       return;
     }

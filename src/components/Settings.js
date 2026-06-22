@@ -37,7 +37,6 @@ const Settings = () => {
   const [isEditingBarInfo, setIsEditingBarInfo] = useState(false);
   const [isEditingEmailInfo, setIsEditingEmailInfo] = useState(false);
   const [isEditingWhatsappInfo, setIsEditingWhatsappInfo] = useState(false);
-  const [isEditingRazorpayInfo, setIsEditingRazorpayInfo] = useState(false);
   const [isEditingSecurity, setIsEditingSecurity] = useState(false);
   const [loading, setLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
@@ -397,7 +396,6 @@ const Settings = () => {
 
       setIsEditingBarInfo(false);
       setIsEditingWhatsappInfo(false);
-      setIsEditingRazorpayInfo(false);
       alert('Shop information saved successfully!');
     } catch (error) {
       // Failed to save bar settings
@@ -848,102 +846,6 @@ const Settings = () => {
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* UPI Payment Card */}
-      <div className="settings-card-modern" style={{ marginTop: '24px' }}>
-        <div className="settings-card-hdr">
-          <h2><CreditCard size={20} style={{ color: '#3399FF' }} /> UPI Payment Settings</h2>
-          <button 
-            onClick={() => setIsEditingRazorpayInfo(!isEditingRazorpayInfo)}
-            className="btn-modern btn-modern-secondary"
-          >
-            <Edit size={16} />
-            {isEditingRazorpayInfo ? 'Cancel' : 'Edit'}
-          </button>
-        </div>
-        <div className="settings-card-body-modern">
-          {isEditingRazorpayInfo ? (
-            <div className="form-grid-modern single-column">
-              <div className="form-group-modern">
-                <div 
-                  className="switch-wrapper" 
-                  onClick={() => {
-                    const nextVal = barSettings.razorpay_enabled ? 0 : 1;
-                    setBarSettings(prev => ({
-                      ...prev,
-                      razorpay_enabled: nextVal,
-                      upi_provider: 'cashfree'
-                    }));
-                  }}
-                >
-                  <div className={`switch-track ${barSettings.razorpay_enabled ? 'active' : ''}`}>
-                    <div className="switch-thumb"></div>
-                  </div>
-                  <span className="switch-label">Enable Automated Cashfree UPI QR Codes</span>
-                </div>
-                <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0', paddingLeft: '62px' }}>
-                  Generates payment QR codes dynamically using Cashfree gateway credentials.
-                </p>
-              </div>
-
-              <div className="form-group-modern" style={{ marginTop: '16px' }}>
-                <label className="form-label-modern" style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155' }}>Merchant UPI VPA (Direct UPI ID)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. merchant@okaxis"
-                  value={barSettings.upi_vpa || ''}
-                  onChange={(e) => handleBarSettingsChange('upi_vpa', e.target.value)}
-                  className="form-input-modern"
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: '8px',
-                    border: '1.5px solid #e2e8f0',
-                    fontSize: '0.9rem',
-                    outline: 'none'
-                  }}
-                />
-                <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0' }}>
-                  Optional. If provided, the app will generate a direct UPI QR locally, bypassing/falling back from the payment gateway.
-                </p>
-              </div>
-
-              <div className="form-group-modern" style={{ marginTop: '16px' }}>
-                <button 
-                  onClick={saveBarSettings}
-                  disabled={loading}
-                  className="btn-modern btn-modern-primary"
-                  style={{ width: 'fit-content' }}
-                >
-                  <Save size={16} />
-                  {loading ? 'Saving...' : 'Save Settings'}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="display-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div className="display-item">
-                <h4>Integration Status</h4>
-                <p style={{ marginTop: '6px' }}>
-                  {barSettings.razorpay_enabled === 1 ? (
-                    <span style={{ color: '#16a34a', fontWeight: '700' }}>
-                      ✓ Enabled (CASHFREE active)
-                    </span>
-                  ) : (
-                    <span style={{ color: '#ef4444', fontWeight: '700' }}>✗ Disabled (Manual QR only)</span>
-                  )}
-                </p>
-              </div>
-              <div className="display-item">
-                <h4>Merchant UPI VPA</h4>
-                <p style={{ marginTop: '6px', fontWeight: '600', color: '#334155' }}>
-                  {barSettings.upi_vpa || 'Not Configured'}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </>
