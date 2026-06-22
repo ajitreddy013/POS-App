@@ -566,6 +566,7 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       orderId: response.order_id,
       environment: cfEnv.toLowerCase() === 'production' ? 'production' : 'sandbox',
       upiLink: upiLink,
+      paymentLink: response.payment_link || '',
     });
   } catch (err) {
     console.error('Cashfree Order creation failed:', err.message);

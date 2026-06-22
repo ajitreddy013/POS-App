@@ -325,7 +325,11 @@ const CustomerMenu = () => {
         // 7. Determine checkout flow based on device & API availability (Cashfree only)
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
-        if (data.upiLink) {
+        if (data.paymentLink) {
+          setUpiQrLoading(true);
+          setUpiQrStatus('Redirecting to secure Cashfree payment screen...');
+          window.location.href = data.paymentLink;
+        } else if (data.upiLink) {
           if (isMobile) {
             // Trigger direct UPI Apps chooser overlay
             setUpiQrLoading(true);

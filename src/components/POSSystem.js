@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Search,
   Plus,
@@ -53,7 +53,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const [longPressActive, setLongPressActive] = useState(false);
   const longPressTimerRef = useRef(null);
 
-  const startLongPress = (e) => {
+  const logoRef = useRef(null);
+
+  const startLongPress = useCallback((e) => {
     if (e && e.cancelable) {
       e.preventDefault();
     }
@@ -68,14 +70,56 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       }
       setLongPressActive(false);
     }, 2000); // 2 seconds
-  };
+  }, [onOpenUnlockModal]);
 
-  const cancelLongPress = () => {
+  const cancelLongPress = useCallback(() => {
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
     }
     setLongPressActive(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    const el = logoRef.current;
+    if (!el) return;
+
+    const handleTouchStart = (e) => {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      startLongPress(e);
+    };
+
+    const handleTouchEnd = (e) => {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      cancelLongPress();
+    };
+
+    const handleTouchCancel = (e) => {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      cancelLongPress();
+    };
+
+    const handleContextMenu = (e) => {
+      e.preventDefault();
+    };
+
+    el.addEventListener('touchstart', handleTouchStart, { passive: false });
+    el.addEventListener('touchend', handleTouchEnd, { passive: false });
+    el.addEventListener('touchcancel', handleTouchCancel, { passive: false });
+    el.addEventListener('contextmenu', handleContextMenu);
+
+    return () => {
+      el.removeEventListener('touchstart', handleTouchStart);
+      el.removeEventListener('touchend', handleTouchEnd);
+      el.removeEventListener('touchcancel', handleTouchCancel);
+      el.removeEventListener('contextmenu', handleContextMenu);
+    };
+  }, [startLongPress, cancelLongPress]);
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -762,6 +806,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       console.log(`Created Cashfree-tracked Firestore order with ID: ${docRef.id}`);
 
       let upiLink = '';
+      let paymentLink = '';
 
       try {
         const response = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
@@ -775,8 +820,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           }),
         });
         const data = await response.json();
-        if (data.success && data.upiLink) {
-          upiLink = data.upiLink;
+        if (data.success) {
+          upiLink = data.upiLink || '';
+          paymentLink = data.paymentLink || '';
         } else {
           console.warn('Cashfree UPI QR code initiation failed:', data.error);
         }
@@ -786,13 +832,15 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
       setLoading(false);
 
-      if (!upiLink) {
+      if (!upiLink && !paymentLink) {
         throw new Error("Failed to generate automated Cashfree payment QR code.");
       }
 
       let qrImage = '';
       try {
-        qrImage = await QRCode.toDataURL(upiLink, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
+        // Point the QR code to the official Cashfree hosted checkout page so the customer gets all options
+        const qrTarget = paymentLink || upiLink;
+        qrImage = await QRCode.toDataURL(qrTarget, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
       } catch (qrErr) {
         console.error('Failed to generate local UPI QR from link:', qrErr);
         throw qrErr;
@@ -975,16 +1023,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               }}
             >
               <div
+                ref={logoRef}
                 onMouseDown={startLongPress}
                 onMouseUp={cancelLongPress}
                 onMouseLeave={cancelLongPress}
-                onTouchStart={startLongPress}
-                onTouchEnd={cancelLongPress}
-                onTouchCancel={cancelLongPress}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  return false;
-                }}
                 style={{
                   height: '36px',
                   width: '36px',
