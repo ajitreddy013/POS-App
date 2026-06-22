@@ -539,13 +539,19 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
     console.log(`Creating Cashfree Order for ${orderId}, Amount: ${payload.order_amount}`);
     const response = await cashfreeRequest('POST', '/orders', payload);
 
+    const isProd = cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
+    const paymentLink = response.payment_link || 
+      (isProd 
+        ? `https://payments.cashfree.com/order/#${response.payment_session_id}`
+        : `https://payments-test.cashfree.com/order/#${response.payment_session_id}`);
+
     res.json({
       success: true,
       paymentSessionId: response.payment_session_id,
       orderId: response.order_id,
       environment: cfEnv.toLowerCase() === 'production' ? 'production' : 'sandbox',
       upiLink: '',
-      paymentLink: response.payment_link || '',
+      paymentLink: paymentLink,
     });
   } catch (err) {
     console.error('Cashfree Order creation failed:', err.message);
