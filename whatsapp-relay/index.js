@@ -548,13 +548,11 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
     const isProd = cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
 
     // Use the payment_link directly from Cashfree API response (most reliable)
-    // Fallback: construct the correct Cashfree hosted checkout URL
-    // NOTE: The URL must use query param format (?payment_session_id=...) NOT hash (#session_...)
-    // Using hash causes "client session invalid" error on the Cashfree page
+    // Fallback: construct the correct Cashfree hosted checkout URL using hash (#) format
     const paymentLink = response.payment_link || 
       (isProd 
-        ? `https://payments.cashfree.com/order?payment_session_id=${response.payment_session_id}`
-        : `https://payments-test.cashfree.com/order?payment_session_id=${response.payment_session_id}`);
+        ? `https://payments.cashfree.com/order/#${response.payment_session_id}`
+        : `https://payments-test.cashfree.com/order/#${response.payment_session_id}`);
 
     console.log(`Cashfree Order ${response.order_id} created. Payment link: ${paymentLink}`);
 
@@ -562,7 +560,7 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       success: true,
       paymentSessionId: response.payment_session_id,
       orderId: response.order_id,
-      environment: cfEnv.toLowerCase() === 'production' ? 'production' : 'sandbox',
+      environment: isProd ? 'production' : 'sandbox',
       upiLink: '',
       paymentLink: paymentLink,
     });

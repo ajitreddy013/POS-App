@@ -334,7 +334,21 @@ const CustomerMenu = () => {
           }
         } else {
           // ── WEB / MOBILE MODE: redirect to Cashfree hosted payment page ──
-          // The Cashfree hosted page shows UPI apps, cards, wallets natively — no SDK needed.
+          if (window.Cashfree) {
+            try {
+              const cashfree = window.Cashfree({
+                mode: data.environment || 'sandbox'
+              });
+              setUpiQrStatus('Launching secure payment checkout...');
+              await cashfree.checkout({
+                paymentSessionId: data.paymentSessionId,
+                redirectTarget: '_self'
+              });
+              return;
+            } catch (sdkErr) {
+              console.warn('Cashfree SDK checkout failed, falling back to direct URL redirect:', sdkErr);
+            }
+          }
           if (!data.paymentLink) {
             throw new Error('No payment link received from server. Please try again.');
           }

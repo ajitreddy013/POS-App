@@ -294,10 +294,30 @@ const CustomerMenu = () => {
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Failed to create payment. Please try again.');
 
-        // 3. Clear cart and redirect to Cashfree hosted payment page
+        // 3. Clear cart locally
         setCart({});
-        if (!data.paymentLink) throw new Error('No payment link from server. Please try again.');
-        window.location.href = data.paymentLink;
+
+        // 4. Initialize Cashfree SDK and launch hosted checkout
+        if (window.Cashfree) {
+          try {
+            const cashfree = window.Cashfree({
+              mode: data.environment || 'sandbox'
+            });
+            await cashfree.checkout({
+              paymentSessionId: data.paymentSessionId,
+              redirectTarget: '_self'
+            });
+            console.log('Successfully launched Cashfree SDK checkout.');
+          } catch (sdkErr) {
+            console.warn('Cashfree SDK checkout failed, falling back to direct URL redirection:', sdkErr);
+            if (!data.paymentLink) throw new Error('No payment link received from server. Please try again.');
+            window.location.href = data.paymentLink;
+          }
+        } else {
+          console.warn('Cashfree SDK not loaded, falling back to direct URL redirection.');
+          if (!data.paymentLink) throw new Error('No payment link received from server. Please try again.');
+          window.location.href = data.paymentLink;
+        }
       } else {
         // Cash payment
         const orderData = {
