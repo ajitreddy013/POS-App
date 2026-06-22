@@ -425,6 +425,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   };
 
   const isVeg = (product) => {
+    if (product.dietary_type) {
+      return product.dietary_type === 'veg';
+    }
     const name = (product.name || '').toLowerCase();
     const cat = (product.category || '').toLowerCase();
     if (

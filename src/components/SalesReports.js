@@ -401,7 +401,6 @@ const SalesReports = () => {
           <button
             onClick={exportSalesReportPDF}
             className="reports-btn-download-icon"
-            disabled={sales.length === 0}
             title="Download Report PDF"
             style={{ margin: 0 }}
           >

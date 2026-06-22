@@ -10,6 +10,7 @@ const ProductManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
     loadProducts();
@@ -45,6 +46,20 @@ const ProductManagement = () => {
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const fileInputRef = useRef(null);
+    const [showCatDropdown, setShowCatDropdown] = useState(false);
+    const catContainerRef = useRef(null);
+
+    useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (catContainerRef.current && !catContainerRef.current.contains(event.target)) {
+          setShowCatDropdown(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }, []);
 
     const handleImageChange = (e) => {
       const file = e.target.files[0];
@@ -687,90 +702,118 @@ const ProductManagement = () => {
         className="page-header"
         style={{
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '20px',
-          padding: '24px 30px',
+          flexDirection: 'column',
+          gap: '12px',
+          padding: '16px 20px',
           background: '#ffffff',
           borderBottom: '2px solid #f3f4f6',
-          minHeight: '100px',
         }}
       >
-        <button
-          onClick={() => setShowModal(true)}
-          className="btn btn-primary"
-          style={{
-            whiteSpace: 'nowrap',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            padding: '14px 24px',
-            fontSize: '1.1rem',
-            fontWeight: '600',
-            borderRadius: '10px',
-            background: '#ef4444',
-            color: 'white',
-            border: 'none',
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
-            transition: 'all 0.2s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#dc2626';
-            e.currentTarget.style.boxShadow =
-              '0 6px 16px rgba(239, 68, 68, 0.4)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = '#ef4444';
-            e.currentTarget.style.boxShadow =
-              '0 4px 12px rgba(239, 68, 68, 0.3)';
-          }}
-        >
-          <Plus size={28} />
-          Add Product
-        </button>
-
-        <div
-          className="search-input-container"
-          style={{
-            flex: 1,
-            minWidth: '250px',
-            maxWidth: '600px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            background: '#f8fafc',
-            padding: '12px 16px',
-            borderRadius: '10px',
-            border: '2px solid #e2e8f0',
-            transition: 'all 0.2s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = '#ef4444';
-            e.currentTarget.style.background = '#fff5f5';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = '#e2e8f0';
-            e.currentTarget.style.background = '#f8fafc';
-          }}
-        >
-          <Search size={24} style={{ color: '#64748b', flexShrink: 0 }} />
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+        <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+          <button
+            onClick={() => setShowSearch(!showSearch)}
             style={{
               flex: 1,
-              border: 'none',
-              background: 'transparent',
-              fontSize: '1.05rem',
-              padding: '8px 0',
-              outline: 'none',
-              color: '#1f2937',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '12px 16px',
+              fontSize: '1rem',
+              fontWeight: '600',
+              borderRadius: '10px',
+              background: showSearch ? '#ef4444' : '#fffdf8',
+              color: showSearch ? 'white' : '#221f1a',
+              border: '1px solid #e6ded3',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
             }}
-          />
+          >
+            <Search size={20} />
+            Search
+          </button>
+
+          <button
+            onClick={() => {
+              setEditingProduct(null);
+              setShowModal(true);
+            }}
+            className="btn btn-primary"
+            style={{
+              flex: 1,
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '12px 16px',
+              fontSize: '1rem',
+              fontWeight: '600',
+              borderRadius: '10px',
+              background: '#ef4444',
+              color: 'white',
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <Plus size={20} />
+            Add Product
+          </button>
         </div>
+
+        {/* Expandable Search Input Row */}
+        {showSearch && (
+          <div
+            className="search-input-container"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              background: '#f8fafc',
+              padding: '10px 16px',
+              borderRadius: '10px',
+              border: '2px solid #ef4444',
+              transition: 'all 0.2s ease',
+              width: '100%',
+            }}
+          >
+            <Search size={20} style={{ color: '#ef4444', flexShrink: 0 }} />
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                flex: 1,
+                border: 'none',
+                background: 'transparent',
+                fontSize: '1rem',
+                padding: '6px 0',
+                outline: 'none',
+                color: '#1f2937',
+              }}
+              autoFocus
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  fontSize: '1.2rem',
+                  fontWeight: 'bold',
+                  padding: '0 4px',
+                }}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Products Grid / Cards */}

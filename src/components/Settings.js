@@ -331,6 +331,8 @@ const Settings = () => {
           price: Number(p.price) || 0,
           category: p.category || "General",
           image: p.image || "",
+          description: p.description || "",
+          dietary_type: p.dietary_type || "veg",
           available: true
         });
       });

@@ -146,6 +146,9 @@ const CustomerMenu = () => {
 
   // Veg/Non-veg detection
   const isVeg = (product) => {
+    if (product.dietary_type) {
+      return product.dietary_type === 'veg';
+    }
     const n = (product.name || '').toLowerCase();
     const d = (product.description || '').toLowerCase();
     const nonVegKeywords = ['chicken', 'mutton', 'fish', 'egg', 'meat', 'prawn', 'shrimp', 'beef', 'pork', 'lamb'];
