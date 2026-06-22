@@ -293,7 +293,14 @@ const CustomerMenu = () => {
         const res = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount: totalAmount, orderId: orderNumber, phone, name, returnUrl }),
+          body: JSON.stringify({
+            amount: totalAmount,
+            orderId: orderNumber,
+            phone,
+            name,
+            returnUrl,
+            isKiosk: tableNumber.toLowerCase() === 'kiosk'
+          }),
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Failed to generate payment session.');

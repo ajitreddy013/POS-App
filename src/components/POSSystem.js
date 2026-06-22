@@ -816,7 +816,8 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
             amount,
             orderId,
             phone: customerPhone || '9999999999',
-            name: isKiosk ? 'Kiosk Customer' : (customerName || 'Walk-in Customer')
+            name: isKiosk ? 'Kiosk Customer' : (customerName || 'Walk-in Customer'),
+            isKiosk: isKiosk
           }),
         });
         const data = await response.json();

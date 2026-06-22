@@ -490,7 +490,7 @@ function cashfreeRequest(method, path, body) {
 
 // Create Cashfree PG Order
 app.post('/payment/cashfree/create-order', async (req, res) => {
-  const { amount, orderId, phone, name } = req.body;
+  const { amount, orderId, phone, name, isKiosk } = req.body;
   const cfClientId = process.env.CASHFREE_CLIENT_ID;
   const cfClientSecret = process.env.CASHFREE_CLIENT_SECRET;
   const cfEnv = process.env.CASHFREE_ENV || 'TEST';
@@ -531,9 +531,23 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       }
     };
 
-    // If checkout is from customer website (has returnUrl), allow all methods.
-    // Otherwise (Kiosk/Counter app), restrict to UPI.
-    if (!req.body.returnUrl) {
+    // If Kiosk Mode, restrict exclusively to UPI QR code to prevent showing UPI apps on the Kiosk tablet.
+    // Otherwise, if Counter Mode (no returnUrl), restrict to general UPI (apps + QR) since scanned on customer's phone.
+    // If Customer Website (has returnUrl), do not apply filters (allows all methods like cards, wallets, UPI).
+    if (isKiosk) {
+      payload.payment_methods_filters = {
+        methods: {
+          action: 'ALLOW',
+          values: ['upi']
+        },
+        filters: {
+          upi: {
+            action: 'ALLOW',
+            values: ['upi_qr']
+          }
+        }
+      };
+    } else if (!req.body.returnUrl) {
       payload.payment_methods_filters = {
         methods: {
           action: 'ALLOW',
