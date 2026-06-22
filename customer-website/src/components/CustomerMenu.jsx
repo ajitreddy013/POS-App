@@ -319,46 +319,58 @@ const CustomerMenu = () => {
           }
         });
 
-        // 7. Determine checkout flow based on device
+        // 7. Determine checkout flow based on device & API availability
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
-        if (isMobile) {
-          // Trigger direct UPI Apps chooser overlay (requires whitelisted domain)
-          setUpiQrLoading(true);
-          setUpiQrStatus('Redirecting to your UPI apps...');
+        if (data.upiLink) {
+          if (isMobile) {
+            // Trigger direct UPI Apps chooser overlay (requires whitelisted domain)
+            setUpiQrLoading(true);
+            setUpiQrStatus('Redirecting to your UPI apps...');
 
-          if (window.Cashfree) {
-            try {
-              const cashfree = window.Cashfree({
-                mode: data.environment || 'sandbox'
-              });
-              await cashfree.pay({
-                paymentSessionId: data.paymentSessionId,
-                paymentMethod: {
-                  upi: {
-                    channel: 'link'
+            if (window.Cashfree) {
+              try {
+                const cashfree = window.Cashfree({
+                  mode: data.environment || 'sandbox'
+                });
+                await cashfree.pay({
+                  paymentSessionId: data.paymentSessionId,
+                  paymentMethod: {
+                    upi: {
+                      channel: 'link'
+                    }
                   }
-                }
-              });
-              console.log('Successfully launched Cashfree direct UPI apps overlay.');
-            } catch (sdkErr) {
-              console.warn('Cashfree SDK direct pay failed, falling back to direct redirect:', sdkErr);
-              if (data.upiLink) {
+                });
+                console.log('Successfully launched Cashfree direct UPI apps overlay.');
+              } catch (sdkErr) {
+                console.warn('Cashfree SDK direct pay failed, falling back to direct redirect:', sdkErr);
                 window.location.href = data.upiLink;
               }
+            } else {
+              window.location.href = data.upiLink;
             }
-          } else if (data.upiLink) {
-            window.location.href = data.upiLink;
-          }
 
-          // Provide status updates in case user returns to browser
-          setTimeout(() => {
-            setUpiQrStatus('Waiting for payment confirmation. Please complete payment in your UPI app...');
-          }, 3000);
+            // Provide status updates in case user returns to browser
+            setTimeout(() => {
+              setUpiQrStatus('Waiting for payment confirmation. Please complete payment in your UPI app...');
+            }, 3000);
+          } else {
+            // On Desktop, show the local QR code overlay directly!
+            setUpiQrLoading(true);
+            setUpiQrStatus('Waiting for payment...');
+          }
         } else {
-          // On Desktop, show the local QR code overlay directly!
-          setUpiQrLoading(true);
-          setUpiQrStatus('Waiting for payment...');
+          // If no upiLink (seamless API is not approved yet on Cashfree), fall back to hosted checkout in a modal
+          if (!window.Cashfree) {
+            throw new Error('Cashfree SDK is not loaded. Please try again.');
+          }
+          const cashfree = window.Cashfree({
+            mode: data.environment || 'sandbox'
+          });
+          await cashfree.checkout({
+            paymentSessionId: data.paymentSessionId,
+            redirectTarget: '_modal' // Opens in a modal overlay on top of our website
+          });
         }
       } else {
         // Cash payment
