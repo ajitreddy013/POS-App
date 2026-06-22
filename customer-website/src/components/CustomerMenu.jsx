@@ -294,7 +294,7 @@ const CustomerMenu = () => {
         setCfSessionId(data.paymentSessionId);
         setCfEnv(data.environment || 'sandbox');
 
-        // 5. Generate and set QR code data URL
+        // 5. Generate and set QR code data URL (using Cashfree link only)
         if (data.upiLink) {
           try {
             const qrUrl = await QRCode.toDataURL(data.upiLink);
@@ -319,12 +319,12 @@ const CustomerMenu = () => {
           }
         });
 
-        // 7. Determine checkout flow based on device & API availability
+        // 7. Determine checkout flow based on device & API availability (Cashfree only)
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
         if (data.upiLink) {
           if (isMobile) {
-            // Trigger direct UPI Apps chooser overlay (requires whitelisted domain)
+            // Trigger direct UPI Apps chooser overlay
             setUpiQrLoading(true);
             setUpiQrStatus('Redirecting to your UPI apps...');
 
@@ -360,7 +360,7 @@ const CustomerMenu = () => {
             setUpiQrStatus('Waiting for payment...');
           }
         } else {
-          // If no upiLink (seamless API is not approved yet on Cashfree), fall back to hosted checkout in a modal
+          // If no upiLink (seamless API is not approved yet on Cashfree), redirect to standard hosted checkout page
           if (!window.Cashfree) {
             throw new Error('Cashfree SDK is not loaded. Please try again.');
           }
@@ -369,7 +369,7 @@ const CustomerMenu = () => {
           });
           await cashfree.checkout({
             paymentSessionId: data.paymentSessionId,
-            redirectTarget: '_modal' // Opens in a modal overlay on top of our website
+            redirectTarget: '_self' // Redirects to Cashfree hosted checkout page in the same tab
           });
         }
       } else {
