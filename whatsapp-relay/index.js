@@ -97,7 +97,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-23-cashfree-fix-url';
+const relayVersion = '2026-06-23-cashfree-direct-kiosk-desktop';
 
 app.use(cors());
 app.use(express.json());
@@ -429,7 +429,7 @@ app.post('/logout', async (req, res) => {
 // --- PAYMENT INTEGRATION ---
 
 // Helper to make authenticated requests to Cashfree
-function cashfreeRequest(method, path, body) {
+function cashfreeRequest(method, path, body, clientHeaders = {}) {
   return new Promise((resolve, reject) => {
     const clientId = process.env.CASHFREE_CLIENT_ID;
     const clientSecret = process.env.CASHFREE_CLIENT_SECRET;
@@ -452,9 +452,9 @@ function cashfreeRequest(method, path, body) {
         'x-api-version': '2023-08-01',
         'x-client-id': clientId,
         'x-client-secret': clientSecret,
-        'x-client-device': 'mobile',
-        'x-client-os': 'android',
-        'x-client-rendering-type': 'mweb',
+        'x-client-device': clientHeaders['x-client-device'] || 'mobile',
+        'x-client-os': clientHeaders['x-client-os'] || 'android',
+        'x-client-rendering-type': clientHeaders['x-client-rendering-type'] || 'mweb',
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(data),
       },
@@ -545,16 +545,35 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       };
     }
 
+    // Set desktop device headers for Kiosk Mode checkouts to force QR code view by default on Cashfree
+    let clientHeaders = {};
+    if (isKiosk === true) {
+      clientHeaders = {
+        'x-client-device': 'desktop',
+        'x-client-os': 'windows',
+        'x-client-rendering-type': 'web'
+      };
+    }
+
     console.log(`Creating Cashfree Order for ${orderId}, Amount: ${payload.order_amount}`);
-    const response = await cashfreeRequest('POST', '/orders', payload);
+    const response = await cashfreeRequest('POST', '/orders', payload, clientHeaders);
 
     const isProd = cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
 
-    // Construct the checkout redirect link pointing to our customer website's SDK checkout page
-    const webBase = req.body.returnUrl 
-      ? new URL(req.body.returnUrl).origin 
-      : (req.headers.origin || 'https://counterflow-kiosk.web.app');
-    const paymentLink = `${webBase}/#/checkout?sessionId=${response.payment_session_id}&env=${isProd ? 'production' : 'sandbox'}`;
+    // Determine the payment redirect link
+    let paymentLink;
+    if (isKiosk !== undefined) {
+      // Direct Cashfree hosted payment page for POS app (Kiosk or Counter) to bypass customer website flow
+      paymentLink = isProd
+        ? `https://payments.cashfree.com/order?payment_session_id=${response.payment_session_id}`
+        : `https://payments-test.cashfree.com/order?payment_session_id=${response.payment_session_id}`;
+    } else {
+      // Customer Website SDK checkout page fallback
+      const webBase = req.body.returnUrl 
+        ? new URL(req.body.returnUrl).origin 
+        : (req.headers.origin || 'https://counterflow-kiosk.web.app');
+      paymentLink = `${webBase}/#/checkout?sessionId=${response.payment_session_id}&env=${isProd ? 'production' : 'sandbox'}`;
+    }
 
     console.log(`Cashfree Order ${response.order_id} created. Payment link: ${paymentLink}`);
 
