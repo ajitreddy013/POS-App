@@ -550,12 +550,11 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
 
     const isProd = cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
 
-    // Use the payment_link directly from Cashfree API response (most reliable)
-    // Fallback: construct the correct Cashfree hosted checkout URL using query parameters
-    const paymentLink = response.payment_link || 
-      (isProd 
-        ? `https://payments.cashfree.com/order?payment_session_id=${response.payment_session_id}`
-        : `https://payments-test.cashfree.com/order?payment_session_id=${response.payment_session_id}`);
+    // Construct the checkout redirect link pointing to our customer website's SDK checkout page
+    const webBase = req.body.returnUrl 
+      ? new URL(req.body.returnUrl).origin 
+      : (req.headers.origin || 'https://counterflow-kiosk.web.app');
+    const paymentLink = `${webBase}/#/checkout?sessionId=${response.payment_session_id}&env=${isProd ? 'production' : 'sandbox'}`;
 
     console.log(`Cashfree Order ${response.order_id} created. Payment link: ${paymentLink}`);
 
