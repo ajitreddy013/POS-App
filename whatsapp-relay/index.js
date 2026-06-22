@@ -531,23 +531,9 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       }
     };
 
-    // If Kiosk Mode, restrict exclusively to UPI QR code to prevent showing UPI apps on the Kiosk tablet.
-    // Otherwise, if Counter Mode (no returnUrl), restrict to general UPI (apps + QR) since scanned on customer's phone.
+    // If Kiosk/Counter Mode, restrict to UPI.
     // If Customer Website (has returnUrl), do not apply filters (allows all methods like cards, wallets, UPI).
-    if (isKiosk) {
-      payload.payment_methods_filters = {
-        methods: {
-          action: 'ALLOW',
-          values: ['upi']
-        },
-        filters: {
-          upi: {
-            action: 'ALLOW',
-            values: ['upi_qr']
-          }
-        }
-      };
-    } else if (!req.body.returnUrl) {
+    if (isKiosk || !req.body.returnUrl) {
       payload.payment_methods_filters = {
         methods: {
           action: 'ALLOW',
