@@ -97,7 +97,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-23-cashfree-direct-kiosk-desktop-v3';
+const relayVersion = '2026-06-23-cashfree-direct-kiosk-desktop-v4';
 
 app.use(cors());
 app.use(express.json());
@@ -534,8 +534,7 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       }
     };
 
-    // Temporarily disabled payment_methods_filters to diagnose 500 error on hosted page
-    /*
+    // If Kiosk/Counter Mode, restrict to UPI (using correct order_meta nested structure)
     if (isKiosk || !req.body.returnUrl) {
       payload.order_meta.payment_methods_filters = {
         methods: {
@@ -544,7 +543,6 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
         }
       };
     }
-    */
 
     // Set desktop device headers for Kiosk Mode checkouts to force QR code view by default on Cashfree
     let clientHeaders = {};
@@ -565,9 +563,10 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
     let paymentLink;
     if (isKiosk !== undefined) {
       // Direct Cashfree hosted payment page for POS app (Kiosk or Counter) to bypass customer website flow
+      // Use correct Sapper hash-based session URL format to prevent server-side 500 router errors
       paymentLink = isProd
-        ? `https://payments.cashfree.com/order?payment_session_id=${response.payment_session_id}`
-        : `https://payments-test.cashfree.com/order?payment_session_id=${response.payment_session_id}`;
+        ? `https://payments.cashfree.com/order/#/session/${response.payment_session_id}`
+        : `https://payments-test.cashfree.com/order/#/session/${response.payment_session_id}`;
     } else {
       // Customer Website SDK checkout page fallback
       const webBase = req.body.returnUrl 
