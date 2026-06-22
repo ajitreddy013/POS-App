@@ -528,6 +528,10 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
         return_url: `${req.headers.origin || 'https://counterflow-kiosk.web.app'}/?payment=success&orderId=${orderId}`,
         notify_url: 'https://pos-app-nqsm.onrender.com/payment/cashfree/webhook',
       },
+      order_note: `Order ${orderId}`,
+      order_tags: {
+        order_number: String(orderId)
+      },
       payment_methods_filters: {
         methods: {
           action: 'ALLOW',
