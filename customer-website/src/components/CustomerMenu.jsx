@@ -243,14 +243,12 @@ const CustomerMenu = () => {
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     if (cartItemsList.length === 0) return;
-    
+
     const cleanPhone = phone.replace(/\D/g, '');
     if (!phone.trim() || cleanPhone.length < 10) {
       setPhoneWarning('Please enter a valid 10-digit WhatsApp number!');
       setTimeout(() => setPhoneWarning(''), 3000);
-      if (phoneInputRef.current) {
-        phoneInputRef.current.focus();
-      }
+      if (phoneInputRef.current) phoneInputRef.current.focus();
       return;
     }
     setPhoneWarning('');
@@ -273,22 +271,20 @@ const CustomerMenu = () => {
 
     try {
       if (paymentMethod === 'upi') {
-        setUpiQrLoading(true);
-        setUpiQrStatus('Initiating secure payment checkout...');
+      // ── UPI PAYMENT: Save order → get Cashfree link → redirect ──
+        setUpiQrStatus('Creating your order...');
 
-        // 1. Create order in Firestore as pending
+        // 1. Save order to Firestore (pending)
         const orderData = {
           orderNumber, customerName: name, customerPhone: phone, tableNumber,
           items: cartItemsList.map((item) => ({ productId: String(item.id), name: item.name, quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity })),
-          totalAmount,
-          discountAmount: 0,
+          totalAmount, discountAmount: 0,
           paymentMethod, paymentStatus: 'pending', orderStatus: 'pending_acceptance', createdAt: serverTimestamp(),
         };
-        const docRef = await addDoc(collection(db, 'orders'), orderData);
+        await addDoc(collection(db, 'orders'), orderData);
 
-        // 2. Initiate Cashfree checkout session
+        // 2. Get Cashfree payment link from backend
         const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-
         const returnUrl = `${window.location.origin}${window.location.pathname}?payment=success&orderId=${orderNumber}`;
         const res = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
           method: 'POST',
@@ -296,54 +292,12 @@ const CustomerMenu = () => {
           body: JSON.stringify({ amount: totalAmount, orderId: orderNumber, phone, name, returnUrl }),
         });
         const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Failed to generate payment session.');
+        if (!data.success) throw new Error(data.error || 'Failed to create payment. Please try again.');
 
-        // 3. Clear cart locally
+        // 3. Clear cart and redirect to Cashfree hosted payment page
         setCart({});
-
-        // 4. Save session info in state
-        setCfSessionId(data.paymentSessionId);
-        setCfEnv(data.environment || 'sandbox');
-
-        // 5. Listen to Firestore for payment success (for Kiosk QR flow)
-        const unsubscribe = onSnapshot(doc(db, 'orders', docRef.id), (snap) => {
-          if (snap.exists()) {
-            const currentData = snap.data();
-            if (currentData.paymentStatus === 'paid') {
-              unsubscribe();
-              setUpiQrLoading(false);
-              setUpiQrStatus('');
-              setUpiQrCodeDataUrl('');
-              setOrderSuccess(orderNumber);
-              setActiveTab('menu');
-            }
-          }
-        });
-
-        // 6. Route: Kiosk shows QR, Web/Mobile redirects to Cashfree hosted page
-        if (tableNumber.toLowerCase() === 'kiosk') {
-          // ── KIOSK MODE: show scannable QR on the tablet screen ──
-          if (data.paymentLink) {
-            try {
-              const qrUrl = await QRCode.toDataURL(data.paymentLink, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
-              setUpiQrCodeDataUrl(qrUrl);
-              setUpiQrLoading(true);
-              setUpiQrStatus('Scan the QR code to pay');
-              return; // Stop — do not redirect the kiosk tablet!
-            } catch (qrErr) {
-              console.error('Error generating Kiosk QR code URL:', qrErr);
-            }
-          }
-        } else {
-          // ── WEB / MOBILE MODE: redirect to Cashfree hosted payment page ──
-          // The Cashfree hosted page shows UPI apps, cards, wallets natively — no SDK needed.
-          if (!data.paymentLink) {
-            throw new Error('No payment link received from server. Please try again.');
-          }
-          setUpiQrStatus('Redirecting to secure payment page...');
-          window.location.href = data.paymentLink;
-          return;
-        }
+        if (!data.paymentLink) throw new Error('No payment link from server. Please try again.');
+        window.location.href = data.paymentLink;
       } else {
         // Cash payment
         const orderData = {
