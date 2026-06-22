@@ -97,7 +97,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-23-cashfree-direct-kiosk-desktop';
+const relayVersion = '2026-06-23-cashfree-direct-kiosk-desktop-v2';
 
 app.use(cors());
 app.use(express.json());
@@ -534,10 +534,8 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       }
     };
 
-    // If Kiosk/Counter Mode, restrict to UPI.
-    // If Customer Website (has returnUrl), do not apply filters (allows all methods like cards, wallets, UPI).
     if (isKiosk || !req.body.returnUrl) {
-      payload.payment_methods_filters = {
+      payload.order_meta.payment_methods_filters = {
         methods: {
           action: 'ALLOW',
           values: ['upi']
