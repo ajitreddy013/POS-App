@@ -97,7 +97,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-23-cashfree-direct-kiosk-desktop-v4';
+const relayVersion = '2026-06-23-cashfree-align-checkout-sdk';
 
 app.use(cors());
 app.use(express.json());
@@ -559,21 +559,11 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
 
     const isProd = cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
 
-    // Determine the payment redirect link
-    let paymentLink;
-    if (isKiosk !== undefined) {
-      // Direct Cashfree hosted payment page for POS app (Kiosk or Counter) to bypass customer website flow
-      // Use correct Sapper hash-based session URL format to prevent server-side 500 router errors
-      paymentLink = isProd
-        ? `https://payments.cashfree.com/order/#/session/${response.payment_session_id}`
-        : `https://payments-test.cashfree.com/order/#/session/${response.payment_session_id}`;
-    } else {
-      // Customer Website SDK checkout page fallback
-      const webBase = req.body.returnUrl 
-        ? new URL(req.body.returnUrl).origin 
-        : (req.headers.origin || 'https://counterflow-kiosk.web.app');
-      paymentLink = `${webBase}/#/checkout?sessionId=${response.payment_session_id}&env=${isProd ? 'production' : 'sandbox'}`;
-    }
+    // Construct the checkout redirect link pointing to our customer website's SDK checkout page
+    const webBase = req.body.returnUrl 
+      ? new URL(req.body.returnUrl).origin 
+      : (req.headers.origin || 'https://counterflow-kiosk.web.app');
+    const paymentLink = `${webBase}/#/checkout?sessionId=${response.payment_session_id}&env=${isProd ? 'production' : 'sandbox'}`;
 
     console.log(`Cashfree Order ${response.order_id} created. Payment link: ${paymentLink}`);
 
