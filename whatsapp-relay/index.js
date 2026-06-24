@@ -97,7 +97,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-24-kiosk-browser-payment-v1';
+const relayVersion = '2026-06-24-kiosk-browser-payment-v2';
 
 app.use(cors());
 app.use(express.json());
@@ -655,10 +655,14 @@ app.post('/payment/cashfree/kiosk-order', async (req, res) => {
 
     console.log(`[Kiosk Order] Creating Cashfree order for POS #${orderId}, CF ID: ${cfOrderId}`);
     const order = await cashfreeRequest('POST', '/orders', payload, clientHeaders);
+    console.log(`[Kiosk Order] CF order response keys: ${Object.keys(order).join(', ')}`);
+    console.log(`[Kiosk Order] payment_link: ${order.payment_link}, session: ${order.payment_session_id}`);
 
-    const hostedUrl = isProd
-      ? `https://payments.cashfree.com/order/#${order.payment_session_id}`
-      : `https://sandbox.cashfree.com/order/#${order.payment_session_id}`;
+    // Use Cashfree's own payment_link if present, otherwise construct from session ID
+    const hostedUrl = order.payment_link
+      || (isProd
+        ? `https://payments.cashfree.com/order/#${order.payment_session_id}`
+        : `https://sandbox.cashfree.com/order/#${order.payment_session_id}`);
 
     console.log(`[Kiosk Order] Hosted URL: ${hostedUrl}`);
 
