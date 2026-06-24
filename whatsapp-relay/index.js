@@ -97,7 +97,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-24-cashfree-upi-qr-inapp-v4';
+const relayVersion = '2026-06-24-cashfree-upi-qr-inapp-v5';
 
 app.use(cors());
 app.use(express.json());
@@ -666,11 +666,13 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
   console.log('Cashfree Webhook received event:', payload.type);
 
   if (payload.type === 'PAYMENT_SUCCESS_WEBHOOK') {
-    const orderNumber = payload.data.order.order_id;
-    console.log(`Cashfree Webhook: Payment success event for Order #${orderNumber}`);
+    const cfOrderId = payload.data.order.order_id;
+    // Use order_tags.order_number (the POS sale number) if present; fallback to raw Cashfree order_id
+    const orderNumber = payload.data.order.order_tags?.order_number || cfOrderId;
+    console.log(`Cashfree Webhook: Payment success event for CF Order ${cfOrderId}, POS Order #${orderNumber}`);
 
     try {
-      const orderDetails = await cashfreeRequest('GET', `/orders/${orderNumber}`);
+      const orderDetails = await cashfreeRequest('GET', `/orders/${cfOrderId}`);
       console.log(`Cashfree Active Verification for Order #${orderNumber}: status = ${orderDetails.order_status}`);
 
       if (orderDetails.order_status === 'PAID') {
