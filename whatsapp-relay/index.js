@@ -97,7 +97,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-24-cashfree-upi-qr-inapp-v5';
+const relayVersion = '2026-06-24-kiosk-browser-payment-v1';
 
 app.use(cors());
 app.use(express.json());
@@ -581,6 +581,97 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       success: false,
       error: err.message || 'Failed to create Cashfree Order.',
     });
+  }
+});
+
+// Payment-done landing page — Cashfree return_url for kiosk browser payments
+app.get('/payment-done', (req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Successful</title>
+  <style>
+    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center;
+           justify-content: center; min-height: 100vh; margin: 0; background: #f0fdf4; color: #166534; }
+    .icon { font-size: 64px; margin-bottom: 16px; }
+    h1 { font-size: 1.6rem; margin: 0 0 8px; }
+    p { color: #4b5563; font-size: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="icon">✅</div>
+  <h1>Payment Successful!</h1>
+  <p>Please return to the POS app to complete your order.</p>
+</body>
+</html>`);
+});
+
+// Kiosk hosted payment — creates Cashfree order, returns native Cashfree hosted page URL
+// App opens this URL in the external browser; webhook confirms payment via Firestore.
+app.post('/payment/cashfree/kiosk-order', async (req, res) => {
+  const { amount, orderId, phone, name } = req.body;
+  const cfClientId = process.env.CASHFREE_CLIENT_ID;
+  const cfClientSecret = process.env.CASHFREE_CLIENT_SECRET;
+  const cfEnv = process.env.CASHFREE_ENV || 'TEST';
+
+  if (!amount || !orderId || !cfClientId || !cfClientSecret) {
+    return res.status(400).json({ success: false, error: 'Missing required fields or Cashfree credentials.' });
+  }
+
+  try {
+    let formattedPhone = (phone || '').replace(/\D/g, '');
+    if (formattedPhone.length === 10) formattedPhone = `91${formattedPhone}`;
+    if (formattedPhone.length < 10) formattedPhone = '919999999999';
+
+    const isProd = cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
+    const cfOrderId = `${String(orderId)}_${Date.now()}`;
+
+    const payload = {
+      order_id: cfOrderId,
+      order_amount: Number(Number(amount).toFixed(2)),
+      order_currency: 'INR',
+      customer_details: {
+        customer_id: `cust_${String(orderId)}`,
+        customer_phone: formattedPhone.slice(-10),
+        customer_name: name || 'Customer',
+        customer_email: 'customer@malabarwaffle.com',
+      },
+      order_meta: {
+        return_url: 'https://pos-app-nqsm.onrender.com/payment-done',
+        notify_url: 'https://pos-app-nqsm.onrender.com/payment/cashfree/webhook',
+        payment_methods: 'upi',
+      },
+      order_note: `Order #${orderId}`,
+      order_tags: { order_number: String(orderId) },
+    };
+
+    const clientHeaders = {
+      'x-client-device': 'desktop',
+      'x-client-os': 'windows',
+      'x-client-rendering-type': 'web',
+    };
+
+    console.log(`[Kiosk Order] Creating Cashfree order for POS #${orderId}, CF ID: ${cfOrderId}`);
+    const order = await cashfreeRequest('POST', '/orders', payload, clientHeaders);
+
+    const hostedUrl = isProd
+      ? `https://payments.cashfree.com/order/#${order.payment_session_id}`
+      : `https://sandbox.cashfree.com/order/#${order.payment_session_id}`;
+
+    console.log(`[Kiosk Order] Hosted URL: ${hostedUrl}`);
+
+    res.json({
+      success: true,
+      cfOrderId: order.order_id,
+      paymentSessionId: order.payment_session_id,
+      hostedUrl,
+      environment: isProd ? 'production' : 'sandbox',
+    });
+  } catch (err) {
+    console.error('[Kiosk Order] Failed:', err.message);
+    res.status(500).json({ success: false, error: err.message || 'Failed to create kiosk order.' });
   }
 });
 

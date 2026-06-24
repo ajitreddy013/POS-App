@@ -588,16 +588,15 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     executeSaleWrite(selectedMethod);
   };
 
-  const startUpiQrPayment = async (selectedMethod) => {
-    const relayUrl =
-      barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+  const startUpiQrPayment = async () => {
+    const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
 
     try {
       const orderId = await generateSaleNumber();
       const amount = calculateTotal();
       setLoading(true);
 
-      // 1. Create Firestore order — Cashfree webhook will set paymentStatus → 'paid' on this doc
+      // 1. Create Firestore order — webhook will set paymentStatus → 'paid' on this doc
       const db = getFirebaseDb();
       if (!db) throw new Error('Firestore not configured.');
 
@@ -621,50 +620,37 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       };
       const docRef = await addDoc(collection(db, 'orders'), orderData);
 
-      // 2. Try Cashfree UPI QR endpoint; fall back to local VPA QR if unavailable
-      let qrImage = '';
-      try {
-        const response = await fetch(`${relayUrl}/payment/cashfree/upi-qr`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount,
-            orderId,
-            phone: customerPhone || '9999999999',
-            name: isKiosk ? 'Kiosk Customer' : (customerName || 'Walk-in Customer'),
-          }),
-        });
-        const contentType = response.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const data = await response.json();
-          if (data.success && data.qrData) {
-            qrImage = data.qrData;
-          }
-        }
-      } catch (cfErr) {
-        console.warn('Cashfree UPI QR endpoint unavailable:', cfErr.message);
+      // 2. Create Cashfree order via relay → get hosted page URL
+      const response = await fetch(`${relayUrl}/payment/cashfree/kiosk-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          orderId,
+          phone: customerPhone || '9999999999',
+          name: isKiosk ? 'Kiosk Customer' : (customerName || 'Walk-in Customer'),
+        }),
+      });
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Relay returned an unexpected response. Check if it has deployed.');
       }
-
-      // Fall back to locally-generated upi:// QR from merchant VPA
-      if (!qrImage && barSettings?.upi_vpa) {
-        const upiUri = `upi://pay?pa=${encodeURIComponent(barSettings.upi_vpa)}&pn=${encodeURIComponent(
-          barSettings.bar_name || ''
-        )}&am=${encodeURIComponent(Number(amount).toFixed(2))}&cu=INR&tn=${encodeURIComponent('Order ' + orderId)}`;
-        qrImage = await QRCode.toDataURL(upiUri, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
+      const data = await response.json();
+      if (!data.success || !data.hostedUrl) {
+        throw new Error(data.error || 'Relay did not return a payment URL.');
       }
 
       setLoading(false);
 
-      if (!qrImage) {
-        throw new Error('Could not generate UPI QR. Please configure UPI VPA in Settings or wait for relay update.');
-      }
+      // 3. Open Cashfree hosted page in system browser (shows QR + all UPI options)
+      window.open(data.hostedUrl, '_system');
 
-      // 3. Show QR in-app
+      // 4. Show waiting overlay in the app
       qrPaymentPendingRef.current = true;
-      setUpiQrPayment({ orderId, amount, qrImageUrl: qrImage, paymentLinkId: null });
-      setUpiQrStatus('Scan QR with any UPI app to pay');
+      setUpiQrPayment({ orderId, amount, hostedUrl: data.hostedUrl });
+      setUpiQrStatus('Waiting for payment confirmation...');
 
-      // 4. Watch Firestore for Cashfree webhook setting paymentStatus → 'paid'
+      // 5. Watch Firestore — webhook fires when customer pays → auto-complete sale
       if (qrPollIntervalRef.current) {
         if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
         else clearInterval(qrPollIntervalRef.current);
@@ -690,7 +676,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       setLoading(false);
       setUpiQrPayment(null);
       setUpiQrStatus('');
-      alert(`Cannot create UPI QR:\n${err.message}`);
+      alert(`Cannot start UPI payment:\n${err.message}`);
     }
   };
 
@@ -1759,17 +1745,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 <strong>{formatCurrency(upiQrPayment.amount)}</strong>
               </div>
 
-              <div className="upi-qr-image-frame">
-                {upiQrPayment.qrImageUrl ? (
-                  <img
-                    src={upiQrPayment.qrImageUrl}
-                    alt="UPI QR code"
-                  />
-                ) : (
-                  <div className="upi-qr-placeholder">
-                    <Loader2 size={28} className="spin" />
-                  </div>
-                )}
+              <div className="upi-qr-browser-notice">
+                <div className="upi-qr-browser-icon">🌐</div>
+                <p>Cashfree payment page opened in browser.</p>
+                <p>Scan the QR code on that page and complete payment.</p>
+                <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '4px' }}>
+                  Note: {upiQrPayment.orderId}
+                </p>
               </div>
 
               <div className="upi-qr-status">
