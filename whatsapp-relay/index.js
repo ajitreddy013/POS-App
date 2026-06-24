@@ -97,7 +97,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-24-cashfree-upi-qr-inapp-v3';
+const relayVersion = '2026-06-24-cashfree-upi-qr-inapp-v4';
 
 app.use(cors());
 app.use(express.json());
@@ -604,8 +604,9 @@ app.post('/payment/cashfree/upi-qr', async (req, res) => {
     const isProd = cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
 
     // 1. Create the order
+    const cfOrderId = `${String(orderId)}_${Date.now()}`;
     const orderPayload = {
-      order_id: String(orderId),
+      order_id: cfOrderId,
       order_amount: Number(Number(amount).toFixed(2)),
       order_currency: 'INR',
       customer_details: {
