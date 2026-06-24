@@ -584,6 +584,80 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
   }
 });
 
+// Cashfree UPI QR — create order + initiate UPI QR in one call
+// Returns a base64 QR image the app renders in-app; webhook fires when customer pays.
+app.post('/payment/cashfree/upi-qr', async (req, res) => {
+  const { amount, orderId, phone, name } = req.body;
+  const cfClientId = process.env.CASHFREE_CLIENT_ID;
+  const cfClientSecret = process.env.CASHFREE_CLIENT_SECRET;
+  const cfEnv = process.env.CASHFREE_ENV || 'TEST';
+
+  if (!amount || !orderId || !cfClientId || !cfClientSecret) {
+    return res.status(400).json({ success: false, error: 'Missing required fields or Cashfree credentials.' });
+  }
+
+  try {
+    let formattedPhone = (phone || '').replace(/\D/g, '');
+    if (formattedPhone.length === 10) formattedPhone = `91${formattedPhone}`;
+    if (formattedPhone.length < 10) formattedPhone = '919999999999';
+
+    const isProd = cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
+
+    // 1. Create the order
+    const orderPayload = {
+      order_id: String(orderId),
+      order_amount: Number(Number(amount).toFixed(2)),
+      order_currency: 'INR',
+      customer_details: {
+        customer_id: `cust_${String(orderId)}`,
+        customer_phone: formattedPhone.slice(-10),
+        customer_name: name || 'Customer',
+        customer_email: 'customer@malabarwaffle.com',
+      },
+      order_meta: {
+        notify_url: 'https://pos-app-nqsm.onrender.com/payment/cashfree/webhook',
+      },
+      order_note: `Order ${orderId}`,
+      order_tags: { order_number: String(orderId) },
+    };
+
+    console.log(`[UPI QR] Creating Cashfree order for ${orderId}, amount: ${orderPayload.order_amount}`);
+    const order = await cashfreeRequest('POST', '/orders', orderPayload);
+
+    // 2. Initiate UPI QR payment — Cashfree returns a base64 QR image
+    const payPayload = {
+      payment_session_id: order.payment_session_id,
+      payment_method: {
+        upi: {
+          channel: 'qrcode',
+        },
+      },
+    };
+
+    console.log(`[UPI QR] Initiating UPI QR for order ${order.order_id}`);
+    const payResponse = await cashfreeRequest('POST', `/orders/${order.order_id}/pay`, payPayload);
+    console.log(`[UPI QR] Pay response for ${order.order_id}:`, JSON.stringify(payResponse));
+
+    const qrData = payResponse?.data?.payload?.qrcode || '';
+
+    if (!qrData) {
+      console.error('[UPI QR] No QR data returned. Full response:', JSON.stringify(payResponse));
+      return res.status(502).json({ success: false, error: 'Cashfree did not return a UPI QR code. Check logs.' });
+    }
+
+    res.json({
+      success: true,
+      orderId: order.order_id,
+      cfPaymentId: payResponse.cf_payment_id || '',
+      qrData,
+      environment: isProd ? 'production' : 'sandbox',
+    });
+  } catch (err) {
+    console.error('[UPI QR] Failed:', err.message);
+    res.status(500).json({ success: false, error: err.message || 'Failed to create Cashfree UPI QR.' });
+  }
+});
+
 // Cashfree PG Webhook Endpoint
 app.post('/payment/cashfree/webhook', async (req, res) => {
   const payload = req.body;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Search,
   Plus,
@@ -36,14 +36,12 @@ import {
 import { getFirebaseDb } from '../firebase';
 import {
   collection,
+  addDoc,
   query,
   where,
   onSnapshot,
   doc,
   updateDoc,
-  addDoc,
-  getDoc,
-  getDocs,
 } from 'firebase/firestore';
 
 const formatCurrency = (value) => `₹${Number(value || 0).toFixed(2)}`;
@@ -53,73 +51,23 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const [longPressActive, setLongPressActive] = useState(false);
   const longPressTimerRef = useRef(null);
 
-  const logoRef = useRef(null);
-
-  const startLongPress = useCallback((e) => {
-    if (e && e.cancelable) {
-      e.preventDefault();
-    }
+  const startLongPress = (e) => {
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
     }
     setLongPressActive(true);
     longPressTimerRef.current = setTimeout(() => {
-      if (navigator.vibrate) {
-        navigator.vibrate(100); // Vibrate only when the unlock popup appears
-      }
       if (onOpenUnlockModal) onOpenUnlockModal();
       setLongPressActive(false);
     }, 2000); // 2 seconds
-  }, [onOpenUnlockModal]);
+  };
 
-  const cancelLongPress = useCallback(() => {
+  const cancelLongPress = () => {
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
     }
     setLongPressActive(false);
-  }, []);
-
-  useEffect(() => {
-    const el = logoRef.current;
-    if (!el) return;
-
-    const handleTouchStart = (e) => {
-      if (e.cancelable) {
-        e.preventDefault();
-      }
-      startLongPress(e);
-    };
-
-    const handleTouchEnd = (e) => {
-      if (e.cancelable) {
-        e.preventDefault();
-      }
-      cancelLongPress();
-    };
-
-    const handleTouchCancel = (e) => {
-      if (e.cancelable) {
-        e.preventDefault();
-      }
-      cancelLongPress();
-    };
-
-    const handleContextMenu = (e) => {
-      e.preventDefault();
-    };
-
-    el.addEventListener('touchstart', handleTouchStart, { passive: false });
-    el.addEventListener('touchend', handleTouchEnd, { passive: false });
-    el.addEventListener('touchcancel', handleTouchCancel, { passive: false });
-    el.addEventListener('contextmenu', handleContextMenu);
-
-    return () => {
-      el.removeEventListener('touchstart', handleTouchStart);
-      el.removeEventListener('touchend', handleTouchEnd);
-      el.removeEventListener('touchcancel', handleTouchCancel);
-      el.removeEventListener('contextmenu', handleContextMenu);
-    };
-  }, [startLongPress, cancelLongPress]);
+  };
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -220,7 +168,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
     return () => {
       if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
-      if (qrPollIntervalRef.current) clearInterval(qrPollIntervalRef.current);
+      if (qrPollIntervalRef.current) {
+        if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
+        else clearInterval(qrPollIntervalRef.current);
+      }
     };
   }, []);
 
@@ -238,27 +189,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
   const loadBarSettings = async () => {
     try {
-      let settings = await dbService.getBarSettings();
-
-      // Sync settings from Firestore if online
-      try {
-        const db = getFirebaseDb();
-        if (db) {
-          const settingsRef = doc(db, 'settings', 'bar_settings');
-          const settingsSnap = await getDoc(settingsRef);
-          if (settingsSnap.exists()) {
-            const cloudSettings = settingsSnap.data();
-            settings = {
-              ...settings,
-              ...cloudSettings,
-            };
-            await dbService.saveBarSettings(settings);
-          }
-        }
-      } catch (cloudErr) {
-        console.error('Failed to sync settings from Firestore:', cloudErr);
-      }
-
+      const settings = await dbService.getBarSettings();
       setBarSettings(settings);
 
       // Check if WhatsApp is linked and active
@@ -475,9 +406,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   };
 
   const isVeg = (product) => {
-    if (product.dietary_type) {
-      return product.dietary_type === 'veg';
-    }
     const name = (product.name || '').toLowerCase();
     const cat = (product.category || '').toLowerCase();
     if (
@@ -559,139 +487,21 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const calculateTotal = () => cartTotal;
 
   const generateSaleNumber = async () => {
-    try {
-      // 1. Get all A- sales from local Dexie database
-      const allSales = (await dbService.getSales()) || [];
-      const dexieNumbers = allSales
-        .map(s => s.saleNumber || s.sale_number || '')
-        .filter(num => num.startsWith('A-'));
-
-      // 2. Get all A- orders from Firestore
-      let firestoreNumbers = [];
-      const db = getFirebaseDb();
-      if (db) {
-        const q = query(
-          collection(db, 'orders'),
-          where('orderNumber', '>=', 'A-'),
-          where('orderNumber', '<=', 'A-\uf8ff')
-        );
-        const querySnapshot = await getDocs(q);
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.orderNumber) {
-            firestoreNumbers.push(data.orderNumber);
-          }
-        });
-      }
-
-      // 3. Combine and find the maximum numeric suffix
-      const allAppNumbers = [...dexieNumbers, ...firestoreNumbers];
-      let maxNum = 0;
-      allAppNumbers.forEach(str => {
-        const parts = str.split('-');
-        if (parts.length === 2) {
-          const val = parseInt(parts[1], 10);
-          if (!isNaN(val) && val > maxNum) {
-            maxNum = val;
-          }
-        }
-      });
-
-      return `A-${maxNum + 1}`;
-    } catch (err) {
-      console.error('Error generating sale number:', err);
-      // Fallback to simple Dexie count if firestore/queries fail
-      const allSales = (await dbService.getSales()) || [];
-      const appSalesCount = allSales.filter(s => (s.saleNumber || s.sale_number || '').startsWith('A-')).length;
-      return `A-${appSalesCount + 1}`;
-    }
+    // Generate a sequential order number based on total sales
+    const allSales = (await dbService.getSales()) || [];
+    return (allSales.length + 1).toString();
   };
 
   const executeSaleWrite = async (selectedMethod) => {
     setLoading(true);
     try {
-      const orderNumber = await generateSaleNumber();
-
-      if (isKiosk) {
-        // KIOSK MODE: Write order to Firestore 'orders' collection
-        const db = getFirebaseDb();
-        if (!db) {
-          throw new Error("Firebase not configured on client.");
-        }
-
-        const orderData = {
-          orderNumber,
-          customerName: 'Kiosk Customer',
-          customerPhone: customerPhone || '',
-          tableNumber: 'Kiosk',
-          items: cart.map((item) => ({
-            productId: String(item.id),
-            name: item.name,
-            quantity: item.quantity,
-            unitPrice: item.price,
-            totalPrice: item.price * item.quantity,
-          })),
-          totalAmount: calculateTotal(),
-          paymentMethod: selectedMethod || paymentMethod,
-          paymentStatus: (selectedMethod || paymentMethod) === 'upi' ? 'paid' : 'pending',
-          orderStatus: 'pending_acceptance',
-          createdAt: new Date(),
-        };
-
-        const { collection, addDoc } = await import('firebase/firestore');
-        await addDoc(collection(db, 'orders'), orderData);
-
-        if (customerPhone && (selectedMethod || paymentMethod) === 'cash') {
-          try {
-            const relayUrl = APP_CONFIG.whatsappRelayUrl;
-            await fetch(`${relayUrl}/payment/send-confirmation`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                phone: customerPhone,
-                name: 'Kiosk Customer',
-                orderNumber,
-                tableNumber: 'Kiosk',
-                totalAmount: calculateTotal(),
-                paymentMethod: 'cash',
-                items: cart.map((item) => ({
-                  name: item.name,
-                  quantity: item.quantity,
-                  unitPrice: item.price,
-                  totalPrice: item.price * item.quantity
-                })),
-                subtotal: calculateSubtotal(),
-                discountAmount: calculateDiscountAmount(),
-                taxAmount: 0
-              })
-            });
-          } catch (waErr) {
-            console.error('WhatsApp Kiosk confirmation failed:', waErr);
-          }
-        }
-
-        setCart([]);
-        setCustomerName('');
-        setCustomerPhone('');
-        setPhoneError('');
-        setDiscount(0);
-        setShowDiscountInput(false);
-        setActiveTab('menu');
-
-        const successMsg = (selectedMethod || paymentMethod) === 'upi'
-          ? `Order #${orderNumber} Placed! Paid successfully via UPI.`
-          : `Order #${orderNumber} Placed! Please pay Cash at the counter.`;
-        showNotice('success', successMsg);
-        playSuccessFeedback();
-        return;
-      }
-
-      // ADMIN MODE: Write sale directly to local Dexie
       const saleData = {
-        saleNumber: orderNumber,
+        saleNumber: await generateSaleNumber(),
         saleType: 'parcel',
         tableNumber: null,
-        customerName: customerName || 'Walk-in Customer',
+        customerName: isKiosk
+          ? 'Kiosk Customer'
+          : customerName || 'Walk-in Customer',
         customerPhone,
         items: cart.map((item) => ({
           productId: item.id,
@@ -709,17 +519,20 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         barSettings,
       };
 
+      // Save sale to database
       await dbService.createSale(saleData);
 
+      // Auto-send WhatsApp receipt silently if customer phone is available
       if (customerPhone && customerPhone.trim() !== '') {
         try {
           const relayUrl = APP_CONFIG.whatsappRelayUrl;
           await whatsappService.sendBill(relayUrl, barSettings || {}, saleData);
         } catch (waErr) {
-          // Silent fail
+          // Silent fail — WhatsApp is optional
         }
       }
 
+      // Clear cart and customer info
       setCart([]);
       setCustomerName('');
       setCustomerPhone('');
@@ -728,14 +541,18 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       setShowDiscountInput(false);
       setActiveTab('menu');
 
+      // Reload products to update stock
       await loadProducts();
+
+      // Trigger dashboard refresh by dispatching a custom event
       window.dispatchEvent(new CustomEvent('saleCompleted'));
       playSuccessFeedback();
       showNotice('success', 'Order Placed! Check WhatsApp for receipt.');
     } catch (error) {
+      // Failed to process sale
       console.error('Sale write error:', error);
       playErrorFeedback();
-      showNotice('error', error.message || 'Failed to place order.');
+      showNotice('error', 'error');
     } finally {
       setLoading(false);
     }
@@ -761,7 +578,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       setPaymentMethod(method);
     }
 
-    if (selectedMethod === 'upi') {
+    // Show in-app Cashfree UPI QR when a relay URL is configured
+    const relayConfigured = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+    if (selectedMethod === 'upi' && relayConfigured) {
       await startUpiQrPayment(selectedMethod);
       return;
     }
@@ -778,10 +597,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       const amount = calculateTotal();
       setLoading(true);
 
+      // 1. Create Firestore order — Cashfree webhook will set paymentStatus → 'paid' on this doc
       const db = getFirebaseDb();
-      if (!db) {
-        throw new Error("Firestore not configured. Cashfree integration requires Firestore.");
-      }
+      if (!db) throw new Error('Firestore not configured.');
 
       const orderData = {
         orderNumber: orderId,
@@ -801,170 +619,71 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         orderStatus: 'pending_acceptance',
         createdAt: new Date(),
       };
-
       const docRef = await addDoc(collection(db, 'orders'), orderData);
-      console.log(`Created Cashfree-tracked Firestore order with ID: ${docRef.id}`);
 
-      let upiLink = '';
-      let paymentLink = '';
-
-      try {
-        const response = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount,
-            orderId,
-            phone: customerPhone || '9999999999',
-            name: isKiosk ? 'Kiosk Customer' : (customerName || 'Walk-in Customer'),
-            isKiosk: isKiosk
-          }),
-        });
-        const data = await response.json();
-        if (data.success) {
-          upiLink = data.upiLink || '';
-          paymentLink = data.paymentLink || '';
-        } else {
-          console.warn('Cashfree UPI QR code initiation failed:', data.error);
-        }
-      } catch (fetchErr) {
-        console.warn('Failed to call Cashfree create-order endpoint:', fetchErr);
-      }
+      // 2. Ask the relay to create a Cashfree order + initiate UPI QR — returns a base64 QR image
+      const response = await fetch(`${relayUrl}/payment/cashfree/upi-qr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          orderId,
+          phone: customerPhone || '9999999999',
+          name: isKiosk ? 'Kiosk Customer' : (customerName || 'Walk-in Customer'),
+        }),
+      });
+      const data = await response.json();
 
       setLoading(false);
 
-      const qrTarget = paymentLink || upiLink;
-      qrPaymentPendingRef.current = true;
-
-      if (isKiosk) {
-        // Kiosk Mode: open Cashfree hosted checkout page in device's system browser
-        if (window.open) {
-          window.open(qrTarget, '_system');
-        } else {
-          window.location.href = qrTarget;
-        }
-
-        setUpiQrPayment({
-          orderId,
-          amount,
-          isKioskRedirect: true,
-          paymentLink: qrTarget,
-          docId: docRef.id
-        });
-        setUpiQrStatus('Redirected to external browser. Waiting for payment...');
-      } else {
-        // Counter Mode: show QR code overlay inside the app
-        let qrImage = '';
-        try {
-          qrImage = await QRCode.toDataURL(qrTarget, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
-        } catch (qrErr) {
-          console.error('Failed to generate local UPI QR from link:', qrErr);
-          throw qrErr;
-        }
-
-        setUpiQrPayment({ 
-          orderId, 
-          amount, 
-          qrImageUrl: qrImage, 
-          isFallback: false, 
-          docId: docRef.id 
-        });
-        setUpiQrStatus('Waiting for customer payment...');
+      if (!data.success || !data.qrData) {
+        throw new Error(data.error || 'Cashfree did not return a UPI QR code.');
       }
 
+      // 3. Show the Cashfree-generated QR in-app
+      qrPaymentPendingRef.current = true;
+      setUpiQrPayment({ orderId, amount, qrImageUrl: data.qrData, paymentLinkId: null });
+      setUpiQrStatus('Scan QR with any UPI app to pay');
+
+      // 4. Watch Firestore for Cashfree webhook setting paymentStatus → 'paid'
       if (qrPollIntervalRef.current) {
         if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
         else clearInterval(qrPollIntervalRef.current);
+        qrPollIntervalRef.current = null;
       }
 
       const unsubscribe = onSnapshot(docRef, async (snap) => {
-        if (snap.exists()) {
-          const snapData = snap.data();
-          if (snapData.paymentStatus === 'paid') {
-            unsubscribe();
-            qrPaymentPendingRef.current = false;
-            setUpiQrStatus('Payment received! Completing sale...');
-            setTimeout(async () => {
-              setUpiQrPayment(null);
-              setUpiQrStatus('');
-              await executeSaleWrite('upi');
-            }, 1500);
-          }
+        if (snap.exists() && snap.data()?.paymentStatus === 'paid') {
+          unsubscribe();
+          qrPaymentPendingRef.current = false;
+          setUpiQrStatus('Payment confirmed! Completing sale...');
+          setTimeout(async () => {
+            setUpiQrPayment(null);
+            setUpiQrStatus('');
+            await executeSaleWrite('upi');
+          }, 1500);
         }
-      }, (error) => {
-        console.error("Error listening to Cashfree order status in Firestore:", error);
       });
 
-      qrPollIntervalRef.current = {
-        unsubscribe
-      };
+      qrPollIntervalRef.current = { unsubscribe };
 
     } catch (err) {
       setLoading(false);
       setUpiQrPayment(null);
       setUpiQrStatus('');
-      alert(
-        `Cannot create Cashfree payment QR at:\n${relayUrl}\n\nError: ${err.message}`
-      );
+      alert(`Cannot create UPI QR:\n${err.message}`);
     }
   };
 
   const closeUpiQrPayment = () => {
     if (qrPollIntervalRef.current) {
-      if (qrPollIntervalRef.current.unsubscribe) {
-        qrPollIntervalRef.current.unsubscribe();
-      } else if (qrPollIntervalRef.current.clearInterval) {
-        qrPollIntervalRef.current.clearInterval();
-      } else {
-        clearInterval(qrPollIntervalRef.current);
-      }
+      if (qrPollIntervalRef.current.unsubscribe) qrPollIntervalRef.current.unsubscribe();
+      else clearInterval(qrPollIntervalRef.current);
       qrPollIntervalRef.current = null;
     }
     qrPaymentPendingRef.current = false;
     setUpiQrPayment(null);
     setUpiQrStatus('');
-  };
-
-  const handleConfirmManualUpiPayment = async () => {
-    if (!upiQrPayment) return;
-
-    setLoading(true);
-    try {
-      if (isKiosk) {
-        const db = getFirebaseDb();
-        if (upiQrPayment.docId && db) {
-          // Case 1: Firestore document exists, update paymentStatus to 'paid'
-          const { doc, updateDoc } = await import('firebase/firestore');
-          const orderRef = doc(db, 'orders', upiQrPayment.docId);
-          await updateDoc(orderRef, { paymentStatus: 'paid' });
-
-          // Reset Kiosk state
-          setCart([]);
-          setCustomerName('');
-          setCustomerPhone('');
-          setPhoneError('');
-          setDiscount(0);
-          setShowDiscountInput(false);
-          setActiveTab('menu');
-
-          showNotice('success', `Order #${upiQrPayment.orderId} Placed! Kitchen will verify your payment.`);
-          playSuccessFeedback();
-        } else {
-          // Case 2: No Firestore document yet, create it with paid status
-          await executeSaleWrite('upi');
-        }
-      } else {
-        // Admin mode: Write directly to local Dexie
-        await executeSaleWrite('upi');
-      }
-    } catch (err) {
-      console.error('Failed to manually confirm UPI payment:', err);
-      alert(`Error completing order: ${err.message}`);
-    } finally {
-      setLoading(false);
-      setUpiQrPayment(null);
-      setUpiQrStatus('');
-    }
   };
 
   const handleKeyPress = (e) => {
@@ -1016,7 +735,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       <div className="pos-layout">
         <div
           className={`product-panel ${activeTab === 'cart' ? 'mobile-hidden' : ''}`}
-          style={{ display: activeTab === 'cart' ? 'none' : 'flex' }}
         >
           <div
             className="kiosk-header"
@@ -1029,7 +747,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               borderBottom: '1px solid #e6ded3',
             }}
           >
-            {/* Single Row: Name + Online Orders + Search Icon */}
+            {/* Single Row: Logo + Name + Online Orders + Search Icon */}
             <div
               style={{
                 display: 'flex',
@@ -1039,10 +757,16 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               }}
             >
               <div
-                ref={logoRef}
                 onMouseDown={startLongPress}
                 onMouseUp={cancelLongPress}
                 onMouseLeave={cancelLongPress}
+                onTouchStart={startLongPress}
+                onTouchEnd={cancelLongPress}
+                onTouchCancel={cancelLongPress}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  return false;
+                }}
                 style={{
                   height: '36px',
                   width: '36px',
@@ -1579,84 +1303,11 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
         <div
           className={`cart-panel cart-panel-minimal ${activeTab === 'menu' ? 'mobile-hidden' : ''}`}
-          style={{
-            display: activeTab === 'menu' ? 'none' : 'flex',
-            maxWidth: activeTab === 'cart' ? 'none' : undefined,
-            minWidth: activeTab === 'cart' ? '0' : undefined,
-            width: activeTab === 'cart' ? '100%' : undefined,
-            flex: activeTab === 'cart' ? 1 : undefined,
-            background: activeTab === 'cart' ? '#f6f3ee' : undefined,
-            padding: activeTab === 'cart' ? '0' : undefined,
-            height: activeTab === 'cart' ? '100%' : undefined,
-            overflow: activeTab === 'cart' ? 'hidden' : undefined,
-            flexDirection: 'column',
-          }}
         >
-          {activeTab === 'cart' ? (
-            <header
-              className="menu-header"
-              style={{
-                background: '#f6f3ee',
-                color: '#221f1a',
-                padding: isKiosk ? 'calc(var(--android-status-offset) + 12px) 16px 12px 16px' : '12px 16px',
-                borderBottom: '1px solid #e6ded3',
-                position: 'sticky',
-                top: 0,
-                zIndex: 100,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexShrink: 0,
-                width: '100%',
-                boxSizing: 'border-box'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <button
-                  onClick={() => setActiveTab('menu')}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    color: '#b6412c',
-                    fontWeight: '700',
-                    fontSize: '0.95rem',
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
-                >
-                  <ChevronLeft size={18} /> Back
-                </button>
-                <h2 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#221f1a', margin: 0, marginLeft: '8px' }}>
-                  Review Order
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('menu');
-                  setShowSearch(true);
-                  setTimeout(() => {
-                    if (searchInputRef.current) searchInputRef.current.focus({ preventScroll: true });
-                  }, 80);
-                }}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#b6412c',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '4px',
-                  outline: 'none',
-                }}
-              >
-                <Search size={18} />
-              </button>
-            </header>
-          ) : (
+          <div
+            className="cart-section"
+            style={{ paddingTop: 'calc(16px + env(safe-area-inset-top))' }}
+          >
             <div
               className="cart-header-row"
               style={{
@@ -1664,9 +1315,15 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 alignItems: 'center',
                 marginBottom: '8px',
                 gap: '8px',
-                padding: '16px',
               }}
             >
+              <button
+                type="button"
+                className="mobile-back-btn"
+                onClick={() => setActiveTab('menu')}
+              >
+                ← Menu
+              </button>
               <h3 style={{ margin: 0 }}>
                 <ShoppingCart
                   size={18}
@@ -1675,43 +1332,18 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 Current Order ({totalCartItems})
               </h3>
             </div>
-          )}
 
-          <div
-            className="cart-section"
-            style={{ 
-              padding: activeTab === 'cart' ? '16px 12px' : '0 16px 16px 16px',
-              overflowY: 'auto',
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-
-            {/* 1. Customer Information Card */}
             <div
               className="form-row cart-phone-row"
-              style={{
-                background: '#ffffff',
-                borderRadius: activeTab === 'cart' ? '16px' : '20px',
-                padding: activeTab === 'cart' ? '16px' : '20px',
-                marginBottom: activeTab === 'cart' ? '16px' : '20px',
-                border: '1.5px solid #e6ded3',
-                boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
-              }}
+              style={{ marginTop: '16px', marginBottom: '16px' }}
             >
-              <h3 style={{ 
-                margin: activeTab === 'cart' ? '0 0 12px 0' : '0 0 16px 0', 
-                fontSize: '1.05rem', 
-                fontWeight: '700', 
-                borderBottom: activeTab === 'cart' ? 'none' : '1.5px solid #f6f3ee', 
-                paddingBottom: activeTab === 'cart' ? '0' : '10px' 
-              }}>
-                WhatsApp Mobile Number
-              </h3>
               <input
                 type="tel"
-                placeholder="e.g. 9876543210"
+                placeholder={
+                  isKiosk
+                    ? 'Enter 10-digit Phone Number (Mandatory)'
+                    : 'Phone Number'
+                }
                 value={customerPhone}
                 ref={phoneInputRef}
                 onChange={(e) => {
@@ -1724,475 +1356,333 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   }
                 }}
                 className={`form-input cart-phone-input ${phoneError ? 'error' : ''}`}
-                style={{ 
-                  padding: activeTab === 'cart' ? '10px 12px' : '12px 14px', 
-                  fontSize: '0.95rem', 
-                  width: '100%', 
-                  borderRadius: '12px', 
-                  border: '1.5px solid #e6ded3', 
-                  outline: 'none' 
-                }}
+                style={{ padding: '8px 12px', fontSize: '13px', width: '100%' }}
                 maxLength="10"
               />
               {phoneError && (
-                <div className="cart-phone-error" role="alert" style={{ color: '#b6412c', fontSize: '0.85rem', marginTop: '6px', fontWeight: '600' }}>
+                <div className="cart-phone-error" role="alert">
                   {phoneError}
                 </div>
               )}
             </div>
-
-            {/* 2. Selected Items Card */}
-            <div
-              style={{
-                background: '#ffffff',
-                borderRadius: activeTab === 'cart' ? '16px' : '20px',
-                padding: activeTab === 'cart' ? '16px' : '20px',
-                marginBottom: activeTab === 'cart' ? '16px' : '20px',
-                border: '1.5px solid #e6ded3',
-                boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
-              }}
-            >
-              <h3 style={{ 
-                margin: activeTab === 'cart' ? '0 0 12px 0' : '0 0 16px 0', 
-                fontSize: '1.05rem', 
-                fontWeight: '700', 
-                borderBottom: activeTab === 'cart' ? 'none' : '1.5px solid #f6f3ee', 
-                paddingBottom: activeTab === 'cart' ? '0' : '10px' 
-              }}>
-                Selected Items ({totalCartItems})
-              </h3>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: activeTab === 'cart' ? '0' : '14px' }}>
-                {cart.length === 0 ? (
-                  <div className="empty-cart" style={{ padding: '20px 0', textAlign: 'center' }}>
-                    <ShoppingCart size={32} color="#ccc" />
-                    <p style={{ color: '#6c757d', marginTop: '12px' }}>
-                      Cart is empty
-                    </p>
-                  </div>
-                ) : (
-                  cart.map((item) => (
-                    <div
-                      key={item.id}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: activeTab === 'cart' ? '10px 0' : '0 0 12px 0',
-                        borderBottom: '1px solid #f6f3ee',
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0, marginRight: '12px' }}>
-                        <span style={{ fontWeight: '700', fontSize: '0.98rem', display: 'block', color: '#221f1a' }}>
+            <div className="cart-items">
+              {cart.length === 0 ? (
+                <div className="empty-cart" style={{ padding: '40px 0' }}>
+                  <ShoppingCart size={32} />
+                  <p style={{ color: '#6c757d', marginTop: '12px' }}>
+                    Cart is empty
+                  </p>
+                </div>
+              ) : (
+                cart.map((item) => (
+                  <div key={item.id} className="cart-item-minimal">
+                    <div className="cart-item-minimal-layout">
+                      <button
+                        onClick={() => removeFromCart(item.id)}
+                        className="remove-btn cart-item-delete-btn"
+                        style={{ padding: '0' }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                      <div className="cart-item-minimal-text">
+                        <h4
+                          className="cart-item-minimal-name"
+                          title={item.name}
+                        >
                           {item.name}
-                        </span>
-                        <span style={{ color: '#b6412c', fontSize: '0.88rem', fontWeight: '600' }}>
-                          {formatCurrency(item.price)} each
-                        </span>
+                        </h4>
                       </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: activeTab === 'cart' ? '8px' : '12px' }}>
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            background: '#fbf7f4',
-                            border: '1px solid #e6ded3',
-                            borderRadius: '20px',
-                            padding: '2px',
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                            style={{
-                              border: 'none',
-                              background: 'transparent',
-                              width: activeTab === 'cart' ? '24px' : '26px',
-                              height: activeTab === 'cart' ? '24px' : '26px',
-                              fontWeight: '700',
-                              cursor: 'pointer',
-                              color: '#b6412c',
-                              fontSize: '1rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            -
-                          </button>
-                          <span
-                            style={{
-                              minWidth: '18px',
-                              textAlign: 'center',
-                              fontWeight: '700',
-                              fontSize: '0.9rem',
-                              color: '#221f1a',
-                            }}
-                          >
-                            {item.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                            style={{
-                              border: 'none',
-                              background: 'transparent',
-                              width: activeTab === 'cart' ? '24px' : '26px',
-                              height: activeTab === 'cart' ? '24px' : '26px',
-                              fontWeight: '700',
-                              cursor: 'pointer',
-                              color: '#b6412c',
-                              fontSize: '1rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            +
-                          </button>
-                        </div>
-
+                      <div
+                        className="quantity-controls cart-item-minimal-qty"
+                        style={{
+                          transform: 'scale(0.8)',
+                          transformOrigin: 'center',
+                        }}
+                      >
                         <button
-                          type="button"
-                          onClick={() => removeFromCart(item.id)}
-                          style={{
-                            border: 'none',
-                            background: 'transparent',
-                            color: '#7f766a',
-                            cursor: 'pointer',
-                            padding: '4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                          }}
+                          onClick={() =>
+                            updateQuantity(item.id, item.quantity - 1)
+                          }
+                          className="qty-btn"
                         >
-                          <Trash2 size={16} />
+                          <Minus size={14} />
                         </button>
-
-                        <strong style={{ 
-                          fontSize: '0.95rem', 
-                          color: '#221f1a', 
-                          minWidth: activeTab === 'cart' ? '65px' : '75px', 
-                          textAlign: 'right' 
-                        }}>
+                        <span className="cart-item-qty-value">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() =>
+                            updateQuantity(item.id, item.quantity + 1)
+                          }
+                          className="qty-btn"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                      <div className="cart-item-minimal-price-block">
+                        <div className="item-total cart-item-minimal-total">
                           {formatCurrency(item.price * item.quantity)}
-                        </strong>
+                        </div>
+                        <p className="cart-item-minimal-unit-price">
+                          {formatCurrency(item.price)} each
+                        </p>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
-
-              {/* Grand Total section at the bottom of Selected Items card */}
-              <div style={{ marginTop: activeTab === 'cart' ? '12px' : '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {!isKiosk && (
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+          <div className="billing-section payment-checkout-panel">
+            {!isKiosk && (
+              <div
+                className="billing-controls"
+                style={{
+                  padding: '8px 10px',
+                  borderTop: '1px solid #e6ded3',
+                  background: '#fffdf8',
+                }}
+              >
+                <div
+                  className="payment-method-row"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    justifyContent: 'flex-end',
+                  }}
+                >
                   <div
                     style={{
                       display: 'flex',
-                      justifyContent: 'space-between',
                       alignItems: 'center',
-                      marginBottom: '8px',
+                      gap: '4px',
                     }}
                   >
-                    <span style={{ color: '#7f766a', fontSize: '0.95rem', fontWeight: '600' }}>Apply Discount</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <button
-                        type="button"
+                    <button
+                      type="button"
+                      style={{
+                        fontSize: '11px',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        border: '1px solid #e6ded3',
+                        background: showDiscountInput
+                          ? '#f2e7db'
+                          : 'transparent',
+                        color: '#7f766a',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => setShowDiscountInput((prev) => !prev)}
+                    >
+                      % Discount
+                    </button>
+                    {showDiscountInput && (
+                      <input
+                        type="number"
+                        value={discount === 0 ? '' : discount}
+                        onChange={(e) =>
+                          setDiscount(parseFloat(e.target.value) || 0)
+                        }
+                        min="0"
+                        className="form-input"
+                        placeholder="Amt"
                         style={{
-                          fontSize: '11px',
+                          width: '60px',
                           padding: '4px 8px',
-                          borderRadius: '4px',
-                          border: '1px solid #e6ded3',
-                          background: showDiscountInput ? '#f2e7db' : 'transparent',
-                          color: '#7f766a',
-                          cursor: 'pointer',
+                          fontSize: '11px',
                         }}
-                        onClick={() => setShowDiscountInput((prev) => !prev)}
-                      >
-                        % Discount
-                      </button>
-                      {showDiscountInput && (
-                        <input
-                          type="number"
-                          value={discount === 0 ? '' : discount}
-                          onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                          min="0"
-                          className="form-input"
-                          placeholder="Amt"
-                          style={{
-                            width: '60px',
-                            padding: '4px 8px',
-                            fontSize: '11px',
-                            border: '1px solid #e6ded3',
-                            borderRadius: '4px',
-                            outline: 'none',
-                          }}
-                        />
-                      )}
-                    </div>
+                      />
+                    )}
                   </div>
-                )}
-                {!isKiosk && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem', fontWeight: '600' }}>
-                    <span style={{ color: '#7f766a' }}>Subtotal</span>
-                    <span style={{ color: '#221f1a' }}>{formatCurrency(calculateSubtotal())}</span>
-                  </div>
-                )}
-                {!isKiosk && discount > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem', fontWeight: '600', color: '#b6412c' }}>
-                    <span>Discount</span>
-                    <span>-{formatCurrency(calculateDiscountAmount())}</span>
-                  </div>
-                )}
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    marginTop: activeTab === 'cart' ? '6px' : '8px',
-                    paddingTop: activeTab === 'cart' ? '10px' : '12px',
-                    borderTop: '1px solid #f6f3ee',
-                    fontSize: activeTab === 'cart' ? '1.15rem' : '1.25rem',
-                    fontWeight: '700',
-                  }}
-                >
-                  <span style={{ color: '#221f1a' }}>Grand Total</span>
-                  <span style={{ color: '#b6412c' }}>{formatCurrency(calculateTotal())}</span>
                 </div>
               </div>
-            </div>
-
-            {/* Render Payment Method and Checkout Button inside scrollable area only for activeTab === 'cart' (mobile view) */}
-            {activeTab === 'cart' && (
-              <>
-                {/* 3. Select Payment Method Card */}
-                <div
-                  style={{
-                    background: '#ffffff',
-                    borderRadius: '16px',
-                    padding: '16px',
-                    marginBottom: '16px',
-                    border: '1.5px solid #e6ded3',
-                    boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
-                  }}
-                >
-                  <h3 style={{ margin: '0 0 12px 0', fontSize: '1.05rem', fontWeight: '700', borderBottom: 'none', paddingBottom: 0 }}>
-                    Select Payment Method
-                  </h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <button 
-                      type="button" 
-                      onClick={() => setPaymentMethod('upi')} 
-                      style={{ 
-                        padding: '12px 8px', 
-                        borderRadius: '12px', 
-                        border: paymentMethod === 'upi' ? '2px solid #b6412c' : '1.5px solid #e6ded3', 
-                        background: paymentMethod === 'upi' ? '#fbf7f4' : '#ffffff', 
-                        color: paymentMethod === 'upi' ? '#b6412c' : '#7f766a', 
-                        fontWeight: '700', 
-                        cursor: 'pointer', 
-                        fontSize: '0.88rem', 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        alignItems: 'center', 
-                        gap: '4px', 
-                        transition: 'all 0.2s',
-                        outline: 'none'
-                      }}
-                    >
-                      <span style={{ fontSize: '1.3rem' }}>📱</span>
-                      <span>Pay Online (UPI)</span>
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={() => setPaymentMethod('cash')} 
-                      style={{ 
-                        padding: '12px 8px', 
-                        borderRadius: '12px', 
-                        border: paymentMethod === 'cash' ? '2px solid #b6412c' : '1.5px solid #e6ded3', 
-                        background: paymentMethod === 'cash' ? '#fbf7f4' : '#ffffff', 
-                        color: paymentMethod === 'cash' ? '#b6412c' : '#7f766a', 
-                        fontWeight: '700', 
-                        cursor: 'pointer', 
-                        fontSize: '0.88rem', 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        alignItems: 'center', 
-                        gap: '4px', 
-                        transition: 'all 0.2s',
-                        outline: 'none'
-                      }}
-                    >
-                      <span style={{ fontSize: '1.3rem' }}>💵</span>
-                      <span>Pay at Counter</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 4. Checkout Button */}
-                <button 
-                  onClick={() => processSale(paymentMethod)} 
-                  disabled={cart.length === 0 || loading} 
-                  style={{ 
-                    width: '100%', 
-                    background: '#b6412c', 
-                    color: '#ffffff', 
-                    border: 'none', 
-                    padding: '14px', 
-                    borderRadius: '24px', 
-                    fontSize: '1rem', 
-                    fontWeight: '700', 
-                    cursor: cart.length === 0 || loading ? 'not-allowed' : 'pointer', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    gap: '8px', 
-                    boxShadow: '0 4px 14px rgba(182,65,44,0.25)', 
-                    opacity: cart.length === 0 || loading ? 0.8 : 1, 
-                    transition: 'opacity 0.2s',
-                    outline: 'none',
-                    marginBottom: '40px'
-                  }}
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="animate-spin" size={18} />
-                      Processing Payment...
-                    </>
-                  ) : isKiosk ? (
-                    paymentMethod === 'upi' ? 'Pay & Place Order' : 'Place Order (Pay Cash)'
-                  ) : (
-                    paymentMethod === 'upi' ? 'Pay & Complete Bill' : 'Complete Bill (Cash)'
-                  )}
-                </button>
-              </>
             )}
-          </div>
 
-          {/* Render the legacy billing-section ONLY for desktop view (activeTab !== 'cart') */}
-          {activeTab !== 'cart' && (
             <div
-              className="billing-section payment-checkout-panel"
-              style={{
-                background: '#ffffff',
-                borderRadius: '20px',
-                padding: '20px',
-                border: '1.5px solid #e6ded3',
-                boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
-                marginBottom: '20px',
-              }}
+              className="bill-summary payment-total-card cart-summary-card"
+              style={{ borderTop: '1px solid #e6ded3', paddingTop: '12px' }}
             >
-              {/* Select Payment Method */}
-              <div style={{ background: '#ffffff', borderRadius: '16px', padding: '16px', marginBottom: '20px', border: '1.5px solid #f6f3ee' }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '6px' }}>Select Payment Method</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <button 
-                    type="button" 
-                    onClick={() => setPaymentMethod('upi')} 
-                    style={{ 
-                      padding: '12px 8px', 
-                      borderRadius: '12px', 
-                      border: paymentMethod === 'upi' ? '2.5px solid #b6412c' : '1.5px solid #e6ded3', 
-                      background: paymentMethod === 'upi' ? '#fbf7f4' : '#ffffff', 
-                      color: paymentMethod === 'upi' ? '#b6412c' : '#7f766a', 
-                      fontWeight: '700', 
-                      cursor: 'pointer', 
-                      fontSize: '0.85rem', 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      alignItems: 'center', 
-                      gap: '4px', 
-                      transition: 'all 0.2s',
-                      outline: 'none'
-                    }}
-                  >
-                    <span style={{ fontSize: '1.25rem' }}>📱</span>
-                    <span>Pay Online (UPI)</span>
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => setPaymentMethod('cash')} 
-                    style={{ 
-                      padding: '12px 8px', 
-                      borderRadius: '12px', 
-                      border: paymentMethod === 'cash' ? '2.5px solid #b6412c' : '1.5px solid #e6ded3', 
-                      background: paymentMethod === 'cash' ? '#fbf7f4' : '#ffffff', 
-                      color: paymentMethod === 'cash' ? '#b6412c' : '#7f766a', 
-                      fontWeight: '700', 
-                      cursor: 'pointer', 
-                      fontSize: '0.85rem', 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      alignItems: 'center', 
-                      gap: '4px', 
-                      transition: 'all 0.2s',
-                      outline: 'none'
-                    }}
-                  >
-                    <span style={{ fontSize: '1.25rem' }}>💵</span>
-                    <span>Pay at Counter</span>
-                  </button>
+              {!isKiosk && (
+                <div
+                  className="summary-line cart-summary-row"
+                  style={{ fontSize: '12px', marginBottom: '4px' }}
+                >
+                  <span style={{ color: '#7f766a' }}>Subtotal:</span>
+                  <span style={{ color: '#221f1a', fontWeight: '500' }}>
+                    {formatCurrency(calculateSubtotal())}
+                  </span>
                 </div>
-              </div>
-
-              {/* Checkout Button */}
-              <button 
-                onClick={() => processSale(paymentMethod)} 
-                disabled={cart.length === 0 || loading} 
-                style={{ 
-                  width: '100%', 
-                  background: '#b6412c', 
-                  color: '#ffffff', 
-                  border: 'none', 
-                  padding: '14px', 
-                  borderRadius: '24px', 
-                  fontSize: '1rem', 
-                  fontWeight: '700', 
-                  cursor: cart.length === 0 || loading ? 'not-allowed' : 'pointer', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  gap: '8px', 
-                  boxShadow: '0 6px 20px rgba(182,65,44,0.3)', 
-                  opacity: cart.length === 0 || loading ? 0.8 : 1, 
-                  transition: 'opacity 0.2s',
-                  outline: 'none'
+              )}
+              {!isKiosk && discount > 0 && (
+                <div
+                  className="summary-line discount cart-summary-row"
+                  style={{
+                    fontSize: '12px',
+                    marginBottom: '4px',
+                    color: '#b6412c',
+                  }}
+                >
+                  <span>Discount:</span>
+                  <span>-{formatCurrency(calculateDiscountAmount())}</span>
+                </div>
+              )}
+              <div
+                className="summary-line total cart-summary-total"
+                style={{
+                  marginTop: '8px',
+                  paddingTop: '8px',
+                  borderTop: '1px dashed #e6ded3',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
                 }}
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="animate-spin" size={18} />
-                    Processing Payment...
-                  </>
-                ) : isKiosk ? (
-                  paymentMethod === 'upi' ? 'Pay & Place Order' : 'Place Order (Pay Cash)'
-                ) : (
-                  paymentMethod === 'upi' ? 'Pay & Complete Bill' : 'Complete Bill (Cash)'
-                )}
+                <span style={{ color: '#221f1a' }}>Total:</span>
+                <span style={{ color: '#b6412c' }}>
+                  {formatCurrency(calculateTotal())}
+                </span>
+              </div>
+            </div>
+
+            <div
+              className="action-buttons payment-action-grid"
+              style={{ display: 'flex', gap: '12px', marginTop: '10px' }}
+            >
+              <button
+                className="payment-action-card payment-action-upi"
+                onClick={() => processSale('upi')}
+                disabled={cart.length === 0 || loading}
+                style={{
+                  flex: 1,
+                  background: '#ffffff',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '16px',
+                  padding: '12px 6px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  height: '92px',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                  outline: 'none',
+                }}
+                onMouseEnter={(e) => {
+                  if (cart.length > 0 && !loading) {
+                    e.currentTarget.style.borderColor = '#ef4444';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow =
+                      '0 10px 15px -3px rgba(239, 68, 68, 0.1)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow =
+                    '0 4px 6px -1px rgba(0, 0, 0, 0.05)';
+                }}
+              >
+                <img
+                  src="upi-logo.png"
+                  alt="UPI Payment"
+                  style={{
+                    height: '40px',
+                    maxWidth: '100%',
+                    objectFit: 'contain',
+                    opacity: cart.length === 0 || loading ? 0.5 : 1,
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: '11px',
+                    color: '#4b5563',
+                    fontWeight: '600',
+                    opacity: cart.length === 0 || loading ? 0.6 : 1,
+                  }}
+                >
+                  UPI QR
+                </span>
+              </button>
+              <button
+                className="payment-action-card payment-action-cash"
+                onClick={() => processSale('cash')}
+                disabled={cart.length === 0 || loading}
+                style={{
+                  flex: 1,
+                  background: '#ffffff',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '16px',
+                  padding: '12px 6px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  height: '92px',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                  outline: 'none',
+                }}
+                onMouseEnter={(e) => {
+                  if (cart.length > 0 && !loading) {
+                    e.currentTarget.style.borderColor = '#16a34a';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow =
+                      '0 10px 15px -3px rgba(22, 163, 74, 0.1)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow =
+                    '0 4px 6px -1px rgba(0, 0, 0, 0.05)';
+                }}
+              >
+                <img
+                  src="cash-logo.png"
+                  alt="Cash Payment"
+                  style={{
+                    height: '40px',
+                    maxWidth: '100%',
+                    objectFit: 'contain',
+                    opacity: cart.length === 0 || loading ? 0.5 : 1,
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: '11px',
+                    color: '#4b5563',
+                    fontWeight: '600',
+                    opacity: cart.length === 0 || loading ? 0.6 : 1,
+                  }}
+                >
+                  Pay at Counter
+                </span>
               </button>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
       {/* Sticky Bottom Mobile Navigation */}
-      {!isKiosk && (
-        <div className="mobile-nav-bar">
-          <button
-            className={activeTab === 'menu' ? 'active' : ''}
-            onClick={() => setActiveTab('menu')}
-          >
-            <Package size={20} />
-            <span>Menu</span>
-          </button>
-          <button
-            className={activeTab === 'cart' ? 'active' : ''}
-            onClick={() => setActiveTab('cart')}
-          >
-            <ShoppingCart size={20} />
-            <span>Cart ({totalCartItems})</span>
-          </button>
-        </div>
-      )}
+      <div className="mobile-nav-bar">
+        <button
+          className={activeTab === 'menu' ? 'active' : ''}
+          onClick={() => setActiveTab('menu')}
+        >
+          <Package size={20} />
+          <span>Menu</span>
+        </button>
+        <button
+          className={activeTab === 'cart' ? 'active' : ''}
+          onClick={() => setActiveTab('cart')}
+        >
+          <ShoppingCart size={20} />
+          <span>Cart ({totalCartItems})</span>
+        </button>
+      </div>
 
       {/* Floating Cart Banner for Mobile */}
       {totalCartItems > 0 && activeTab === 'menu' && (
@@ -2250,40 +1740,18 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 <strong>{formatCurrency(upiQrPayment.amount)}</strong>
               </div>
 
-              {upiQrPayment.isKioskRedirect ? (
-                <div style={{ padding: '20px 10px', textAlign: 'center' }}>
-                  <p style={{ margin: '0 0 15px 0', fontSize: '0.92rem', color: '#7f766a', fontWeight: '600', lineHeight: '1.5' }}>
-                    We have launched the Cashfree payment screen in your system web browser.
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => {
-                      if (window.open) {
-                        window.open(upiQrPayment.paymentLink, '_system');
-                      } else {
-                        window.location.href = upiQrPayment.paymentLink;
-                      }
-                    }}
-                    style={{ background: '#b6412c', border: 'none', padding: '10px 20px', borderRadius: '20px', fontWeight: 'bold', color: 'white', cursor: 'pointer', boxShadow: '0 4px 12px rgba(182,65,44,0.2)' }}
-                  >
-                    🔗 Re-open Payment Page
-                  </button>
-                </div>
-              ) : (
-                <div className="upi-qr-image-frame">
-                  {upiQrPayment.qrImageUrl ? (
-                    <img
-                      src={upiQrPayment.qrImageUrl}
-                      alt="UPI QR code"
-                    />
-                  ) : (
-                    <div className="upi-qr-placeholder">
-                      <Loader2 size={28} className="spin" />
-                    </div>
-                  )}
-                </div>
-              )}
+              <div className="upi-qr-image-frame">
+                {upiQrPayment.qrImageUrl ? (
+                  <img
+                    src={upiQrPayment.qrImageUrl}
+                    alt="UPI QR code"
+                  />
+                ) : (
+                  <div className="upi-qr-placeholder">
+                    <Loader2 size={28} className="spin" />
+                  </div>
+                )}
+              </div>
 
               <div className="upi-qr-status">
                 <Loader2 size={16} className="spin" />
@@ -2291,37 +1759,14 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               </div>
             </div>
 
-            <div className="upi-qr-actions" style={{ display: 'flex', gap: '10px', width: '100%', marginTop: '15px' }}>
+            <div className="upi-qr-actions">
               <button
                 type="button"
                 className="btn btn-secondary"
                 onClick={closeUpiQrPayment}
-                style={{ flex: 1 }}
               >
                 Cancel
               </button>
-              {(upiQrPayment.isFallback || !barSettings?.razorpay_enabled) && (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleConfirmManualUpiPayment}
-                  style={{ 
-                    flex: 1, 
-                    backgroundColor: '#b6412c', 
-                    border: 'none', 
-                    color: '#ffffff',
-                    fontWeight: '700',
-                    borderRadius: '12px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    height: '42px'
-                  }}
-                >
-                  {isKiosk ? 'I Have Paid' : 'Payment Received'}
-                </button>
-              )}
             </div>
           </div>
         </div>
