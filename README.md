@@ -251,7 +251,22 @@ Thank you for visiting!
    npm run android:sync
    ```
 
-5. **Open Android Studio**
+5. **Run on Device/Emulator via CLI (including ADB WiFi)**
+   ```bash
+   # 1. Set JAVA_HOME to a compatible JDK (JDK 21 or JDK 17 is recommended, avoid JDK 26+)
+   export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home
+
+   # 2. List available target devices
+   npx cap run android --list
+
+   # 3. Build and deploy directly to the target device
+   npx cap run android --target=<device-id>
+   
+   # Example for ADB WiFi target:
+   npx cap run android --target=adb-RZCY40SQ66R-qYSEa7._adb-tls-connect._tcp
+   ```
+
+6. **Alternatively, open in Android Studio**
    ```bash
    npm run android:open
    ```
