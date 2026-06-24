@@ -881,7 +881,7 @@ const Settings = () => {
             </small>
           </div>
           {isEditingBarInfo && (
-            <button onClick={handleSaveBarInfo} disabled={loading} className="btn-modern btn-modern-primary" style={{ marginTop: '12px' }}>
+            <button onClick={saveBarSettings} disabled={loading} className="btn-modern btn-modern-primary" style={{ marginTop: '12px' }}>
               {loading ? 'Saving...' : 'Save UPI Settings'}
             </button>
           )}

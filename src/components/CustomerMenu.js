@@ -12,77 +12,77 @@ import {
   getDocs,
   addDoc,
   serverTimestamp,
-  query,
-  where,
-  onSnapshot,
-  doc,
 } from 'firebase/firestore';
 import { APP_CONFIG } from '../config';
 import {
-  ShoppingCart,
-  ArrowRight,
+  ShoppingBag,
   ArrowLeft,
   CheckCircle2,
+  ChevronRight,
   Loader2,
   Sparkles,
-  Plus,
-  Minus,
-  Trash2,
-  Search,
-  X,
-  SlidersHorizontal,
-  ChevronLeft,
-  RefreshCw,
 } from 'lucide-react';
 import useBarSettings from '../utils/useBarSettings';
 import QRCode from 'qrcode';
-import malabarLogo from '../assets/malabar-waffle-logo.png';
 
 const CustomerMenu = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const searchParams = useSearchParams()[0];
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState({});
-  const [activeTab, setActiveTab] = useState('menu'); // 'menu' or 'cart'
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
+  const [upiQrPayment, setUpiQrPayment] = useState(null);
   const [upiQrStatus, setUpiQrStatus] = useState('');
   const [upiQrLoading, setUpiQrLoading] = useState(false);
-  const [upiQrCodeDataUrl, setUpiQrCodeDataUrl] = useState('');
-  const [cfSessionId, setCfSessionId] = useState('');
-  const [cfEnv, setCfEnv] = useState('');
-  const searchInputRef = useRef(null);
-
-  // Pull-to-refresh state
-  const [pullDistance, setPullDistance] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
-  const touchStartY = useRef(0);
-  const isPulling = useRef(false);
-  const PULL_THRESHOLD = 80;
+  const qrPollIntervalRef = useRef(null);
+  const qrPaymentPromiseRef = useRef({ resolve: null, reject: null });
 
   // Checkout Form State
-  const [name, setName] = useState('Customer');
+  const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [phoneWarning, setPhoneWarning] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('upi');
+  const [paymentMethod, setPaymentMethod] = useState('upi'); // 'upi' or 'cash'
   const [submitting, setSubmitting] = useState(false);
-  const phoneInputRef = useRef(null);
 
-  const [tableNumber, setTableNumber] = useState('Parcel');
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  // Get table number from URL, e.g., ?table=T3. Default to "Parcel" if not present.
+  const tableNumber = searchParams.get('table') || 'Parcel';
 
+  // Initialize Firebase Firestore db using default config
   const db = useMemo(() => getFirebaseDb(), []);
   const { barSettings } = useBarSettings();
 
+  useEffect(() => {
+    // Dynamically load Google Fonts for modern aesthetics
+    const link = document.createElement('link');
+    link.href =
+      'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+
+    loadMenu();
+    return () => {
+      if (qrPollIntervalRef.current) {
+        clearInterval(qrPollIntervalRef.current);
+        qrPollIntervalRef.current = null;
+      }
+      document.head.removeChild(link);
+    };
+  }, [loadMenu]);
+
   const loadMenu = useCallback(async () => {
-    if (!db) { setLoading(false); return; }
+    if (!db) {
+      // Firebase not configured yet
+      setLoading(false);
+      return;
+    }
     try {
       const querySnapshot = await getDocs(collection(db, 'products'));
       const list = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        if (data.available !== false) list.push(data);
+        if (data.available !== false) {
+          list.push(data);
+        }
       });
       setProducts(list);
     } catch (err) {
@@ -92,116 +92,47 @@ const CustomerMenu = () => {
     }
   }, [db]);
 
-  useEffect(() => {
-    const link = document.createElement('link');
-    link.href = 'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap';
-    link.rel = 'stylesheet';
-    document.head.appendChild(link);
-    loadMenu();
-    return () => {
-      document.head.removeChild(link);
-    };
-  }, [loadMenu]);
-
-  useEffect(() => {
-    const paymentParam = searchParams.get('payment');
-    const orderIdParam = searchParams.get('orderId');
-    if (paymentParam === 'success' && orderIdParam) {
-      setOrderSuccess(orderIdParam);
-      setSearchParams({}, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
-
-  useEffect(() => {
-    const tableParam = searchParams.get('table');
-    if (tableParam) {
-      setTableNumber(tableParam);
-    }
-  }, [searchParams]);
-
-  // Pull-to-refresh handlers
-  const handleTouchStart = useCallback((e) => {
-    if (window.scrollY === 0 && activeTab === 'menu' && !refreshing) {
-      touchStartY.current = e.touches[0].clientY;
-      isPulling.current = true;
-    }
-  }, [activeTab, refreshing]);
-
-  const handleTouchMove = useCallback((e) => {
-    if (!isPulling.current || refreshing) return;
-    const currentY = e.touches[0].clientY;
-    const diff = currentY - touchStartY.current;
-    if (diff > 0 && window.scrollY === 0) {
-      e.preventDefault();
-      setPullDistance(Math.min(diff * 0.5, 120));
-    } else {
-      setPullDistance(0);
-    }
-  }, [refreshing]);
-
-  const handleTouchEnd = useCallback(async () => {
-    if (!isPulling.current) return;
-    isPulling.current = false;
-    if (pullDistance >= PULL_THRESHOLD && !refreshing) {
-      setRefreshing(true);
-      setPullDistance(PULL_THRESHOLD);
-      await loadMenu();
-      setRefreshing(false);
-    }
-    setPullDistance(0);
-  }, [pullDistance, refreshing, loadMenu]);
-
-  // Veg/Non-veg detection
-  const isVeg = (product) => {
-    if (product.dietary_type) {
-      return product.dietary_type === 'veg';
-    }
-    const n = (product.name || '').toLowerCase();
-    const d = (product.description || '').toLowerCase();
-    const nonVegKeywords = ['chicken', 'mutton', 'fish', 'egg', 'meat', 'prawn', 'shrimp', 'beef', 'pork', 'lamb'];
-    return !nonVegKeywords.some(kw => n.includes(kw) || d.includes(kw));
-  };
-
-  const formatCurrency = (amount) => `₹${Number(amount).toFixed(2)}`;
-
-  // Filter & group products
-  const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      const term = searchTerm.toLowerCase();
-      return (p.name || '').toLowerCase().includes(term) ||
-             (p.description || '').toLowerCase().includes(term) ||
-             (p.category || '').toLowerCase().includes(term);
-    });
-  }, [products, searchTerm]);
-
-  const groupedProducts = useMemo(() => {
+  // Group products by category
+  const categories = useMemo(() => {
     const map = {};
-    filteredProducts.forEach((p) => {
+    products.forEach((p) => {
       const cat = p.category || 'General';
       if (!map[cat]) map[cat] = [];
       map[cat].push(p);
     });
     return map;
-  }, [filteredProducts]);
+  }, [products]);
+
+  const [activeCategory, setActiveCategory] = useState('');
+
+  useEffect(() => {
+    const keys = Object.keys(categories);
+    if (keys.length > 0 && !activeCategory) {
+      setActiveCategory(keys[0]);
+    }
+  }, [categories, activeCategory]);
 
   // Cart operations
   const addToCart = (productId) => {
-    setCart((prev) => ({ ...prev, [productId]: (prev[productId] || 0) + 1 }));
+    setCart((prev) => ({
+      ...prev,
+      [productId]: (prev[productId] || 0) + 1,
+    }));
   };
 
   const removeFromCart = (productId) => {
     setCart((prev) => {
       const copy = { ...prev };
-      if (copy[productId] <= 1) delete copy[productId];
-      else copy[productId]--;
+      if (copy[productId] <= 1) {
+        delete copy[productId];
+      } else {
+        copy[productId]--;
+      }
       return copy;
     });
   };
 
-  const deleteFromCart = (productId) => {
-    setCart((prev) => { const copy = { ...prev }; delete copy[productId]; return copy; });
-  };
-
+  // Cart totals
   const cartItemsList = useMemo(() => {
     return Object.entries(cart)
       .map(([id, qty]) => {
@@ -211,683 +142,1063 @@ const CustomerMenu = () => {
       .filter(Boolean);
   }, [cart, products]);
 
-  const totalAmount = useMemo(() => cartItemsList.reduce((sum, item) => sum + item.price * item.quantity, 0), [cartItemsList]);
-  const totalQuantity = useMemo(() => Object.values(cart).reduce((sum, q) => sum + q, 0), [cart]);
+  const totalAmount = useMemo(() => {
+    return cartItemsList.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+  }, [cartItemsList]);
 
-  useEffect(() => {
-    if (totalQuantity === 0 && activeTab === 'cart') setActiveTab('menu');
-  }, [totalQuantity, activeTab]);
+  const totalQuantity = useMemo(() => {
+    return Object.values(cart).reduce((sum, q) => sum + q, 0);
+  }, [cart]);
 
-  // Category scroll
-  const scrollToCategory = (catName) => {
-    const el = document.getElementById(`cat-sec-${catName.replace(/\s+/g, '-')}`);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-
-  const handleSelectPaymentMethod = (method) => {
-    const cleanPhone = phone.replace(/\D/g, '');
-    if (!phone.trim() || cleanPhone.length < 10) {
-      setPhoneWarning('Please enter a valid 10-digit WhatsApp number first!');
-      setTimeout(() => setPhoneWarning(''), 3000);
-      if (phoneInputRef.current) {
-        phoneInputRef.current.focus();
-      }
-      return;
+  const closeUpiQrPayment = (shouldReject = true) => {
+    if (qrPollIntervalRef.current) {
+      clearInterval(qrPollIntervalRef.current);
+      qrPollIntervalRef.current = null;
     }
-    setPhoneWarning('');
-    setPaymentMethod(method);
+
+    setUpiQrPayment(null);
+    setUpiQrStatus('');
+    setUpiQrLoading(false);
+
+    const pendingReject = qrPaymentPromiseRef.current.reject;
+    qrPaymentPromiseRef.current = { resolve: null, reject: null };
+
+    if (shouldReject && pendingReject) {
+      pendingReject(new Error('Payment cancelled by customer.'));
+    }
   };
 
+  // Razorpay UPI QR integration
+  const startRazorpayPayment = async (orderNumber) => {
+    const relayUrl = APP_CONFIG.whatsappRelayUrl;
+
+    return new Promise((resolve, reject) => {
+      qrPaymentPromiseRef.current = { resolve, reject };
+      setUpiQrLoading(true);
+      setUpiQrStatus('Generating UPI QR code...');
+      setUpiQrPayment({
+        orderId: orderNumber,
+        amount: totalAmount,
+        qrImageUrl: '',
+      });
+
+      fetch(`${relayUrl}/payment/create-qr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: totalAmount, orderId: orderNumber }),
+      })
+        .then((response) => response.json())
+        .then(async (data) => {
+          if (!data.success) {
+            throw new Error(data.error || 'Failed to create UPI QR code.');
+          }
+
+          setUpiQrLoading(false);
+
+          // Prefer a locally-generated direct UPI QR (upi://) when merchant VPA is available in settings.
+          let qrImage = data.qrImageUrl;
+          try {
+            if (barSettings && barSettings.upi_vpa) {
+              const upiUri = `upi://pay?pa=${encodeURIComponent(
+                barSettings.upi_vpa
+              )}&pn=${encodeURIComponent(barSettings.bar_name || '')}&am=${encodeURIComponent(
+                Number(totalAmount).toFixed(2)
+              )}&cu=INR&tn=${encodeURIComponent('Order ' + orderNumber)}`;
+              qrImage = await QRCode.toDataURL(upiUri, {
+                errorCorrectionLevel: 'M',
+                margin: 2,
+                scale: 6,
+              });
+            }
+          } catch (qrErr) {
+            console.error('Failed to generate local UPI QR:', qrErr);
+            // fallback to server-provided QR image
+            qrImage = data.qrImageUrl;
+          }
+
+          setUpiQrPayment({
+            orderId: orderNumber,
+            amount: totalAmount,
+            qrImageUrl: qrImage,
+            paymentLinkId: data.paymentLinkId || null,
+          });
+          setUpiQrStatus('Waiting for customer payment...');
+
+          if (qrPollIntervalRef.current) {
+            clearInterval(qrPollIntervalRef.current);
+          }
+
+          qrPollIntervalRef.current = setInterval(async () => {
+            try {
+              const statusResponse = await fetch(`${relayUrl}/payment/status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  qrCodeId: data.qrCodeId || null,
+                  paymentLinkId: data.paymentLinkId || null,
+                }),
+              });
+
+              const statusData = await statusResponse.json();
+              if (statusData.success && statusData.paid) {
+                if (qrPollIntervalRef.current) {
+                  clearInterval(qrPollIntervalRef.current);
+                  qrPollIntervalRef.current = null;
+                }
+                setUpiQrStatus('Payment received. Completing order...');
+                setTimeout(() => {
+                  setUpiQrLoading(false);
+                  setUpiQrPayment(null);
+                  setUpiQrStatus('');
+                  const pendingResolve = qrPaymentPromiseRef.current.resolve;
+                  qrPaymentPromiseRef.current = { resolve: null, reject: null };
+                  pendingResolve({ success: true });
+                }, 1000);
+              }
+            } catch (error) {
+              console.error('Error polling Razorpay QR status:', error);
+            }
+          }, 2000);
+        })
+        .catch((error) => {
+          if (qrPollIntervalRef.current) {
+            clearInterval(qrPollIntervalRef.current);
+            qrPollIntervalRef.current = null;
+          }
+          setUpiQrLoading(false);
+          setUpiQrStatus('');
+          setUpiQrPayment(null);
+          qrPaymentPromiseRef.current = { resolve: null, reject: null };
+          reject(error);
+        });
+    });
+  };
+
+  // Submit order to cloud database
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     if (cartItemsList.length === 0) return;
-    
-    const cleanPhone = phone.replace(/\D/g, '');
-    if (!phone.trim() || cleanPhone.length < 10) {
-      setPhoneWarning('Please enter a valid 10-digit WhatsApp number!');
-      setTimeout(() => setPhoneWarning(''), 3000);
-      if (phoneInputRef.current) {
-        phoneInputRef.current.focus();
-      }
+    if (!name.trim() || !phone.trim()) {
+      alert('Please fill in your name and mobile number.');
       return;
     }
-    setPhoneWarning('');
+
     setSubmitting(true);
-
-    // Generate sequential order number starting with W-
-    let orderNumber = `W-${Date.now().toString().slice(-6)}`;
-    try {
-      const q = query(
-        collection(db, 'orders'),
-        where('orderNumber', '>=', 'W-'),
-        where('orderNumber', '<=', 'W-\uf8ff')
-      );
-      const querySnapshot = await getDocs(q);
-      const webCount = querySnapshot.size;
-      orderNumber = `W-${webCount + 1}`;
-    } catch (err) {
-      console.error('Failed to generate sequential W- order number, falling back:', err);
-    }
+    const orderNumber = `W-${Date.now().toString().slice(-6)}`;
 
     try {
+      let payStatus = 'pending';
+
       if (paymentMethod === 'upi') {
-        setUpiQrLoading(true);
-        setUpiQrStatus('Initiating secure payment checkout...');
+        await startRazorpayPayment(orderNumber);
+        payStatus = 'paid';
+      }
 
-        // 1. Create order in Firestore as pending
-        const orderData = {
-          orderNumber, customerName: name, customerPhone: phone, tableNumber,
-          items: cartItemsList.map((item) => ({ productId: String(item.id), name: item.name, quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity })),
-          totalAmount,
-          discountAmount: 0,
-          paymentMethod, paymentStatus: 'pending', orderStatus: 'pending_acceptance', createdAt: serverTimestamp(),
-        };
-        const docRef = await addDoc(collection(db, 'orders'), orderData);
+      // Save order to Firestore
+      const orderData = {
+        orderNumber,
+        customerName: name,
+        customerPhone: phone,
+        tableNumber,
+        items: cartItemsList.map((item) => ({
+          productId: String(item.id),
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.price,
+          totalPrice: item.price * item.quantity,
+        })),
+        totalAmount,
+        paymentMethod,
+        paymentStatus: payStatus,
+        orderStatus: 'pending_acceptance',
+        createdAt: serverTimestamp(),
+      };
 
-        // 2. Initiate Cashfree checkout session
-        const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+      await addDoc(collection(db, 'orders'), orderData);
 
-        const returnUrl = `${window.location.origin}${window.location.pathname}?payment=success&orderId=${orderNumber}`;
-        const res = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
+      // Trigger automatic WhatsApp confirmation via Render backend
+      try {
+        const relayUrl = APP_CONFIG.whatsappRelayUrl;
+        await fetch(`${relayUrl}/payment/send-confirmation`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            amount: totalAmount,
-            orderId: orderNumber,
             phone,
             name,
-            returnUrl,
-            isKiosk: tableNumber.toLowerCase() === 'kiosk'
+            orderNumber,
+            tableNumber,
+            totalAmount,
+            paymentMethod,
           }),
         });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Failed to generate payment session.');
-
-        // 3. Clear cart locally
-        setCart({});
-
-        // 4. Save session info in state
-        setCfSessionId(data.paymentSessionId);
-        setCfEnv(data.environment || 'sandbox');
-
-        // 5. Listen to Firestore for payment success (for Kiosk QR flow)
-        const unsubscribe = onSnapshot(doc(db, 'orders', docRef.id), (snap) => {
-          if (snap.exists()) {
-            const currentData = snap.data();
-            if (currentData.paymentStatus === 'paid') {
-              unsubscribe();
-              setUpiQrLoading(false);
-              setUpiQrStatus('');
-              setUpiQrCodeDataUrl('');
-              setOrderSuccess(orderNumber);
-              setActiveTab('menu');
-            }
-          }
-        });
-
-        if (tableNumber.toLowerCase() === 'kiosk') {
-          // ── KIOSK MODE inside the app: redirect to external browser to show Cashfree hosted page ──
-          if (data.paymentLink) {
-            if (window.open) {
-              window.open(data.paymentLink, '_system');
-            } else {
-              window.location.href = data.paymentLink;
-            }
-            setUpiQrLoading(true);
-            setUpiQrStatus('Redirected to external browser. Waiting for payment...');
-            return; // Stop — do not redirect the kiosk webview itself!
-          }
-        } else {
-          // ── WEB / MOBILE MODE: redirect to Cashfree hosted payment page ──
-          if (window.Cashfree) {
-            try {
-              const cashfree = window.Cashfree({
-                mode: data.environment || 'sandbox'
-              });
-              setUpiQrStatus('Launching secure payment checkout...');
-              await cashfree.checkout({
-                paymentSessionId: data.paymentSessionId,
-                redirectTarget: '_self'
-              });
-              return;
-            } catch (sdkErr) {
-              console.warn('Cashfree SDK checkout failed, falling back to direct URL redirect:', sdkErr);
-            }
-          }
-          if (!data.paymentLink) {
-            throw new Error('No payment link received from server. Please try again.');
-          }
-          setUpiQrStatus('Redirecting to secure payment page...');
-          window.location.href = data.paymentLink;
-          return;
-        }
-      } else {
-        // Cash payment
-        const orderData = {
-          orderNumber, customerName: name, customerPhone: phone, tableNumber,
-          items: cartItemsList.map((item) => ({ productId: String(item.id), name: item.name, quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity })),
-          totalAmount,
-          discountAmount: 0,
-          paymentMethod, paymentStatus: 'pending', orderStatus: 'pending_acceptance', createdAt: serverTimestamp(),
-        };
-        await addDoc(collection(db, 'orders'), orderData);
-
-        // Send WhatsApp confirmation
-        try {
-          const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-          await fetch(`${relayUrl}/payment/send-confirmation`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              phone,
-              name,
-              orderNumber,
-              tableNumber,
-              totalAmount,
-              discountAmount: 0,
-              paymentMethod,
-              items: cartItemsList.map((item) => ({
-                name: item.name,
-                quantity: item.quantity,
-                unitPrice: item.price,
-                totalPrice: item.price * item.quantity
-              })),
-              subtotal: totalAmount
-            }),
-          });
-        } catch (waErr) { console.error('WhatsApp notification failed:', waErr); }
-
-        setCart({});
-        setOrderSuccess(orderNumber);
-        setActiveTab('menu');
+      } catch (waErr) {
+        console.error('WhatsApp notification relay failed:', waErr);
       }
+
+      // Reset cart and show success screen
+      setCart({});
+      setOrderSuccess(orderNumber);
+      setShowCheckout(false);
     } catch (err) {
       console.error('Order submission failed:', err);
       alert(err.message || 'Failed to place order. Please try again.');
-      setUpiQrLoading(false);
-      setUpiQrStatus('');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ─── RENDER: Connection pending ───
   if (!db) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', padding: '20px', fontFamily: '"Outfit", sans-serif', color: '#221f1a', background: '#f6f3ee' }}>
-        <h2 style={{ fontWeight: '700', marginBottom: '8px', color: '#b6412c' }}>Store Connection Pending</h2>
-        <p style={{ color: '#7f766a', textAlign: 'center', maxWidth: '360px', lineHeight: '1.6' }}>This shop is not connected to the cloud yet.</p>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          padding: '20px',
+          fontFamily: '"Outfit", sans-serif',
+          color: '#1E293B',
+          background: '#F8FAFC',
+        }}
+      >
+        <h2 style={{ fontWeight: '600', marginBottom: '8px' }}>
+          Store Connection Pending
+        </h2>
+        <p style={{ color: '#64748B', textAlign: 'center' }}>
+          This shop is not connected to the cloud yet. Please paste your
+          Firebase configuration in the Admin settings dashboard.
+        </p>
       </div>
     );
   }
 
-  // ─── RENDER: Loading ───
   if (loading) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f6f3ee' }}>
-        <Loader2 className="animate-spin" size={48} style={{ color: '#b6412c' }} />
-        <p style={{ marginTop: '16px', color: '#7f766a', fontFamily: '"Outfit", sans-serif', fontWeight: '600' }}>Loading delicious waffles...</p>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          background: '#F8FAFC',
+        }}
+      >
+        <Loader2
+          className="animate-spin"
+          size={48}
+          style={{ color: '#1C5C3A' }}
+        />
+        <p
+          style={{
+            marginTop: '12px',
+            color: '#64748B',
+            fontFamily: '"Outfit", sans-serif',
+          }}
+        >
+          Loading delicious waffles...
+        </p>
       </div>
     );
   }
 
-  // ─── RENDER: Order Success ───
   if (orderSuccess) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '32px 24px', fontFamily: '"Outfit", sans-serif', background: '#b6412c', color: '#ffffff', textAlign: 'center' }}>
-        <CheckCircle2 size={84} className="success-icon-anim" style={{ color: '#f2e7db', marginBottom: '24px' }} />
-        <h1 className="success-text-anim" style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '16px' }}>Order Placed!</h1>
-        <p className="success-text-anim" style={{ fontSize: '1.15rem', opacity: 0.95, maxWidth: '380px', margin: '0 auto 28px auto', lineHeight: '1.7' }}>
-          Thank you! Your order <strong>#{orderSuccess}</strong> has been received. We&apos;ve sent a confirmation receipt to your WhatsApp.
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          padding: '24px',
+          fontFamily: '"Outfit", sans-serif',
+          background: '#1C5C3A',
+          color: 'white',
+          textAlign: 'center',
+        }}
+      >
+        <CheckCircle2
+          size={72}
+          style={{ color: '#EAB308', marginBottom: '24px' }}
+        />
+        <h1
+          style={{
+            fontSize: '2.2rem',
+            fontWeight: '700',
+            marginBottom: '12px',
+          }}
+        >
+          Order Placed!
+        </h1>
+        <p
+          style={{
+            fontSize: '1.1rem',
+            opacity: 0.9,
+            maxWidth: '340px',
+            margin: '0 auto 24px auto',
+            lineHeight: '1.6',
+          }}
+        >
+          Thank you, <strong>{name}</strong>! Your order{' '}
+          <strong>#{orderSuccess}</strong> is placed for{' '}
+          <strong>Table {tableNumber}</strong>. We&apos;ve sent a confirmation
+          to your WhatsApp.
         </p>
-        <div className="success-status-anim" style={{ background: 'rgba(255,255,255,0.12)', padding: '20px 28px', borderRadius: '16px', border: '1.5px solid rgba(255,255,255,0.2)', marginBottom: '40px' }}>
-          <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>Current Status</span>
-          <strong style={{ fontSize: '1.3rem', color: '#f2e7db' }}>Preparing in Kitchen</strong>
+        <div
+          style={{
+            background: 'rgba(255,255,255,0.1)',
+            padding: '16px 24px',
+            borderRadius: '12px',
+            border: '1px solid rgba(255,255,255,0.2)',
+            marginBottom: '32px',
+          }}
+        >
+          <span
+            style={{
+              fontSize: '0.9rem',
+              opacity: 0.8,
+              display: 'block',
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+            }}
+          >
+            Status
+          </span>
+          <strong style={{ fontSize: '1.2rem', color: '#FCD34D' }}>
+            Preparing in Kitchen
+          </strong>
         </div>
-        <button className="success-button-anim" onClick={() => setOrderSuccess(null)} style={{ background: '#ffffff', color: '#b6412c', border: 'none', padding: '14px 36px', borderRadius: '28px', fontWeight: '700', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button
+          onClick={() => setOrderSuccess(null)}
+          style={{
+            background: 'white',
+            color: '#1C5C3A',
+            border: 'none',
+            padding: '12px 32px',
+            borderRadius: '24px',
+            fontWeight: '700',
+            fontSize: '1rem',
+            cursor: 'pointer',
+            transition: 'transform 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
           Order Something Else <Sparkles size={16} />
         </button>
       </div>
     );
   }
 
-  // ─── RENDER: Main App ───
   return (
     <div
-      style={{ fontFamily: '"Outfit", sans-serif', color: '#221f1a', background: '#f6f3ee', minHeight: '100vh', paddingBottom: '80px', position: 'relative' }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      style={{
+        fontFamily: '"Outfit", sans-serif',
+        color: '#1E293B',
+        background: '#F8FAFC',
+        minHeight: '100vh',
+        paddingBottom: totalQuantity > 0 ? '90px' : '20px',
+      }}
     >
-
-      {activeTab === 'menu' ? (
-        <>
-          {/* ═══ PULL-TO-REFRESH INDICATOR ═══ */}
-          {(pullDistance > 0 || refreshing) && (
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              height: refreshing ? '50px' : `${pullDistance}px`,
-              overflow: 'hidden', transition: refreshing ? 'height 0.3s' : 'none',
-            }}>
-              <RefreshCw
-                size={22}
-                className={refreshing ? 'animate-spin' : ''}
-                style={{
-                  color: '#b6412c',
-                  transform: `rotate(${pullDistance * 3}deg)`,
-                  opacity: Math.min(pullDistance / PULL_THRESHOLD, 1),
-                  transition: refreshing ? 'none' : 'transform 0.1s',
-                }}
-              />
-            </div>
-          )}
-
-          {/* ═══ KIOSK HEADER: Logo + Name + Search ═══ */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px 14px 12px', background: '#f6f3ee', borderBottom: '1px solid #e6ded3', position: 'sticky', top: 0, zIndex: 100 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
-              <div style={{ height: '36px', width: '36px', borderRadius: '50%', flexShrink: 0 }}>
-                <img src={malabarLogo} alt="Logo" draggable="false" style={{ height: '100%', width: '100%', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #e6ded3', background: '#ffffff', pointerEvents: 'none' }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#221f1a', fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {barSettings?.bar_name || 'Malabar Waffle'}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSearch((prev) => {
-                    const next = !prev;
-                    if (next) setTimeout(() => { if (searchInputRef.current) searchInputRef.current.focus({ preventScroll: true }); }, 80);
-                    else setSearchTerm('');
-                    return next;
-                  });
-                }}
-                style={{ background: showSearch ? '#f2e7db' : '#ffffff', border: '1px solid #e6ded3', color: '#b6412c', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}
-              >
-                {showSearch ? <X size={16} /> : <Search size={16} />}
-              </button>
-            </div>
-
-            {/* Expandable Search Bar */}
-            {showSearch && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                background: '#ffffff',
-                border: '1.5px solid',
-                borderColor: isSearchFocused ? '#b6412c' : '#e6ded3',
-                borderRadius: '999px',
-                padding: '0 16px',
-                height: '40px',
-                gap: '8px',
-                boxShadow: isSearchFocused ? '0 0 0 3px rgba(182, 65, 44, 0.08)' : 'none',
-                transition: 'all 0.2s ease-in-out'
-              }}>
-                <Search size={16} style={{ color: '#b6412c', flexShrink: 0 }} />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  className="search-input-field"
-                  placeholder="Search products..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  onFocus={() => setIsSearchFocused(true)}
-                  onBlur={() => setIsSearchFocused(false)}
-                  style={{ background: 'transparent', border: 'none', outline: 'none', color: '#221f1a', fontSize: '0.85rem', width: '100%', padding: 0 }}
-                />
-                {searchTerm && (
-                  <button onClick={() => setSearchTerm('')} style={{ background: 'transparent', border: 'none', color: '#7f766a', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
-                    <X size={16} />
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* ═══ PRODUCT LIST BY CATEGORY (Kiosk Style) ═══ */}
-          <div style={{ paddingBottom: '20px' }}>
-            {Object.entries(groupedProducts).map(([categoryName, items]) => (
-              <div key={categoryName} id={`cat-sec-${categoryName.replace(/\s+/g, '-')}`} style={{ marginBottom: '16px' }}>
-                {/* Category Header */}
-                <div style={{ display: 'flex', alignItems: 'center', justifycontent: 'space-between', padding: '12px 14px 8px', borderBottom: '1px solid #e6ded3' }}>
-                  <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#221f1a' }}>
-                    {categoryName}
-                  </h2>
-                </div>
-
-                {/* Product Rows */}
-                <div>
-                  {items.map((product) => {
-                    const qty = cart[product.id] || 0;
-                    return (
-                      <div key={product.id} style={{ display: 'flex', padding: '14px', borderBottom: '1px dashed #e6ded3', gap: '15px' }}>
-                        {/* Left: Name, Price, Veg Badge, Description */}
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                          <h3 style={{ margin: '0 0 6px', fontSize: '0.95rem', fontWeight: '700', color: '#221f1a' }}>
-                            {product.name}
-                          </h3>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '0 0 6px' }}>
-                            <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '800', color: '#b6412c' }}>
-                              {formatCurrency(product.price)}
-                            </p>
-                            {/* Veg/Non-Veg Badge */}
-                            <div style={{ width: '14px', height: '14px', border: isVeg(product) ? '1.5px solid #1c8d3c' : '1.5px solid #b6412c', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '2px', flexShrink: 0 }}>
-                              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: isVeg(product) ? '#1c8d3c' : '#b6412c' }} />
-                            </div>
-                          </div>
-                          <p style={{ margin: '0 0 12px', fontSize: '0.75rem', fontWeight: '600', color: '#1C5C3A' }}>
-                            {product.description || (product.name.toLowerCase().includes('waffle') ? 'Fresh & Delicious' : 'Fresh & Delicious')}
-                          </p>
-                        </div>
-
-                        {/* Right: Product Image + Overlapping ADD Button */}
-                        <div style={{ flexShrink: 0, position: 'relative' }}>
-                          <div style={{ position: 'relative', width: '115px', height: '115px', borderRadius: '16px', overflow: 'visible', background: '#f2e7db' }}>
-                            {product.image ? (
-                              <img src={product.image} alt={product.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '16px' }} />
-                            ) : (
-                              <div style={{ width: '100%', height: '100%', background: '#fffdf8', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e6ded3' }} />
-                            )}
-
-                            {/* Overlapping ADD / Qty Button */}
-                            <div style={{ position: 'absolute', bottom: '0', left: '50%', transform: 'translate(-50%, 50%)', zIndex: 10, width: '85%', display: 'flex', justifyContent: 'center' }}>
-                              {qty > 0 ? (
-                                <div style={{ display: 'flex', alignItems: 'center', background: '#ffffff', border: '1px solid #b6412c', borderRadius: '8px', height: '28px', width: '100%', justifyContent: 'space-between', padding: '0 4px', boxShadow: '0 4px 10px rgba(0,0,0,0.06)' }}>
-                                  <button onClick={() => removeFromCart(product.id)} style={{ background: 'transparent', border: 'none', color: '#b6412c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2px' }}>
-                                    <Minus size={12} />
-                                  </button>
-                                  <span style={{ color: '#b6412c', fontSize: '0.8rem', fontWeight: '700' }}>{qty}</span>
-                                  <button onClick={() => addToCart(product.id)} style={{ background: 'transparent', border: 'none', color: '#b6412c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2px' }}>
-                                    <Plus size={12} />
-                                  </button>
-                                </div>
-                              ) : (
-                                <button onClick={() => addToCart(product.id)} style={{ background: '#ffffff', border: '1px solid #b6412c', color: '#b6412c', borderRadius: '8px', fontSize: '0.75rem', fontWeight: '800', height: '28px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', textTransform: 'uppercase', boxShadow: '0 4px 10px rgba(0,0,0,0.06)', gap: '2px' }}>
-                                  ADD
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-
-            {Object.keys(groupedProducts).length === 0 && (
-              <div style={{ padding: '40px 16px', textAlign: 'center', color: '#7f766a' }}>
-                <p>No matching products found.</p>
-              </div>
-            )}
-          </div>
-
-          {/* ═══ FLOATING BOTTOM BAR: Category + Cart ═══ */}
-          <div style={{ position: 'fixed', bottom: '16px', left: '12px', right: '12px', display: 'flex', gap: '10px', zIndex: 100, alignItems: 'center' }}>
-            {/* Category Button */}
-            <button
-              onClick={() => setShowCategoryPicker(prev => !prev)}
-              style={{ background: '#1C5C3A', color: '#ffffff', border: 'none', borderRadius: '999px', padding: '12px 18px', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 6px 20px rgba(0,0,0,0.15)', flexShrink: 0 }}
-            >
-              <SlidersHorizontal size={16} />
-              <span>Category</span>
-            </button>
-
-            {/* Cart Pill */}
-            {totalQuantity > 0 && (
-              <div
-                onClick={() => setActiveTab('cart')}
-                style={{ flex: 1, background: '#b6412c', borderRadius: '999px', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff', boxShadow: '0 10px 28px rgba(182,65,44,0.35)', cursor: 'pointer' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ShoppingCart size={18} />
-                  <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>
-                    {totalQuantity} | {formatCurrency(totalAmount)}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ fontWeight: '700', fontSize: '0.85rem' }}>VIEW</span>
-                  <ArrowRight size={16} />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ═══ CATEGORY PICKER POPUP ═══ */}
-          {showCategoryPicker && (
-            <div
+      {/* Premium Header */}
+      <header
+        style={{
+          background: '#1C5C3A',
+          color: 'white',
+          padding: '24px 20px',
+          borderBottomLeftRadius: '24px',
+          borderBottomRightRadius: '24px',
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <span
               style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.15)',
-                zIndex: 200,
+                fontSize: '0.85rem',
+                opacity: 0.85,
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                fontWeight: '600',
               }}
-              onClick={() => setShowCategoryPicker(false)}
             >
-              <div
-                style={{
-                  position: 'fixed',
-                  bottom: '76px',
-                  left: '12px',
-                  backgroundColor: '#ffffff',
-                  border: '1px solid #e6ded3',
-                  borderRadius: '16px',
-                  padding: '12px',
-                  width: '200px',
-                  maxHeight: '320px',
-                  overflowY: 'auto',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                  zIndex: 201,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
+              Malabar Waffle
+            </span>
+            <h1
+              style={{
+                fontSize: '1.6rem',
+                fontWeight: '700',
+                margin: '2px 0 0 0',
+              }}
+            >
+              Table {tableNumber}
+            </h1>
+          </div>
+          <Sparkles size={24} style={{ color: '#EAB308' }} />
+        </div>
+      </header>
+
+      {/* Category Navigation Bar */}
+      <div
+        style={{
+          overflowX: 'auto',
+          display: 'flex',
+          padding: '16px 12px',
+          gap: '8px',
+          position: 'sticky',
+          top: '78px',
+          background: '#F8FAFC',
+          zIndex: 90,
+          scrollbarWidth: 'none',
+        }}
+      >
+        {Object.keys(categories).map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setActiveCategory(cat)}
+            style={{
+              padding: '8px 20px',
+              borderRadius: '20px',
+              border: activeCategory === cat ? 'none' : '1px solid #E2E8F0',
+              background: activeCategory === cat ? '#1C5C3A' : 'white',
+              color: activeCategory === cat ? 'white' : '#64748B',
+              fontWeight: '600',
+              fontSize: '0.9rem',
+              whiteSpace: 'nowrap',
+              cursor: 'pointer',
+              boxShadow:
+                activeCategory === cat
+                  ? '0 4px 10px rgba(28,92,90,0.2)'
+                  : 'none',
+              transition: 'all 0.2s',
+            }}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      {/* Menu Cards */}
+      <main style={{ padding: '0 16px' }}>
+        {activeCategory && categories[activeCategory] && (
+          <div
+            style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+          >
+            {categories[activeCategory].map((product) => {
+              const qty = cart[product.id] || 0;
+              return (
                 <div
+                  key={product.id}
                   style={{
-                    fontSize: '0.75rem',
-                    fontWeight: '800',
-                    color: '#7f766a',
-                    textTransform: 'uppercase',
-                    padding: '4px 8px',
+                    background: 'white',
+                    borderRadius: '16px',
+                    padding: '14px',
+                    display: 'flex',
+                    gap: '14px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
+                    border: '1px solid #EDF2F7',
+                    alignItems: 'center',
                   }}
                 >
-                  Categories
+                  {product.image ? (
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      style={{
+                        width: '80px',
+                        height: '80px',
+                        borderRadius: '12px',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '80px',
+                        height: '80px',
+                        borderRadius: '12px',
+                        background: '#EDF2F7',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#A0AEC0',
+                      }}
+                    >
+                      <ShoppingBag size={24} />
+                    </div>
+                  )}
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h3
+                      style={{
+                        fontSize: '1rem',
+                        fontWeight: '700',
+                        margin: '0 0 4px 0',
+                      }}
+                    >
+                      {product.name}
+                    </h3>
+                    <p
+                      style={{
+                        fontSize: '0.85rem',
+                        color: '#718096',
+                        margin: '0 0 10px 0',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                      }}
+                    >
+                      {product.description ||
+                        'Freshly baked waffle served warm.'}
+                    </p>
+                    <span
+                      style={{
+                        fontSize: '1.05rem',
+                        fontWeight: '700',
+                        color: '#1C5C3A',
+                      }}
+                    >
+                      ₹{Number(product.price).toFixed(2)}
+                    </span>
+                  </div>
+
+                  {/* Add / Qty Buttons */}
+                  <div>
+                    {qty > 0 ? (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          background: '#F7FAFC',
+                          border: '1px solid #E2E8F0',
+                          borderRadius: '24px',
+                          padding: '4px',
+                        }}
+                      >
+                        <button
+                          onClick={() => removeFromCart(product.id)}
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            width: '28px',
+                            height: '28px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            color: '#4A5568',
+                          }}
+                        >
+                          -
+                        </button>
+                        <span
+                          style={{
+                            minWidth: '20px',
+                            textAlign: 'center',
+                            fontWeight: '600',
+                            fontSize: '0.9rem',
+                          }}
+                        >
+                          {qty}
+                        </span>
+                        <button
+                          onClick={() => addToCart(product.id)}
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            width: '28px',
+                            height: '28px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            color: '#4A5568',
+                          }}
+                        >
+                          +
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => addToCart(product.id)}
+                        style={{
+                          background: '#EAB308',
+                          color: '#1E293B',
+                          border: 'none',
+                          padding: '8px 20px',
+                          borderRadius: '20px',
+                          fontWeight: '700',
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 10px rgba(234,179,8,0.2)',
+                        }}
+                      >
+                        ADD
+                      </button>
+                    )}
+                  </div>
                 </div>
-                {Object.keys(groupedProducts).map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => {
-                      scrollToCategory(cat);
-                      setShowCategoryPicker(false);
-                    }}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#221f1a',
-                      textAlign: 'left',
-                      padding: '8px',
-                      borderRadius: '8px',
-                      fontSize: '0.9rem',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f6f3ee'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          {/* ═══ COMPACT CART & PAYMENT SCREEN (Page 2) ═══ */}
-          <div style={{ display: 'flex', alignItems: 'center', padding: '12px 14px 4px', gap: '8px', borderBottom: '1px solid #e6ded3', background: '#f6f3ee', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button onClick={() => setActiveTab('menu')} style={{ border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '4px', color: '#b6412c', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', padding: 0 }}>
-                <ChevronLeft size={18} /> Back
-              </button>
-              <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#221f1a', margin: 0 }}>Review Order</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('menu');
-                setShowSearch(true);
-                setTimeout(() => {
-                  if (searchInputRef.current) searchInputRef.current.focus({ preventScroll: true });
-                }, 80);
-              }}
+              );
+            })}
+          </div>
+        )}
+      </main>
+
+      {/* Sticky Bottom Cart Bar */}
+      {totalQuantity > 0 && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '16px',
+            left: '16px',
+            right: '16px',
+            background: '#1C5C3A',
+            borderRadius: '30px',
+            padding: '14px 24px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            color: 'white',
+            boxShadow: '0 10px 25px rgba(28,92,90,0.35)',
+            cursor: 'pointer',
+            zIndex: 100,
+          }}
+          onClick={() => setShowCheckout(true)}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span
               style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#b6412c',
-                cursor: 'pointer',
+                background: '#EAB308',
+                color: '#1E293B',
+                borderRadius: '50%',
+                width: '24px',
+                height: '24px',
                 display: 'flex',
                 alignItems: 'center',
-                padding: '4px',
-                outline: 'none',
+                justifyContent: 'center',
+                fontWeight: '700',
+                fontSize: '0.85rem',
               }}
             >
-              <Search size={18} />
-            </button>
+              {totalQuantity}
+            </span>
+            <span style={{ fontWeight: '600', fontSize: '0.95rem' }}>
+              View Cart
+            </span>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <strong style={{ fontSize: '1.1rem' }}>
+              ₹{totalAmount.toFixed(2)}
+            </strong>
+            <ChevronRight size={18} />
+          </div>
+        </div>
+      )}
 
-          <main style={{ padding: '8px 12px 16px' }}>
-            {/* Customer Info */}
-            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '12px', marginBottom: '12px', border: '1.5px solid #e6ded3', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
-              <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: 'none', paddingBottom: '0' }}>WhatsApp Mobile Number</h3>
-              <div style={{ marginTop: '10px' }}>
+      {/* Checkout Sheet / Overlay */}
+      {showCheckout && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 200,
+            display: 'flex',
+            alignItems: 'flex-end',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div
+            style={{
+              background: 'white',
+              width: '100%',
+              borderTopLeftRadius: '24px',
+              borderTopRightRadius: '24px',
+              padding: '24px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '20px',
+              }}
+            >
+              <button
+                onClick={() => setShowCheckout(false)}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: '#64748B',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                <ArrowLeft size={16} /> Back
+              </button>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: '700', margin: 0 }}>
+                Review Order
+              </h2>
+              <div style={{ width: '40px' }} /> {/* Spacer */}
+            </div>
+
+            {/* Cart Summary */}
+            <div
+              style={{
+                background: '#F8FAFC',
+                borderRadius: '16px',
+                padding: '16px',
+                marginBottom: '24px',
+              }}
+            >
+              {cartItemsList.map((item) => (
+                <div
+                  key={item.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 0',
+                    borderBottom: '1px solid #EDF2F7',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontWeight: '600', fontSize: '0.95rem' }}>
+                      {item.name}
+                    </span>
+                    <span
+                      style={{
+                        color: '#718096',
+                        fontSize: '0.85rem',
+                        marginLeft: '8px',
+                      }}
+                    >
+                      x{item.quantity}
+                    </span>
+                  </div>
+                  <strong style={{ fontSize: '0.95rem' }}>
+                    ₹{(item.price * item.quantity).toFixed(2)}
+                  </strong>
+                </div>
+              ))}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginTop: '12px',
+                  fontSize: '1.1rem',
+                }}
+              >
+                <strong>Total Amount</strong>
+                <strong style={{ color: '#1C5C3A' }}>
+                  ₹{totalAmount.toFixed(2)}
+                </strong>
+              </div>
+            </div>
+
+            {/* Checkout Form */}
+            <form onSubmit={handlePlaceOrder}>
+              <div style={{ marginBottom: '16px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '6px',
+                    fontWeight: '600',
+                    fontSize: '0.9rem',
+                    color: '#4A5568',
+                  }}
+                >
+                  Your Name
+                </label>
                 <input
-                  ref={phoneInputRef}
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  placeholder="e.g. John Doe"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: '10px',
+                    border: '1px solid #CBD5E1',
+                    outline: 'none',
+                    fontSize: '0.95rem',
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '6px',
+                    fontWeight: '600',
+                    fontSize: '0.9rem',
+                    color: '#4A5568',
+                  }}
+                >
+                  WhatsApp Mobile Number
+                </label>
+                <input
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   required
-                  placeholder="e.g. 9876543210"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #e6ded3', outline: 'none', fontSize: '0.88rem', fontFamily: '"Outfit", sans-serif', color: '#221f1a', boxSizing: 'border-box' }}
+                  placeholder="10-digit number for receipts"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: '10px',
+                    border: '1px solid #CBD5E1',
+                    outline: 'none',
+                    fontSize: '0.95rem',
+                  }}
                 />
-                {phoneWarning && (
-                  <div style={{
-                    marginTop: '6px',
-                    color: '#b6412c',
-                    fontSize: '0.82rem',
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '8px',
                     fontWeight: '600',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    animation: 'fadeIn 0.2s ease-out'
-                  }}>
-                    ⚠️ {phoneWarning}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Cart Items */}
-            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '12px', marginBottom: '12px', border: '1.5px solid #e6ded3', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
-              <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '6px' }}>Selected Items ({totalQuantity})</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {cartItemsList.map((item) => (
-                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: '1px solid #f6f3ee' }}>
-                    <div style={{ flex: 1, minWidth: 0, marginRight: '10px' }}>
-                      <span style={{ fontWeight: '700', fontSize: '0.9rem', display: 'block', color: '#221f1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</span>
-                      <span style={{ color: '#b6412c', fontSize: '0.8rem', fontWeight: '600' }}>{formatCurrency(item.price)} each</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', background: '#fbf7f4', border: '1px solid #e6ded3', borderRadius: '20px', padding: '2px' }}>
-                        <button type="button" onClick={() => removeFromCart(item.id)} style={{ border: 'none', background: 'transparent', width: '22px', height: '22px', fontWeight: '700', cursor: 'pointer', color: '#b6412c', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Minus size={12} /></button>
-                        <span style={{ minWidth: '16px', textAlign: 'center', fontWeight: '700', fontSize: '0.8rem', color: '#221f1a' }}>{item.quantity}</span>
-                        <button type="button" onClick={() => addToCart(item.id)} style={{ border: 'none', background: 'transparent', width: '22px', height: '22px', fontWeight: '700', cursor: 'pointer', color: '#b6412c', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={12} /></button>
-                      </div>
-                      <button type="button" onClick={() => deleteFromCart(item.id)} style={{ border: 'none', background: 'transparent', color: '#7f766a', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}><Trash2 size={16} /></button>
-                    </div>
-                    <strong style={{ fontSize: '0.9rem', marginLeft: '8px', minWidth: '60px', textAlign: 'right' }}>{formatCurrency(item.price * item.quantity)}</strong>
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '1.05rem', fontWeight: '700', paddingTop: '4px' }}>
-                <span>Grand Total</span>
-                <span style={{ color: '#b6412c' }}>{formatCurrency(totalAmount)}</span>
-              </div>
-            </div>
-
-            {/* Payment Method */}
-            <form onSubmit={handlePlaceOrder}>
-              <div style={{ background: '#ffffff', borderRadius: '16px', padding: '12px', marginBottom: '16px', border: '1.5px solid #e6ded3', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
-                <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: '1.5px solid #f6f3ee', paddingBottom: '6px' }}>Select Payment Method</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <button type="button" onClick={() => handleSelectPaymentMethod('upi')} style={{ padding: '10px 8px', borderRadius: '12px', border: paymentMethod === 'upi' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: paymentMethod === 'upi' ? '#fbf7f4' : '#ffffff', color: paymentMethod === 'upi' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}>
-                    <span style={{ fontSize: '1.2rem' }}>📱</span><span>Pay Online (UPI)</span>
+                    fontSize: '0.9rem',
+                    color: '#4A5568',
+                  }}
+                >
+                  Payment Method
+                </label>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '10px',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('upi')}
+                    style={{
+                      padding: '12px',
+                      borderRadius: '10px',
+                      border:
+                        paymentMethod === 'upi'
+                          ? '2px solid #1C5C3A'
+                          : '1px solid #CBD5E1',
+                      background: paymentMethod === 'upi' ? '#F0FDF4' : 'white',
+                      color: paymentMethod === 'upi' ? '#1C5C3A' : '#4A5568',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Pay Online (UPI)
                   </button>
-                  <button type="button" onClick={() => handleSelectPaymentMethod('cash')} style={{ padding: '10px 8px', borderRadius: '12px', border: paymentMethod === 'cash' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: paymentMethod === 'cash' ? '#fbf7f4' : '#ffffff', color: paymentMethod === 'cash' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}>
-                    <span style={{ fontSize: '1.2rem' }}>💵</span><span>Pay at Counter</span>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('cash')}
+                    style={{
+                      padding: '12px',
+                      borderRadius: '10px',
+                      border:
+                        paymentMethod === 'cash'
+                          ? '2px solid #1C5C3A'
+                          : '1px solid #CBD5E1',
+                      background:
+                        paymentMethod === 'cash' ? '#F0FDF4' : 'white',
+                      color: paymentMethod === 'cash' ? '#1C5C3A' : '#4A5568',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Pay at Counter (Cash)
                   </button>
                 </div>
               </div>
-              <button type="submit" disabled={submitting} style={{ width: '100%', background: '#b6412c', color: '#ffffff', border: 'none', padding: '12px', borderRadius: '24px', fontSize: '0.98rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 6px 20px rgba(182,65,44,0.3)', opacity: submitting ? 0.8 : 1, transition: 'opacity 0.2s' }}>
-                {submitting ? (<><Loader2 className="animate-spin" size={18} />Processing Payment...</>) : paymentMethod === 'upi' ? 'Pay & Place Order' : 'Place Order (Pay Cash)'}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                style={{
+                  width: '100%',
+                  background: '#1C5C3A',
+                  color: 'white',
+                  border: 'none',
+                  padding: '16px',
+                  borderRadius: '30px',
+                  fontSize: '1.1rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 6px 15px rgba(28,92,90,0.3)',
+                  opacity: submitting ? 0.8 : 1,
+                }}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="animate-spin" size={20} />
+                    Processing Payment...
+                  </>
+                ) : paymentMethod === 'upi' ? (
+                  `Pay & Place Order`
+                ) : (
+                  `Place Order (Pay Cash)`
+                )}
               </button>
             </form>
-          </main>
-        </>
+          </div>
+        </div>
       )}
 
-      {/* ═══ LOADER / TRANSITION OVERLAY ═══ */}
-      {upiQrLoading && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(34,31,26,0.65)', zIndex: 250, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', backdropFilter: 'blur(6px)' }}>
-          <div style={{ background: '#ffffff', width: '100%', maxWidth: '340px', borderRadius: '24px', padding: '28px 24px', boxShadow: '0 20px 60px rgba(0,0,0,0.22)', textAlign: 'center', border: '1.5px solid #e6ded3', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-            {upiQrCodeDataUrl ? (
-              <>
-                <strong style={{ fontSize: '1.1rem', color: '#221f1a', marginBottom: '4px' }}>Scan QR Code to Pay</strong>
-                <div style={{ padding: '12px', background: '#fbf7f4', borderRadius: '16px', border: '1px solid #e6ded3', display: 'inline-block', boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.04)' }}>
-                  <img src={upiQrCodeDataUrl} alt="UPI Payment QR Code" style={{ width: '180px', height: '180px', display: 'block' }} />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', margin: '4px 0' }}>
-                  <Loader2 className="animate-spin" size={16} style={{ color: '#b6412c' }} />
-                  <span style={{ fontSize: '0.88rem', fontWeight: '600', color: '#b6412c' }}>{upiQrStatus || 'Waiting for payment...'}</span>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: '#7f766a', lineHeight: '1.4' }}>
-                  Scan with GPay, PhonePe, Paytm, or BHIM. Keep this window open after payment.
-                </p>
-                <div style={{ width: '100%', height: '1px', background: '#e6ded3', margin: '8px 0' }} />
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      if (!window.Cashfree) throw new Error('Cashfree SDK not loaded.');
-                      const cashfree = window.Cashfree({ mode: cfEnv });
-                      await cashfree.checkout({
-                        paymentSessionId: cfSessionId,
-                        redirectTarget: '_self'
-                      });
-                    } catch (err) {
-                      alert('Could not launch hosted payment: ' + err.message);
-                    }
+      {/* Razorpay UPI QR Modal */}
+      {upiQrPayment && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.58)',
+            zIndex: 250,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            backdropFilter: 'blur(6px)',
+          }}
+        >
+          <div
+            style={{
+              background: 'white',
+              width: '100%',
+              maxWidth: '420px',
+              borderRadius: '20px',
+              padding: '24px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.22)',
+              textAlign: 'center',
+            }}
+          >
+            <h3
+              style={{
+                margin: '0 0 8px 0',
+                fontSize: '1.3rem',
+                color: '#1C5C3A',
+              }}
+            >
+              Scan Razorpay UPI QR
+            </h3>
+            <p style={{ margin: '0 0 16px 0', color: '#64748B' }}>
+              Order #{upiQrPayment.orderId}
+            </p>
+
+            <div
+              style={{
+                background: '#F8FAFC',
+                borderRadius: '16px',
+                padding: '14px 16px',
+                marginBottom: '16px',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '0.85rem',
+                  color: '#64748B',
+                  marginBottom: '4px',
+                }}
+              >
+                Amount to Pay
+              </div>
+              <strong style={{ fontSize: '1.4rem', color: '#1C5C3A' }}>
+                ₹{Number(upiQrPayment.amount || 0).toFixed(2)}
+              </strong>
+            </div>
+
+            <div
+              style={{
+                minHeight: '220px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '16px',
+                border: '1px solid #E2E8F0',
+                borderRadius: '16px',
+                background: '#fff',
+              }}
+            >
+              {upiQrLoading || !upiQrPayment.qrImageUrl ? (
+                <div
+                  style={{
+                    color: '#64748B',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '10px',
                   }}
-                  style={{ background: 'transparent', border: 'none', color: '#b6412c', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', padding: '4px 8px', textDecoration: 'underline' }}
                 >
-                  Pay via Card / Net Banking / Wallet
-                </button>
-              </>
-            ) : (
-              <>
-                <Loader2 className="animate-spin" size={40} style={{ color: '#b6412c' }} />
-                <strong style={{ fontSize: '1.1rem', color: '#221f1a' }}>{upiQrStatus || 'Processing Payment...'}</strong>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: '#7f766a' }}>Please do not close this window or press back.</p>
-              </>
-            )}
+                  <Loader2 className="animate-spin" size={28} />
+                  <span>Generating dynamic UPI QR code...</span>
+                </div>
+              ) : (
+                <img
+                  src={upiQrPayment.qrImageUrl}
+                  alt="Razorpay UPI QR code"
+                  style={{
+                    width: '200px',
+                    height: '200px',
+                    objectFit: 'contain',
+                  }}
+                />
+              )}
+            </div>
+
+            <p
+              style={{
+                margin: '0 0 18px 0',
+                color: '#0F766E',
+                fontWeight: '600',
+              }}
+            >
+              {upiQrStatus || 'Waiting for customer payment...'}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => closeUpiQrPayment(true)}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: '14px',
+                border: '1px solid #CBD5E1',
+                background: '#fff',
+                color: '#475569',
+                fontWeight: '700',
+                cursor: 'pointer',
+              }}
+            >
+              Cancel Payment
+            </button>
           </div>
         </div>
       )}
