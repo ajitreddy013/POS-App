@@ -97,7 +97,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-24-cashfree-upi-qr-inapp-v2';
+const relayVersion = '2026-06-24-cashfree-upi-qr-inapp-v3';
 
 app.use(cors());
 app.use(express.json());
@@ -635,7 +635,7 @@ app.post('/payment/cashfree/upi-qr', async (req, res) => {
     };
 
     console.log(`[UPI QR] Initiating UPI QR for order ${order.order_id}`);
-    const payResponse = await cashfreeRequest('POST', `/orders/${order.order_id}/pay`, payPayload);
+    const payResponse = await cashfreeRequest('POST', '/orders/pay', payPayload);
     console.log(`[UPI QR] Pay response for ${order.order_id}:`, JSON.stringify(payResponse));
 
     const qrData = payResponse?.data?.payload?.qrcode || '';
