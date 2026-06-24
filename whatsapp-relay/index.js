@@ -97,7 +97,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-24-cashfree-upi-qr-inapp';
+const relayVersion = '2026-06-24-cashfree-upi-qr-inapp-v2';
 
 app.use(cors());
 app.use(express.json());
