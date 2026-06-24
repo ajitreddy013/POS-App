@@ -848,6 +848,45 @@ const Settings = () => {
           </div>
         </div>
       </div>
+      {/* UPI Payments Section */}
+      <div className="settings-card-modern" style={{ marginBottom: '30px' }}>
+        <div className="settings-card-hdr">
+          <h2><CreditCard size={20} style={{ color: '#b6412c' }} /> UPI Payments</h2>
+          <button
+            onClick={() => setIsEditingBarInfo(!isEditingBarInfo)}
+            className="btn-modern btn-modern-secondary"
+          >
+            <Edit size={16} />
+            {isEditingBarInfo ? 'Cancel' : 'Edit'}
+          </button>
+        </div>
+        <div className="settings-card-body-modern">
+          <div className="form-group-modern">
+            <label>UPI VPA (Merchant UPI ID)</label>
+            {isEditingBarInfo ? (
+              <input
+                type="text"
+                className="form-input-modern"
+                value={barSettings.upi_vpa || ''}
+                onChange={(e) => setBarSettings({ ...barSettings, upi_vpa: e.target.value })}
+                placeholder="e.g. yourname@okaxis or 9876543210@upi"
+              />
+            ) : (
+              <p className="display-value">
+                {barSettings.upi_vpa || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Not configured — UPI QR will not work in kiosk</span>}
+              </p>
+            )}
+            <small style={{ color: '#64748b', fontSize: '0.78rem' }}>
+              This is your UPI address (VPA). Customers scan the QR in kiosk to pay directly to this ID.
+            </small>
+          </div>
+          {isEditingBarInfo && (
+            <button onClick={handleSaveBarInfo} disabled={loading} className="btn-modern btn-modern-primary" style={{ marginTop: '12px' }}>
+              {loading ? 'Saving...' : 'Save UPI Settings'}
+            </button>
+          )}
+        </div>
+      </div>
     </>
   );
 
