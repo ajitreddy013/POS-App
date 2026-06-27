@@ -12,5 +12,11 @@ service cloud.firestore {
       allow create, read, update: if true;
       allow delete: if false; // Orders should never be deleted, only cancelled
     }
+
+    // Settings: Public read so customer website can load delivery config, bar name etc.
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }
