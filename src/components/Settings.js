@@ -390,10 +390,10 @@ const Settings = () => {
             upi_provider: barSettings.upi_provider || 'cashfree',
             upi_vpa: barSettings.upi_vpa || '',
             hosted_app_url: barSettings.hosted_app_url || '',
-            delivery_enabled: barSettings.delivery_enabled || false,
+            delivery_enabled: barSettings.delivery_enabled === true,
             delivery_fee: Number(barSettings.delivery_fee) || 30,
             delivery_free_above: Number(barSettings.delivery_free_above) || 300,
-          });
+          }, { merge: true });
           console.log('Bar settings successfully synced to Firestore.');
         }
       } catch (cloudErr) {
