@@ -97,7 +97,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-24-kiosk-browser-payment-v2';
+const relayVersion = '2026-06-28-kiosk-browser-payment-v3';
 
 app.use(cors());
 app.use(express.json());
@@ -541,8 +541,11 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       formattedPhone = '919999999999';
     }
 
+    // For kiosk, append timestamp so retries don't clash with existing CF orders
+    const cfOrderId = isKiosk ? `${String(orderId)}_${Date.now()}` : String(orderId);
+
     const payload = {
-      order_id: String(orderId),
+      order_id: cfOrderId,
       order_amount: Number(Number(amount).toFixed(2)),
       order_currency: 'INR',
       customer_details: {
@@ -552,7 +555,9 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
         customer_email: 'customer@malabarwaffle.com',
       },
       order_meta: {
-        return_url: req.body.returnUrl || `${req.headers.origin || 'https://counterflow-kiosk.web.app'}/?payment=success&orderId=${orderId}`,
+        return_url: isKiosk
+          ? 'https://pos-app-nqsm.onrender.com/payment-done'
+          : (req.body.returnUrl || `${req.headers.origin || 'https://counterflow-kiosk.web.app'}/?payment=success&orderId=${orderId}`),
         notify_url: 'https://pos-app-nqsm.onrender.com/payment/cashfree/webhook',
       },
       order_note: `Order ${orderId}`,
@@ -573,7 +578,7 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
 
     // Set desktop device headers for Kiosk Mode checkouts to force QR code view by default on Cashfree
     let clientHeaders = {};
-    if (isKiosk === true) {
+    if (isKiosk) {
       clientHeaders = {
         'x-client-device': 'desktop',
         'x-client-os': 'windows',
@@ -581,15 +586,18 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       };
     }
 
-    console.log(`Creating Cashfree Order for ${orderId}, Amount: ${payload.order_amount}`);
+    console.log(`Creating Cashfree Order for ${orderId} (CF id: ${cfOrderId}), isKiosk: ${isKiosk}, Amount: ${payload.order_amount}`);
     const response = await cashfreeRequest('POST', '/orders', payload, clientHeaders);
 
     const isProd = cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
 
     // Construct the checkout redirect link pointing to our customer website's SDK checkout page
-    const webBase = req.body.returnUrl 
-      ? new URL(req.body.returnUrl).origin 
-      : (req.headers.origin || 'https://counterflow-kiosk.web.app');
+    // For kiosk, always use the customer website base so the CF SDK checkout page loads correctly
+    const webBase = isKiosk
+      ? 'https://counterflow-kiosk.web.app'
+      : (req.body.returnUrl
+          ? new URL(req.body.returnUrl).origin
+          : (req.headers.origin || 'https://counterflow-kiosk.web.app'));
     const paymentLink = `${webBase}/#/checkout?sessionId=${response.payment_session_id}&env=${isProd ? 'production' : 'sandbox'}`;
 
     console.log(`Cashfree Order ${response.order_id} created. Payment link: ${paymentLink}`);

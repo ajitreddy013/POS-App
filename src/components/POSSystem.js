@@ -616,7 +616,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       };
       const docRef = await addDoc(collection(db, 'orders'), orderData);
 
-      const response = await fetch(`${relayUrl}/payment/cashfree/kiosk-order`, {
+      const response = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -624,6 +624,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           orderId,
           phone: customerPhone || '9999999999',
           name: 'Kiosk Customer',
+          isKiosk: true,
         }),
       });
       const data = await response.json();
@@ -631,10 +632,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
       if (!data.success) throw new Error(data.error || 'Failed to create Cashfree order.');
 
-      window.open(data.hostedUrl, '_blank');
+      window.open(data.paymentLink, '_blank');
 
       qrPaymentPendingRef.current = true;
-      setUpiQrPayment({ orderId, amount, qrImageUrl: null, mode: 'cashfree', hostedUrl: data.hostedUrl });
+      setUpiQrPayment({ orderId, amount, qrImageUrl: null, mode: 'cashfree', hostedUrl: data.paymentLink });
       setUpiQrStatus('Waiting for customer payment...');
 
       if (cfUnsubRef.current) cfUnsubRef.current();
@@ -1668,7 +1669,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                     opacity: cart.length === 0 || loading ? 0.6 : 1,
                   }}
                 >
-                  Razorpay QR
+                  UPI Pay
                 </span>
               </button>
               <button
@@ -1772,13 +1773,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         </div>
       )}
 
-      {/* Razorpay UPI QR Modal */}
+      {/* UPI Payment Modal — Cashfree hosted page or Razorpay QR */}
       {upiQrPayment && (
         <div
           className="upi-qr-overlay"
           role="dialog"
           aria-modal="true"
-          aria-label="Razorpay UPI QR payment"
+          aria-label="UPI payment"
         >
           <div className="upi-qr-sheet">
             <div className="upi-qr-header">
@@ -1787,7 +1788,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   <QrCode size={20} />
                 </span>
                 <div>
-                  <h3>Scan Razorpay UPI QR</h3>
+                  <h3>{upiQrPayment.mode === 'cashfree' ? 'UPI Payment' : 'Scan UPI QR'}</h3>
                   <p>Order #{upiQrPayment.orderId}</p>
                 </div>
               </div>
@@ -1795,7 +1796,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 type="button"
                 className="upi-qr-close"
                 onClick={closeUpiQrPayment}
-                aria-label="Close UPI QR"
+                aria-label="Close UPI payment"
               >
                 <X size={18} />
               </button>
@@ -1807,18 +1808,33 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 <strong>{formatCurrency(upiQrPayment.amount)}</strong>
               </div>
 
-              <div className="upi-qr-image-frame">
-                {upiQrPayment.qrImageUrl ? (
-                  <img
-                    src={upiQrPayment.qrImageUrl}
-                    alt="Razorpay UPI QR code"
-                  />
-                ) : (
-                  <div className="upi-qr-placeholder">
-                    <Loader2 size={28} className="spin" />
-                  </div>
-                )}
-              </div>
+              {upiQrPayment.mode === 'cashfree' ? (
+                <div className="upi-qr-browser-notice">
+                  <div className="upi-qr-browser-icon">🌐</div>
+                  <p>Payment page opened in browser.</p>
+                  <p>Scan the UPI QR on that page to pay.</p>
+                  <button
+                    type="button"
+                    style={{ marginTop: '12px', padding: '6px 14px', borderRadius: '8px', border: '1px solid #e6ded3', background: '#f6f3ee', cursor: 'pointer', fontSize: '0.82rem' }}
+                    onClick={() => window.open(upiQrPayment.hostedUrl, '_blank')}
+                  >
+                    Reopen Payment Page
+                  </button>
+                </div>
+              ) : (
+                <div className="upi-qr-image-frame">
+                  {upiQrPayment.qrImageUrl ? (
+                    <img
+                      src={upiQrPayment.qrImageUrl}
+                      alt="UPI QR code"
+                    />
+                  ) : (
+                    <div className="upi-qr-placeholder">
+                      <Loader2 size={28} className="spin" />
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="upi-qr-status">
                 <Loader2 size={16} className="spin" />
