@@ -56,6 +56,9 @@ const https = require('https');
 const admin = require('firebase-admin');
 const serviceAccountPath = path.join(__dirname, 'service-account.json');
 
+// Use a flag instead of admin.apps.length which is unreliable in firebase-admin v14+
+let firebaseInitialized = false;
+
 if (fs.existsSync(serviceAccountPath)) {
   console.log(
     'Initializing Firebase Admin SDK using local service-account.json...'
@@ -65,6 +68,7 @@ if (fs.existsSync(serviceAccountPath)) {
     admin.initializeApp({
       credential: admin.cert(serviceAccount),
     });
+    firebaseInitialized = true;
     console.log('Firebase Admin SDK initialized successfully.');
   } catch (err) {
     console.error(
@@ -85,6 +89,7 @@ if (fs.existsSync(serviceAccountPath)) {
         privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
       }),
     });
+    firebaseInitialized = true;
     console.log('Firebase Admin SDK initialized successfully.');
   } catch (err) {
     console.error('Failed to initialize Firebase Admin SDK:', err);
@@ -97,7 +102,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-28-kiosk-browser-payment-v3';
+const relayVersion = '2026-06-28-delivery-webhook-fix-v4';
 
 app.use(cors());
 app.use(express.json());
@@ -233,7 +238,7 @@ async function getShopSettings() {
     gst_number: '',
     thank_you_message: 'Thank you for visiting! Please visit again.'
   };
-  if (admin && admin.apps && admin.apps.length > 0) {
+  if (firebaseInitialized) {
     try {
       const db = admin.firestore();
       const settingsDoc = await db.collection('settings').doc('bar_settings').get();
@@ -605,6 +610,7 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
     res.json({
       success: true,
       paymentSessionId: response.payment_session_id,
+      cfOrderId: response.order_id,
       orderId: response.order_id,
       environment: isProd ? 'production' : 'sandbox',
       upiLink: '',
@@ -714,6 +720,21 @@ app.post('/payment/cashfree/kiosk-order', async (req, res) => {
   }
 });
 
+// Check Cashfree order payment status by CF order ID
+app.post('/payment/cashfree/order-status', async (req, res) => {
+  const { cfOrderId } = req.body;
+  if (!cfOrderId) return res.status(400).json({ success: false, error: 'Missing cfOrderId.' });
+  try {
+    const order = await cashfreeRequest('GET', `/orders/${cfOrderId}`);
+    const paid = order.order_status === 'PAID';
+    console.log(`[Order Status] CF order ${cfOrderId}: ${order.order_status}`);
+    res.json({ success: true, status: order.order_status, paid });
+  } catch (err) {
+    console.error(`[Order Status] Failed for ${cfOrderId}:`, err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Cashfree UPI QR — create order + initiate UPI QR in one call
 // Returns a base64 QR image the app renders in-app; webhook fires when customer pays.
 app.post('/payment/cashfree/upi-qr', async (req, res) => {
@@ -806,7 +827,7 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
       console.log(`Cashfree Active Verification for Order #${orderNumber}: status = ${orderDetails.order_status}`);
 
       if (orderDetails.order_status === 'PAID') {
-        if (admin && admin.apps && admin.apps.length > 0) {
+        if (firebaseInitialized) {
           const db = admin.firestore();
           const ordersRef = db.collection('orders');
           const snapshot = await ordersRef

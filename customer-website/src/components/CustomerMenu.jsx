@@ -314,7 +314,8 @@ const CustomerMenu = () => {
 
         // 2. Get Cashfree payment link from backend
         const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-        const returnUrl = `${window.location.origin}${window.location.pathname}?payment=success&orderId=${orderNumber}`;
+        // Hash-based URL so HashRouter's useSearchParams can read the params on return
+        const returnUrl = `${window.location.origin}/#/?payment=success&orderId=${orderNumber}`;
         const res = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
