@@ -1,11 +1,10 @@
 /**
  * useBarSettings.js
- * Standalone hook that fetches bar settings directly from Firestore.
- * No dependency on the POS app's dbService.
+ * Fetches bar settings from Firestore with real-time updates via onSnapshot.
  */
 import { useState, useEffect } from 'react';
 import { getFirebaseDb } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 const DEFAULT_SETTINGS = {
   bar_name: "Malabar Waffle",
@@ -22,36 +21,40 @@ const DEFAULT_SETTINGS = {
   upi_provider: "cashfree",
   upi_vpa: "",
   hosted_app_url: "",
+  delivery_enabled: false,
+  delivery_fee: 30,
+  delivery_free_above: 300,
 };
 
 const useBarSettings = () => {
   const [barSettings, setBarSettings] = useState(null);
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const db = getFirebaseDb();
-        if (!db) {
-          setBarSettings(DEFAULT_SETTINGS);
-          return;
-        }
+    const db = getFirebaseDb();
+    if (!db) {
+      setBarSettings(DEFAULT_SETTINGS);
+      return;
+    }
 
-        // Try reading bar_settings document from Firestore
-        const settingsRef = doc(db, 'settings', 'bar_settings');
-        const snap = await getDoc(settingsRef);
+    const settingsRef = doc(db, 'settings', 'bar_settings');
 
+    // Real-time listener — picks up any settings change without a page refresh
+    const unsubscribe = onSnapshot(
+      settingsRef,
+      (snap) => {
         if (snap.exists()) {
           setBarSettings({ ...DEFAULT_SETTINGS, ...snap.data() });
         } else {
           setBarSettings(DEFAULT_SETTINGS);
         }
-      } catch (err) {
+      },
+      (err) => {
         console.error('Failed to load bar settings:', err);
         setBarSettings(DEFAULT_SETTINGS);
       }
-    };
+    );
 
-    fetchSettings();
+    return () => unsubscribe();
   }, []);
 
   return { barSettings };
