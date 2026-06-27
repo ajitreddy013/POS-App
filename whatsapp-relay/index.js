@@ -265,16 +265,27 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
     items = [],
     subtotal = 0,
     discountAmount = 0,
-    taxAmount = 0
+    taxAmount = 0,
+    deliveryFee = 0,
+    orderType = 'dine_in',
+    deliveryAddress = null,
   } = orderData;
 
   const name = customerName || 'Customer';
-  
+  const isDelivery = orderType === 'delivery';
+
   // Status Header
   const isPaid = paymentStatus === 'paid' || paymentMethod === 'upi';
-  const statusHeader = isPaid 
-    ? `*🟢 PAID VIA UPI (ONLINE) 🟢*`
-    : `*🔴 CASH PAYMENT - PAY AT COUNTER 🔴*`;
+  let statusHeader;
+  if (isDelivery) {
+    statusHeader = isPaid
+      ? `*🟢 DELIVERY ORDER — PAID ONLINE 🟢*`
+      : `*🛵 DELIVERY ORDER — CASH ON DELIVERY 🛵*`;
+  } else {
+    statusHeader = isPaid
+      ? `*🟢 PAID VIA UPI (ONLINE) 🟢*`
+      : `*🔴 CASH PAYMENT - PAY AT COUNTER 🔴*`;
+  }
 
   // Personalized greeting
   const hasTable = tableNumber && tableNumber !== 'Parcel' && tableNumber !== 'Takeaway' && tableNumber !== 'Kiosk' && tableNumber !== 'Website' && tableNumber !== 'Online';
@@ -309,15 +320,18 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
     }).join('\n');
 
     const calcSubtotal = subtotal || items.reduce((sum, item) => sum + (item.totalPrice || (item.unitPrice * item.quantity) || 0), 0);
-    
+
     let summaryList = `------------------------\n`;
     summaryList += "Subtotal:".padStart(15) + " " + calcSubtotal.toFixed(2).padStart(8);
-    
+
     if (discountAmount > 0) {
       summaryList += "\n" + "Discount:".padStart(15) + " " + ("-" + Number(discountAmount).toFixed(2)).padStart(8);
     }
     if (taxAmount > 0) {
       summaryList += "\n" + "Tax:".padStart(15) + " " + Number(taxAmount).toFixed(2).padStart(8);
+    }
+    if (deliveryFee > 0) {
+      summaryList += "\n" + "Delivery:".padStart(15) + " " + Number(deliveryFee).toFixed(2).padStart(8);
     }
     summaryList += "\n" + "Total:".padStart(15) + " " + ("₹" + Number(totalAmount).toFixed(2)).padStart(8);
 
@@ -327,17 +341,30 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
   }
 
   // Footer instruction
-  const footerInstruction = isPaid 
-    ? `Please wait while the kitchen prepares your delicious order! 😋`
-    : `*Please pay Cash at the counter* while the kitchen prepares your delicious order! 😋`;
+  let footerInstruction;
+  if (isDelivery) {
+    footerInstruction = isPaid
+      ? `Our delivery team will contact you and bring your order to your address! 🛵`
+      : `*Please keep cash ready for our delivery agent!* 🛵`;
+  } else {
+    footerInstruction = isPaid
+      ? `Please wait while the kitchen prepares your delicious order! 😋`
+      : `*Please pay Cash at the counter* while the kitchen prepares your delicious order! 😋`;
+  }
 
   const footerText = settings.thank_you_message || "Thank you for visiting! Please visit again.";
+
+  // Delivery address block
+  let deliveryBlock = '';
+  if (isDelivery && deliveryAddress) {
+    deliveryBlock = `\n📍 *Deliver to:*\n${deliveryAddress.address || ''}${deliveryAddress.landmark ? ', ' + deliveryAddress.landmark : ''}\nPincode: ${deliveryAddress.pincode || ''}\n`;
+  }
 
   // Assemble the message
   return `${statusHeader}
 
 ${greeting}
-
+${deliveryBlock}
 ${storeHeader}
 ${divider}
 Order No: ${orderNumber}
@@ -862,7 +889,10 @@ app.post('/payment/send-confirmation', async (req, res) => {
     items,
     subtotal,
     discountAmount,
-    taxAmount
+    taxAmount,
+    deliveryFee,
+    orderType,
+    deliveryAddress,
   } = req.body;
 
   if (!phone || !orderNumber) {
@@ -896,7 +926,10 @@ app.post('/payment/send-confirmation', async (req, res) => {
       items,
       subtotal,
       discountAmount,
-      taxAmount
+      taxAmount,
+      deliveryFee: deliveryFee || 0,
+      orderType: orderType || 'dine_in',
+      deliveryAddress: deliveryAddress || null,
     });
 
     console.log(`Sending order confirmation WhatsApp to: ${cleanNumber}`);

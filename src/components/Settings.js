@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Wifi, WifiOff, CreditCard, Lock, CloudLightning, QrCode } from 'lucide-react';
+import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Wifi, WifiOff, CreditCard, Lock, CloudLightning, QrCode, Truck } from 'lucide-react';
 import { dbService } from '../services/dbService';
 import { whatsappService } from '../services/whatsappService';
 import { APP_CONFIG } from '../config';
@@ -22,7 +22,10 @@ const Settings = () => {
     whatsapp_default_country_code: '91',
     admin_password: '123456',
     firebase_config: '',
-    hosted_app_url: ''
+    hosted_app_url: '',
+    delivery_enabled: false,
+    delivery_fee: 30,
+    delivery_free_above: 300,
   });
   const [emailSettings, setEmailSettings] = useState({
     host: '',
@@ -387,6 +390,9 @@ const Settings = () => {
             upi_provider: barSettings.upi_provider || 'cashfree',
             upi_vpa: barSettings.upi_vpa || '',
             hosted_app_url: barSettings.hosted_app_url || '',
+            delivery_enabled: barSettings.delivery_enabled || false,
+            delivery_fee: Number(barSettings.delivery_fee) || 30,
+            delivery_free_above: Number(barSettings.delivery_free_above) || 300,
           });
           console.log('Bar settings successfully synced to Firestore.');
         }
@@ -642,6 +648,7 @@ const Settings = () => {
   const tabs = [
     { id: 'integrations', label: 'Integrations', icon: MessageCircle },
     { id: 'general', label: 'General', icon: Store },
+    { id: 'delivery', label: 'Delivery', icon: Truck },
     { id: 'menu-qr', label: 'Menu QR Code', icon: QrCode },
     { id: 'security', label: 'Security', icon: Lock },
     { id: 'sync', label: 'Cloud Sync', icon: CloudLightning },
@@ -888,6 +895,78 @@ const Settings = () => {
         </div>
       </div>
     </>
+  );
+
+  const renderDeliveryTab = () => (
+    <div className="settings-card-modern">
+      <div className="settings-card-hdr">
+        <h2><Truck size={20} style={{ color: '#b6412c' }} /> Delivery Settings</h2>
+      </div>
+      <div className="settings-card-body-modern">
+        <p style={{ margin: '0 0 24px 0', fontSize: '0.92rem', color: '#64748b', lineHeight: '1.6' }}>
+          Enable home delivery on the customer website. Customers can choose to deliver to their address and pay online or cash on delivery.
+        </p>
+
+        {/* Enable / Disable toggle */}
+        <div className="form-grid-modern single-column">
+          <div className="form-group-modern">
+            <label>Enable Delivery</label>
+            <label className="switch-wrapper" onClick={() => handleBarSettingsChange('delivery_enabled', !barSettings.delivery_enabled)}>
+              <div className={`switch-track ${barSettings.delivery_enabled ? 'active' : ''}`}>
+                <div className="switch-thumb" />
+              </div>
+              <span className="switch-label">
+                {barSettings.delivery_enabled ? 'Delivery is ON — customers can order to home' : 'Delivery is OFF — only dine-in / pickup'}
+              </span>
+            </label>
+          </div>
+
+          {barSettings.delivery_enabled && (
+            <>
+              <div className="form-group-modern">
+                <label>Delivery Fee (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="input-modern"
+                  value={barSettings.delivery_fee ?? 30}
+                  onChange={(e) => handleBarSettingsChange('delivery_fee', Number(e.target.value))}
+                  placeholder="e.g. 30"
+                />
+                <small style={{ color: '#64748b', fontSize: '0.78rem' }}>Charged when the order total is below the free delivery threshold.</small>
+              </div>
+
+              <div className="form-group-modern">
+                <label>Free Delivery Above (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="input-modern"
+                  value={barSettings.delivery_free_above ?? 300}
+                  onChange={(e) => handleBarSettingsChange('delivery_free_above', Number(e.target.value))}
+                  placeholder="e.g. 300"
+                />
+                <small style={{ color: '#64748b', fontSize: '0.78rem' }}>
+                  Orders above this amount get free delivery. Set to 0 to always charge the fee.
+                </small>
+              </div>
+
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '14px 16px', fontSize: '0.88rem', color: '#15803d', lineHeight: '1.5' }}>
+                <strong>Example: </strong>
+                Fee ₹{barSettings.delivery_fee ?? 30} charged on orders below ₹{barSettings.delivery_free_above ?? 300}. Free above that.
+              </div>
+            </>
+          )}
+
+          <div className="form-group-modern" style={{ marginTop: '8px' }}>
+            <button onClick={saveBarSettings} disabled={loading} className="btn-modern btn-modern-primary" style={{ width: 'fit-content' }}>
+              <Save size={16} />
+              {loading ? 'Saving...' : 'Save Delivery Settings'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   const renderMenuQrTab = () => (
@@ -1673,6 +1752,7 @@ const Settings = () => {
         <div className="settings-panel-container">
           {activeTab === 'general' && renderGeneralTab()}
           {activeTab === 'integrations' && renderIntegrationsTab()}
+          {activeTab === 'delivery' && renderDeliveryTab()}
           {activeTab === 'menu-qr' && renderMenuQrTab()}
           {activeTab === 'security' && renderSecurityTab()}
           {activeTab === 'sync' && renderSyncTab()}

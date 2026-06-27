@@ -350,6 +350,11 @@ const LiveOrdersScreen = () => {
                         </button>
                       )}
 
+                      {order.orderType === 'delivery' && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#fdf4ff', color: '#7e22ce', padding: '1px 4px', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '700' }}>
+                          🛵 Delivery
+                        </span>
+                      )}
                       {isWeb ? (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#e0f2fe', color: '#0369a1', padding: '1px 4px', borderRadius: '4px', fontSize: '0.65rem', fontWeight: '700' }}>
                           <Smartphone size={8} /> Web
@@ -455,21 +460,39 @@ const LiveOrdersScreen = () => {
                     {selectedOrder.orderStatus === 'pending_acceptance' ? 'Pending Approval' : (selectedOrder.orderStatus === 'completed' ? 'Completed' : 'Preparing')}
                   </span>
                   <span style={{ fontSize: '0.8rem', fontWeight: '700', color: selectedOrder.paymentStatus === 'paid' ? '#1c8d3c' : '#b6412c' }}>
-                    {selectedOrder.paymentStatus === 'paid' ? '💳 PAID ONLINE' : '💵 PAY AT COUNTER'}
+                    {selectedOrder.paymentStatus === 'paid'
+                      ? '💳 PAID ONLINE'
+                      : selectedOrder.orderType === 'delivery'
+                        ? '🛵 CASH ON DELIVERY'
+                        : '💵 PAY AT COUNTER'}
                   </span>
                 </div>
               </div>
 
               {/* Customer Details */}
-              <div style={{ background: '#fbf7f4', border: '1px dashed #e6ded3', borderRadius: '8px', padding: '10px', marginBottom: '16px', fontSize: '0.88rem' }}>
+              <div style={{ background: '#fbf7f4', border: '1px dashed #e6ded3', borderRadius: '8px', padding: '10px', marginBottom: selectedOrder.orderType === 'delivery' ? '8px' : '16px', fontSize: '0.88rem' }}>
                 <h4 style={{ margin: '0 0 4px 0', fontSize: '0.8rem', color: '#7f766a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Customer Information</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                   <div>Name: <strong style={{ color: '#221f1a' }}>{selectedOrder.customerName || 'Customer'}</strong></div>
                   <div>Phone: <strong style={{ color: '#221f1a' }}>{selectedOrder.customerPhone || 'N/A'}</strong></div>
                   <div>Table: <strong style={{ color: '#221f1a' }}>{selectedOrder.tableNumber === 'Parcel' ? 'Parcel / Takeaway' : selectedOrder.tableNumber}</strong></div>
-                  <div>Payment: <strong style={{ color: '#221f1a', textTransform: 'uppercase' }}>{selectedOrder.paymentMethod}</strong></div>
+                  <div>Payment: <strong style={{ color: '#221f1a', textTransform: 'uppercase' }}>{selectedOrder.paymentMethod === 'cash' && selectedOrder.orderType === 'delivery' ? 'Cash on Delivery' : selectedOrder.paymentMethod}</strong></div>
                 </div>
               </div>
+
+              {/* Delivery Address */}
+              {selectedOrder.orderType === 'delivery' && selectedOrder.deliveryAddress && (
+                <div style={{ background: '#fdf4ff', border: '1.5px solid #e9d5ff', borderRadius: '8px', padding: '10px', marginBottom: '16px', fontSize: '0.88rem' }}>
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '0.8rem', color: '#7e22ce', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🛵 Delivery Address</h4>
+                  <div style={{ color: '#221f1a', lineHeight: '1.6' }}>
+                    <div><strong>{selectedOrder.deliveryAddress.address}</strong></div>
+                    {selectedOrder.deliveryAddress.landmark && (
+                      <div style={{ color: '#7f766a' }}>Near: {selectedOrder.deliveryAddress.landmark}</div>
+                    )}
+                    <div>Pincode: <strong>{selectedOrder.deliveryAddress.pincode}</strong></div>
+                  </div>
+                </div>
+              )}
 
               {/* Items List */}
               <div style={{ marginBottom: '16px' }}>
@@ -500,9 +523,25 @@ const LiveOrdersScreen = () => {
               </div>
 
               {/* Bill Totals */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px solid #e6ded3', paddingTop: '12px', marginBottom: '16px' }}>
-                <span style={{ fontSize: '1rem', fontWeight: '700', color: '#7f766a' }}>Total Amount</span>
-                <span style={{ fontSize: '1.4rem', fontWeight: '800', color: '#b6412c' }}>{formatCurrency(selectedOrder.totalAmount)}</span>
+              <div style={{ borderTop: '2px solid #e6ded3', paddingTop: '12px', marginBottom: '16px' }}>
+                {selectedOrder.orderType === 'delivery' && selectedOrder.deliveryFee > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#7f766a', marginBottom: '4px' }}>
+                    <span>Subtotal</span>
+                    <span>{formatCurrency(selectedOrder.subtotal || (selectedOrder.totalAmount - selectedOrder.deliveryFee))}</span>
+                  </div>
+                )}
+                {selectedOrder.orderType === 'delivery' && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#7f766a', marginBottom: '6px' }}>
+                    <span>Delivery fee</span>
+                    <span style={{ color: selectedOrder.deliveryFee === 0 ? '#1c8d3c' : '#221f1a', fontWeight: '700' }}>
+                      {selectedOrder.deliveryFee === 0 ? 'Free' : formatCurrency(selectedOrder.deliveryFee)}
+                    </span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '1rem', fontWeight: '700', color: '#7f766a' }}>Total Amount</span>
+                  <span style={{ fontSize: '1.4rem', fontWeight: '800', color: '#b6412c' }}>{formatCurrency(selectedOrder.totalAmount)}</span>
+                </div>
               </div>
 
               {/* Actions Footer */}

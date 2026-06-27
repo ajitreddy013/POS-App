@@ -72,6 +72,11 @@ const CustomerMenu = () => {
   const [tableNumber, setTableNumber] = useState('Website');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
+  // Delivery state
+  const [orderType, setOrderType] = useState('dine_in'); // 'dine_in' | 'delivery'
+  const [deliveryAddress, setDeliveryAddress] = useState({ address: '', pincode: '', landmark: '' });
+  const [addressWarning, setAddressWarning] = useState('');
+
   const db = useMemo(() => getFirebaseDb(), []);
   const { barSettings } = useBarSettings();
 
@@ -214,6 +219,15 @@ const CustomerMenu = () => {
   const totalAmount = useMemo(() => cartItemsList.reduce((sum, item) => sum + item.price * item.quantity, 0), [cartItemsList]);
   const totalQuantity = useMemo(() => Object.values(cart).reduce((sum, q) => sum + q, 0), [cart]);
 
+  const deliveryFeeAmount = useMemo(() => {
+    if (orderType !== 'delivery') return 0;
+    const fee = Number(barSettings?.delivery_fee) || 30;
+    const freeAbove = Number(barSettings?.delivery_free_above) || 300;
+    return totalAmount >= freeAbove ? 0 : fee;
+  }, [orderType, totalAmount, barSettings]);
+
+  const finalTotal = useMemo(() => totalAmount + deliveryFeeAmount, [totalAmount, deliveryFeeAmount]);
+
   useEffect(() => {
     if (totalQuantity === 0 && activeTab === 'cart') setActiveTab('menu');
   }, [totalQuantity, activeTab]);
@@ -252,6 +266,20 @@ const CustomerMenu = () => {
       return;
     }
     setPhoneWarning('');
+
+    if (orderType === 'delivery') {
+      if (!deliveryAddress.address.trim() || !deliveryAddress.pincode.trim()) {
+        setAddressWarning('Please fill in your street address and pincode.');
+        setTimeout(() => setAddressWarning(''), 4000);
+        return;
+      }
+      if (!/^\d{6}$/.test(deliveryAddress.pincode.trim())) {
+        setAddressWarning('Pincode must be exactly 6 digits.');
+        setTimeout(() => setAddressWarning(''), 4000);
+        return;
+      }
+    }
+    setAddressWarning('');
     setSubmitting(true);
 
     // Generate sequential order number starting with W-
@@ -278,7 +306,8 @@ const CustomerMenu = () => {
         const orderData = {
           orderNumber, customerName: name, customerPhone: phone, tableNumber,
           items: cartItemsList.map((item) => ({ productId: String(item.id), name: item.name, quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity })),
-          totalAmount, discountAmount: 0,
+          subtotal: totalAmount, deliveryFee: deliveryFeeAmount, totalAmount: finalTotal, discountAmount: 0,
+          orderType, ...(orderType === 'delivery' && { deliveryAddress }),
           paymentMethod, paymentStatus: 'pending', orderStatus: 'pending_acceptance', createdAt: serverTimestamp(),
         };
         await addDoc(collection(db, 'orders'), orderData);
@@ -289,7 +318,7 @@ const CustomerMenu = () => {
         const res = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount: totalAmount, orderId: orderNumber, phone, name, returnUrl }),
+          body: JSON.stringify({ amount: finalTotal, orderId: orderNumber, phone, name, returnUrl }),
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Failed to create payment. Please try again.');
@@ -319,12 +348,13 @@ const CustomerMenu = () => {
           window.location.href = data.paymentLink;
         }
       } else {
-        // Cash payment
+        // Cash / COD payment
         const orderData = {
           orderNumber, customerName: name, customerPhone: phone, tableNumber,
           items: cartItemsList.map((item) => ({ productId: String(item.id), name: item.name, quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity })),
-          totalAmount,
+          subtotal: totalAmount, deliveryFee: deliveryFeeAmount, totalAmount: finalTotal,
           discountAmount: 0,
+          orderType, ...(orderType === 'delivery' && { deliveryAddress }),
           paymentMethod, paymentStatus: 'pending', orderStatus: 'pending_acceptance', createdAt: serverTimestamp(),
         };
         await addDoc(collection(db, 'orders'), orderData);
@@ -339,7 +369,7 @@ const CustomerMenu = () => {
               name,
               orderNumber,
               tableNumber,
-              totalAmount,
+              totalAmount: finalTotal,
               discountAmount: 0,
               paymentMethod,
               items: cartItemsList.map((item) => ({
@@ -348,7 +378,10 @@ const CustomerMenu = () => {
                 unitPrice: item.price,
                 totalPrice: item.price * item.quantity
               })),
-              subtotal: totalAmount
+              subtotal: totalAmount,
+              deliveryFee: deliveryFeeAmount,
+              orderType,
+              ...(orderType === 'delivery' && { deliveryAddress }),
             }),
           });
         } catch (waErr) { console.error('WhatsApp notification failed:', waErr); }
@@ -398,7 +431,9 @@ const CustomerMenu = () => {
         </p>
         <div className="success-status-anim" style={{ background: 'rgba(255,255,255,0.12)', padding: '20px 28px', borderRadius: '16px', border: '1.5px solid rgba(255,255,255,0.2)', marginBottom: '40px' }}>
           <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>Current Status</span>
-          <strong style={{ fontSize: '1.3rem', color: '#f2e7db' }}>Preparing in Kitchen</strong>
+          <strong style={{ fontSize: '1.3rem', color: '#f2e7db' }}>
+            {orderType === 'delivery' ? '🛵 Out for Delivery Soon!' : 'Preparing in Kitchen'}
+          </strong>
         </div>
         <button className="success-button-anim" onClick={() => setOrderSuccess(null)} style={{ background: '#ffffff', color: '#b6412c', border: 'none', padding: '14px 36px', borderRadius: '28px', fontWeight: '700', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           Order Something Else <Sparkles size={16} />
@@ -720,6 +755,67 @@ const CustomerMenu = () => {
           </div>
 
           <main style={{ padding: '8px 12px 16px' }}>
+
+            {/* Order Type Selector — only show if delivery is enabled in settings */}
+            {barSettings?.delivery_enabled && (
+              <div style={{ background: '#ffffff', borderRadius: '16px', padding: '12px', marginBottom: '12px', border: '1.5px solid #e6ded3', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '700' }}>Order Type</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => { setOrderType('dine_in'); setAddressWarning(''); }}
+                    style={{ padding: '10px 8px', borderRadius: '12px', border: orderType === 'dine_in' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: orderType === 'dine_in' ? '#fbf7f4' : '#ffffff', color: orderType === 'dine_in' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}
+                  >
+                    <span style={{ fontSize: '1.2rem' }}>🍽️</span><span>Dine In / Pickup</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setOrderType('delivery'); setAddressWarning(''); }}
+                    style={{ padding: '10px 8px', borderRadius: '12px', border: orderType === 'delivery' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: orderType === 'delivery' ? '#fbf7f4' : '#ffffff', color: orderType === 'delivery' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}
+                  >
+                    <span style={{ fontSize: '1.2rem' }}>🛵</span><span>Home Delivery</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Delivery Address Form */}
+            {orderType === 'delivery' && barSettings?.delivery_enabled && (
+              <div style={{ background: '#ffffff', borderRadius: '16px', padding: '12px', marginBottom: '12px', border: '1.5px solid #e6ded3', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '700' }}>Delivery Address</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={deliveryAddress.address}
+                    onChange={(e) => setDeliveryAddress(prev => ({ ...prev, address: e.target.value }))}
+                    placeholder="Street address, building, floor *"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #e6ded3', outline: 'none', fontSize: '0.88rem', fontFamily: '"Outfit", sans-serif', color: '#221f1a', boxSizing: 'border-box' }}
+                  />
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={deliveryAddress.pincode}
+                    onChange={(e) => setDeliveryAddress(prev => ({ ...prev, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                    placeholder="Pincode * (6 digits)"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #e6ded3', outline: 'none', fontSize: '0.88rem', fontFamily: '"Outfit", sans-serif', color: '#221f1a', boxSizing: 'border-box' }}
+                  />
+                  <input
+                    type="text"
+                    value={deliveryAddress.landmark}
+                    onChange={(e) => setDeliveryAddress(prev => ({ ...prev, landmark: e.target.value }))}
+                    placeholder="Landmark (optional)"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #e6ded3', outline: 'none', fontSize: '0.88rem', fontFamily: '"Outfit", sans-serif', color: '#221f1a', boxSizing: 'border-box' }}
+                  />
+                  {addressWarning && (
+                    <div style={{ color: '#b6412c', fontSize: '0.82rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      ⚠️ {addressWarning}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Customer Info */}
             <div style={{ background: '#ffffff', borderRadius: '16px', padding: '12px', marginBottom: '12px', border: '1.5px solid #e6ded3', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
               <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '700', borderBottom: 'none', paddingBottom: '0' }}>WhatsApp Mobile Number</h3>
@@ -772,9 +868,24 @@ const CustomerMenu = () => {
                   </div>
                 ))}
               </div>
+              {orderType === 'delivery' && barSettings?.delivery_enabled && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '0.88rem', color: '#7f766a', paddingTop: '4px' }}>
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(totalAmount)}</span>
+                </div>
+              )}
+              {orderType === 'delivery' && barSettings?.delivery_enabled && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '0.88rem', paddingBottom: '8px', borderBottom: '1px solid #f6f3ee' }}>
+                  <span style={{ color: '#7f766a' }}>Delivery fee</span>
+                  {deliveryFeeAmount === 0
+                    ? <span style={{ color: '#1c8d3c', fontWeight: '700' }}>Free!</span>
+                    : <span style={{ color: '#221f1a' }}>{formatCurrency(deliveryFeeAmount)}</span>
+                  }
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '1.05rem', fontWeight: '700', paddingTop: '4px' }}>
                 <span>Grand Total</span>
-                <span style={{ color: '#b6412c' }}>{formatCurrency(totalAmount)}</span>
+                <span style={{ color: '#b6412c' }}>{formatCurrency(finalTotal)}</span>
               </div>
             </div>
 
@@ -787,12 +898,20 @@ const CustomerMenu = () => {
                     <span style={{ fontSize: '1.2rem' }}>📱</span><span>Pay Online (UPI)</span>
                   </button>
                   <button type="button" onClick={() => handleSelectPaymentMethod('cash')} style={{ padding: '10px 8px', borderRadius: '12px', border: paymentMethod === 'cash' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: paymentMethod === 'cash' ? '#fbf7f4' : '#ffffff', color: paymentMethod === 'cash' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}>
-                    <span style={{ fontSize: '1.2rem' }}>💵</span><span>Pay at Counter</span>
+                    <span style={{ fontSize: '1.2rem' }}>💵</span>
+                    <span>{orderType === 'delivery' ? 'Cash on Delivery' : 'Pay at Counter'}</span>
                   </button>
                 </div>
               </div>
               <button type="submit" disabled={submitting} style={{ width: '100%', background: '#b6412c', color: '#ffffff', border: 'none', padding: '12px', borderRadius: '24px', fontSize: '0.98rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 6px 20px rgba(182,65,44,0.3)', opacity: submitting ? 0.8 : 1, transition: 'opacity 0.2s' }}>
-                {submitting ? (<><Loader2 className="animate-spin" size={18} />Processing Payment...</>) : paymentMethod === 'upi' ? 'Pay & Place Order' : 'Place Order (Pay Cash)'}
+                {submitting
+                  ? <><Loader2 className="animate-spin" size={18} />Processing...</>
+                  : paymentMethod === 'upi'
+                    ? 'Pay & Place Order'
+                    : orderType === 'delivery'
+                      ? 'Place Delivery Order (COD)'
+                      : 'Place Order (Pay Cash)'
+                }
               </button>
             </form>
           </main>
