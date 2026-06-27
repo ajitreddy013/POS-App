@@ -13,10 +13,9 @@ service cloud.firestore {
       allow delete: if false; // Orders should never be deleted, only cancelled
     }
 
-    // Settings: Public read so customer website can load delivery config, bar name etc.
+    // Settings: Public read for customer website; write allowed for POS app syncing
     match /settings/{docId} {
-      allow read: if true;
-      allow write: if false;
+      allow read, write: if true;
     }
   }
 }
