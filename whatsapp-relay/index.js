@@ -52,8 +52,9 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const https = require('https');
 
-// Initialize Firebase Admin SDK
-const admin = require('firebase-admin');
+// Initialize Firebase Admin SDK (v14+ modular API)
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
 const serviceAccountPath = path.join(__dirname, 'service-account.json');
 
 // Use a flag instead of admin.apps.length which is unreliable in firebase-admin v14+
@@ -65,9 +66,7 @@ if (fs.existsSync(serviceAccountPath)) {
   );
   try {
     const serviceAccount = require(serviceAccountPath);
-    admin.initializeApp({
-      credential: admin.cert(serviceAccount),
-    });
+    initializeApp({ credential: cert(serviceAccount) });
     firebaseInitialized = true;
     console.log('Firebase Admin SDK initialized successfully.');
   } catch (err) {
@@ -82,8 +81,8 @@ if (fs.existsSync(serviceAccountPath)) {
 ) {
   console.log('Initializing Firebase Admin SDK using Environment Variables...');
   try {
-    admin.initializeApp({
-      credential: admin.cert({
+    initializeApp({
+      credential: cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
@@ -102,7 +101,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-28-delivery-webhook-fix-v4';
+const relayVersion = '2026-06-28-delivery-webhook-fix-v5';
 
 app.use(cors());
 app.use(express.json());
@@ -240,7 +239,7 @@ async function getShopSettings() {
   };
   if (firebaseInitialized) {
     try {
-      const db = admin.firestore();
+      const db = getFirestore();
       const settingsDoc = await db.collection('settings').doc('bar_settings').get();
       if (settingsDoc.exists) {
         const data = settingsDoc.data();
@@ -828,7 +827,7 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
 
       if (orderDetails.order_status === 'PAID') {
         if (firebaseInitialized) {
-          const db = admin.firestore();
+          const db = getFirestore();
           const ordersRef = db.collection('orders');
           const snapshot = await ordersRef
             .where('orderNumber', '==', orderNumber)
