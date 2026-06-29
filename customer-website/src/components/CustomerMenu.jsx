@@ -219,14 +219,9 @@ const CustomerMenu = () => {
   const totalAmount = useMemo(() => cartItemsList.reduce((sum, item) => sum + item.price * item.quantity, 0), [cartItemsList]);
   const totalQuantity = useMemo(() => Object.values(cart).reduce((sum, q) => sum + q, 0), [cart]);
 
-  const deliveryFeeAmount = useMemo(() => {
-    if (orderType !== 'delivery') return 0;
-    const fee = Number(barSettings?.delivery_fee ?? 30);
-    const freeAbove = Number(barSettings?.delivery_free_above ?? 300);
-    return totalAmount >= freeAbove ? 0 : fee;
-  }, [orderType, totalAmount, barSettings]);
+  const deliveryFeeAmount = 0;
 
-  const finalTotal = useMemo(() => totalAmount + deliveryFeeAmount, [totalAmount, deliveryFeeAmount]);
+  const finalTotal = totalAmount;
 
   useEffect(() => {
     if (totalQuantity === 0 && activeTab === 'cart') setActiveTab('menu');

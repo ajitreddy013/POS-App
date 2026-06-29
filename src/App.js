@@ -101,6 +101,52 @@ function AppContent() {
 
   const [globalNotice, setGlobalNotice] = useState(null);
 
+  // Register service worker once on mount
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.error('Service worker registration failed:', err);
+      });
+    }
+  }, []);
+
+  // Request notification permission when admin unlocks
+  useEffect(() => {
+    if (isAdminUnlocked && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, [isAdminUnlocked]);
+
+  const showSystemNotification = async (orderData) => {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const isDelivery = orderData.orderType === 'delivery';
+    const isPaid = orderData.paymentStatus === 'paid';
+    const title = isDelivery
+      ? `🛵 Delivery Order #${orderData.orderNumber}`
+      : `📦 New Order #${orderData.orderNumber}`;
+    const body = isPaid
+      ? 'Payment: Paid Online'
+      : isDelivery
+        ? 'Payment: Cash on Delivery'
+        : 'Payment: Cash at Counter';
+    try {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        reg.showNotification(title, {
+          body,
+          tag: orderData.orderNumber,
+          renotify: true,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+        });
+      } else {
+        new Notification(title, { body });
+      }
+    } catch (err) {
+      try { new Notification(title, { body }); } catch (e) { /* best-effort */ }
+    }
+  };
+
   useEffect(() => {
     if (!isAdminUnlocked) return;
 
@@ -121,11 +167,12 @@ function AppContent() {
           const orderData = change.doc.data();
           const createdAt = orderData.createdAt?.toDate ? orderData.createdAt.toDate() : new Date(orderData.createdAt);
           const diffMs = Date.now() - createdAt.getTime();
-          
+
           // Only notify for orders placed in the last 2 minutes to prevent spamming on reload/reconnect
           if (diffMs < 120000) {
             hasNewOrder = true;
             newOrderNumber = orderData.orderNumber;
+            showSystemNotification(orderData);
           }
         }
       });

@@ -20,8 +20,10 @@ import {
   MoreVertical,
   QrCode,
   Loader2,
+  Tag,
 } from 'lucide-react';
 import { getLocalDateTimeString } from '../utils/dateUtils';
+import { isOfferActiveToday, calculateOfferDiscount } from '../utils/offerUtils';
 import { App } from '@capacitor/app';
 import { dbService } from '../services/dbService';
 import { whatsappService } from '../services/whatsappService';
@@ -85,6 +87,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const noticeTimeoutRef = useRef(null);
   const qrPollIntervalRef = useRef(null);
   const cfUnsubRef = useRef(null);
+  const executeSaleWriteRef = useRef(null);
   const [showSearch, setShowSearch] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showCategoryMenu, setShowCategoryMenu] = useState(false);
@@ -423,13 +426,14 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   }, [cart]);
 
   const addToCart = (product) => {
+    const step = offerActive ? 2 : 1;
     const existingItem = cart.find((item) => item.id === product.id);
 
     if (existingItem) {
       setCart(
         cart.map((item) =>
           item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: item.quantity + step }
             : item
         )
       );
@@ -441,7 +445,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           name: product.name,
           price: product.price,
           image: product.image || '',
-          quantity: 1,
+          quantity: step,
           maxStock: product.counter_stock,
         },
       ]);
@@ -452,6 +456,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   };
 
   const updateQuantity = (productId, newQuantity) => {
+    // When offer is active, snap to nearest lower even number
+    if (offerActive && newQuantity > 0 && newQuantity % 2 !== 0) {
+      newQuantity = newQuantity - 1;
+    }
     if (newQuantity <= 0) {
       removeFromCart(productId);
       return;
@@ -476,9 +484,21 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     return Math.min(discount, cartSubtotal);
   }, [discount, cartSubtotal]);
 
+  const offerActive = useMemo(() => isOfferActiveToday(barSettings), [barSettings]);
+
+  const offerDiscount = useMemo(() => {
+    if (!offerActive || cart.length === 0) return 0;
+    return calculateOfferDiscount(cart).discountAmount;
+  }, [offerActive, cart]);
+
+  const offerFreeItems = useMemo(() => {
+    if (!offerActive || cart.length === 0) return [];
+    return calculateOfferDiscount(cart).freeItems;
+  }, [offerActive, cart]);
+
   const cartTotal = useMemo(() => {
-    return Math.max(0, cartSubtotal - cartDiscountAmount);
-  }, [cartSubtotal, cartDiscountAmount]);
+    return Math.max(0, cartSubtotal - cartDiscountAmount - offerDiscount);
+  }, [cartSubtotal, cartDiscountAmount, offerDiscount]);
 
   const calculateSubtotal = () => cartSubtotal;
   const calculateDiscountAmount = () => cartDiscountAmount;
@@ -510,7 +530,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         })),
         subtotal: calculateSubtotal(),
         taxAmount: 0,
-        discountAmount: calculateDiscountAmount(),
+        discountAmount: calculateDiscountAmount() + offerDiscount,
         totalAmount: calculateTotal(),
         paymentMethod: selectedMethod || paymentMethod,
         saleDate: getLocalDateTimeString(),
@@ -556,6 +576,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     }
   };
 
+  // Keep ref pointing at latest executeSaleWrite so stale interval closures always call the fresh version
+  executeSaleWriteRef.current = executeSaleWrite;
+
   const processSale = async (method) => {
     if (cart.length === 0) {
       showNotice('error', 'Cart is empty.', 4000);
@@ -598,24 +621,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       const amount = calculateTotal();
       setLoading(true);
 
-      const db = getFirebaseDb();
-      if (!db) throw new Error('Firestore not configured.');
-
-      const orderData = {
-        orderNumber: String(orderId),
-        amount,
-        customerPhone: customerPhone || '',
-        paymentStatus: 'pending',
-        paymentMethod: 'upi',
-        createdAt: new Date(),
-        items: cart.map((item) => ({
-          name: item.name,
-          quantity: item.quantity,
-          unitPrice: item.price,
-        })),
-      };
-      const docRef = await addDoc(collection(db, 'orders'), orderData);
-
       const response = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -632,35 +637,81 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
       if (!data.success) throw new Error(data.error || 'Failed to create Cashfree order.');
 
+      const cfOrderId = data.cfOrderId || data.orderId;
       window.open(data.paymentLink, '_blank');
 
       qrPaymentPendingRef.current = true;
       setUpiQrPayment({ orderId, amount, qrImageUrl: null, mode: 'cashfree', hostedUrl: data.paymentLink });
       setUpiQrStatus('Waiting for customer payment...');
 
-      if (cfUnsubRef.current) cfUnsubRef.current();
-      cfUnsubRef.current = onSnapshot(docRef, (snap) => {
-        const d = snap.data();
-        if (d && d.paymentStatus === 'paid') {
-          if (cfUnsubRef.current) {
-            cfUnsubRef.current();
-            cfUnsubRef.current = null;
+      // Firestore listener — fires when webhook marks order paid
+      const db = getFirebaseDb();
+      if (db) {
+        if (cfUnsubRef.current) cfUnsubRef.current();
+        const orderData = {
+          orderNumber: String(orderId),
+          amount,
+          customerPhone: customerPhone || '',
+          paymentStatus: 'pending',
+          paymentMethod: 'upi',
+          createdAt: new Date(),
+          items: cart.map((item) => ({ name: item.name, quantity: item.quantity, unitPrice: item.price })),
+        };
+        const docRef = await addDoc(collection(db, 'orders'), orderData);
+        cfUnsubRef.current = onSnapshot(docRef, (snap) => {
+          const d = snap.data();
+          if (d && d.paymentStatus === 'paid' && qrPaymentPendingRef.current) {
+            completeCashfreePayment();
           }
-          qrPaymentPendingRef.current = false;
-          setUpiQrStatus('Payment received. Completing order...');
-          setTimeout(async () => {
-            setUpiQrPayment(null);
-            setUpiQrStatus('');
-            await executeSaleWrite('upi');
-          }, 1000);
+        });
+      }
+
+      // Polling fallback — directly checks CF order status every 3 s
+      if (qrPollIntervalRef.current) clearInterval(qrPollIntervalRef.current);
+      qrPollIntervalRef.current = setInterval(async () => {
+        if (!qrPaymentPendingRef.current) return;
+        try {
+          const statusRes = await fetch(`${relayUrl}/payment/cashfree/order-status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cfOrderId }),
+          });
+          const statusData = await statusRes.json();
+          if (statusData.success && statusData.paid && qrPaymentPendingRef.current) {
+            completeCashfreePayment();
+          }
+        } catch (pollErr) {
+          console.error('CF order status poll error:', pollErr);
         }
-      });
+      }, 3000);
+
     } catch (err) {
       setLoading(false);
       setUpiQrPayment(null);
       setUpiQrStatus('');
       alert(`Cannot create Cashfree payment:\n${relayUrl}\n\nError: ${err.message}`);
     }
+  };
+
+  const completeCashfreePayment = () => {
+    if (!qrPaymentPendingRef.current) return;
+    qrPaymentPendingRef.current = false;
+    if (qrPollIntervalRef.current) {
+      clearInterval(qrPollIntervalRef.current);
+      qrPollIntervalRef.current = null;
+    }
+    if (cfUnsubRef.current) {
+      cfUnsubRef.current();
+      cfUnsubRef.current = null;
+    }
+    setUpiQrStatus('Payment received. Completing order...');
+    setTimeout(async () => {
+      setUpiQrPayment(null);
+      setUpiQrStatus('');
+      // Use ref so we always call the latest executeSaleWrite (avoids stale closure)
+      const saleWriter = executeSaleWriteRef.current || executeSaleWrite;
+      await saleWriter('upi');
+    }, 1000);
   };
 
   const startRazorpayPayment = async (selectedMethod) => {
@@ -802,7 +853,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       )}
       <div className="pos-layout">
         <div
-          className={`product-panel ${activeTab === 'cart' ? 'mobile-hidden' : ''}`}
+          className={`product-panel ${isKiosk && activeTab === 'cart' ? 'mobile-hidden' : ''}`}
         >
           <div
             className="kiosk-header"
@@ -1257,7 +1308,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                                       >
                                         <button
                                           onClick={() =>
-                                            updateQuantity(product.id, qty - 1)
+                                            updateQuantity(product.id, qty - (offerActive ? 2 : 1))
                                           }
                                           className="kiosk-qty-btn minus"
                                           style={{
@@ -1369,7 +1420,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           </div>
         </div>
 
-        <div
+        {isKiosk && <div
           className={`cart-panel cart-panel-minimal ${activeTab === 'menu' ? 'mobile-hidden' : ''}`}
         >
           <div
@@ -1433,6 +1484,14 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 </div>
               )}
             </div>
+            {offerActive && (
+              <div style={{ margin: '0 0 8px 0', background: 'linear-gradient(135deg, #fef9c3 0%, #fef08a 100%)', border: '1.5px solid #fde047', borderRadius: '10px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Tag size={14} style={{ color: '#92400e', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.78rem', fontWeight: '700', color: '#92400e', lineHeight: '1.4' }}>
+                  1+1 Offer Active! Add waffles in pairs — the cheaper one is FREE. Quantities step by 2.
+                </span>
+              </div>
+            )}
             <div className="cart-items">
               {cart.length === 0 ? (
                 <div className="empty-cart" style={{ padding: '40px 0' }}>
@@ -1469,7 +1528,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                       >
                         <button
                           onClick={() =>
-                            updateQuantity(item.id, item.quantity - 1)
+                            updateQuantity(item.id, item.quantity - (offerActive ? 2 : 1))
                           }
                           className="qty-btn"
                         >
@@ -1480,7 +1539,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                         </span>
                         <button
                           onClick={() =>
-                            updateQuantity(item.id, item.quantity + 1)
+                            updateQuantity(item.id, item.quantity + (offerActive ? 2 : 1))
                           }
                           className="qty-btn"
                         >
@@ -1592,6 +1651,15 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 >
                   <span>Discount:</span>
                   <span>-{formatCurrency(calculateDiscountAmount())}</span>
+                </div>
+              )}
+              {offerActive && offerDiscount > 0 && (
+                <div
+                  className="summary-line discount cart-summary-row"
+                  style={{ fontSize: '12px', marginBottom: '4px', color: '#92400e', background: '#fef9c3', borderRadius: '6px', padding: '4px 6px' }}
+                >
+                  <span style={{ fontWeight: '700' }}>🎉 1+1 Saving ({offerFreeItems.length} free):</span>
+                  <span style={{ fontWeight: '700' }}>-{formatCurrency(offerDiscount)}</span>
                 </div>
               )}
               <div
@@ -1731,11 +1799,11 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               </button>
             </div>
           </div>
-        </div>
+        </div>}
       </div>
 
-      {/* Sticky Bottom Mobile Navigation */}
-      <div className="mobile-nav-bar">
+      {/* Sticky Bottom Mobile Navigation — kiosk only */}
+      {isKiosk && <div className="mobile-nav-bar">
         <button
           className={activeTab === 'menu' ? 'active' : ''}
           onClick={() => setActiveTab('menu')}
@@ -1750,10 +1818,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           <ShoppingCart size={20} />
           <span>Cart ({totalCartItems})</span>
         </button>
-      </div>
+      </div>}
 
-      {/* Floating Cart Banner for Mobile */}
-      {totalCartItems > 0 && activeTab === 'menu' && (
+      {/* Floating Cart Banner for Mobile — kiosk only */}
+      {isKiosk && totalCartItems > 0 && activeTab === 'menu' && (
         <div
           className="mobile-cart-floating-bar"
           onClick={() => setActiveTab('cart')}
@@ -1843,6 +1911,16 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
             </div>
 
             <div className="upi-qr-actions">
+              {upiQrPayment?.mode === 'cashfree' && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ background: '#166534', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 18px', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem' }}
+                  onClick={completeCashfreePayment}
+                >
+                  Payment Received ✓
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn-secondary"

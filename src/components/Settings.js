@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Wifi, WifiOff, CreditCard, Lock, CloudLightning, QrCode, Truck } from 'lucide-react';
+import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Wifi, WifiOff, CreditCard, Lock, CloudLightning, QrCode, Truck, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { dbService } from '../services/dbService';
 import { whatsappService } from '../services/whatsappService';
 import { APP_CONFIG } from '../config';
@@ -26,6 +26,8 @@ const Settings = () => {
     delivery_enabled: false,
     delivery_fee: 30,
     delivery_free_above: 300,
+    offer_enabled: false,
+    offer_dates: [],
   });
   const [emailSettings, setEmailSettings] = useState({
     host: '',
@@ -292,6 +294,11 @@ const Settings = () => {
 
   const [syncingMenu, setSyncingMenu] = useState(false);
 
+  // Offer calendar state
+  const now = new Date();
+  const [calendarYear, setCalendarYear] = useState(now.getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(now.getMonth());
+
   const syncMenuToCloud = async () => {
     try {
       setSyncingMenu(true);
@@ -391,8 +398,10 @@ const Settings = () => {
             upi_vpa: barSettings.upi_vpa || '',
             hosted_app_url: barSettings.hosted_app_url || '',
             delivery_enabled: barSettings.delivery_enabled === true,
-            delivery_fee: Number(barSettings.delivery_fee ?? 30),
-            delivery_free_above: Number(barSettings.delivery_free_above ?? 0),
+            delivery_fee: 0,
+            delivery_free_above: 0,
+            offer_enabled: barSettings.offer_enabled || false,
+            offer_dates: barSettings.offer_dates || [],
           }, { merge: true });
           console.log('Bar settings successfully synced to Firestore.');
         }
@@ -648,6 +657,7 @@ const Settings = () => {
   const tabs = [
     { id: 'integrations', label: 'Integrations', icon: MessageCircle },
     { id: 'general', label: 'General', icon: Store },
+    { id: 'offers', label: 'Offers', icon: Tag },
     { id: 'delivery', label: 'Delivery', icon: Truck },
     { id: 'menu-qr', label: 'Menu QR Code', icon: QrCode },
     { id: 'security', label: 'Security', icon: Lock },
@@ -656,105 +666,60 @@ const Settings = () => {
   ];
 
   const renderGeneralTab = () => (
-    <div className="settings-card-modern">
-      <div className="settings-card-hdr">
-        <h2><Store size={20} style={{ color: '#b6412c' }} /> Shop Information</h2>
-        <button 
-          onClick={() => setIsEditingBarInfo(!isEditingBarInfo)}
-          className="btn-modern btn-modern-secondary"
-        >
-          <Edit size={16} />
-          {isEditingBarInfo ? 'Cancel' : 'Edit Info'}
+    <div className="cfg-card">
+      <div className="cfg-card-hdr">
+        <div className="cfg-card-hdr-left">
+          <div className="cfg-card-icon" style={{ background: '#fdf1ef' }}>
+            <Store size={16} color="#b6412c" />
+          </div>
+          <div>
+            <h2>Shop Information</h2>
+            <p>Name, contact, address and receipt message</p>
+          </div>
+        </div>
+        <button onClick={() => setIsEditingBarInfo(!isEditingBarInfo)} className="cfg-btn cfg-btn-ghost">
+          <Edit size={14} />
+          {isEditingBarInfo ? 'Cancel' : 'Edit'}
         </button>
       </div>
-      <div className="settings-card-body-modern">
+      <div className="cfg-card-body">
         {isEditingBarInfo ? (
-          <div className="form-grid-modern">
-            <div className="form-group-modern">
+          <div className="cfg-form-grid">
+            <div className="cfg-field">
               <label>Shop Name</label>
-              <input
-                type="text"
-                value={barSettings.bar_name}
-                onChange={(e) => handleBarSettingsChange('bar_name', e.target.value)}
-                className="input-modern"
-                placeholder="Enter shop name"
-              />
+              <input type="text" value={barSettings.bar_name} onChange={(e) => handleBarSettingsChange('bar_name', e.target.value)} className="cfg-input" placeholder="e.g. Malabar Waffle" />
             </div>
-            <div className="form-group-modern">
+            <div className="cfg-field">
               <label>Contact Number</label>
-              <input
-                type="text"
-                value={barSettings.contact_number}
-                onChange={(e) => handleBarSettingsChange('contact_number', e.target.value)}
-                className="input-modern"
-                placeholder="Enter contact number"
-              />
+              <input type="text" value={barSettings.contact_number} onChange={(e) => handleBarSettingsChange('contact_number', e.target.value)} className="cfg-input" placeholder="+91 98765 43210" />
             </div>
-            <div className="form-group-modern">
+            <div className="cfg-field">
               <label>GST Number</label>
-              <input
-                type="text"
-                value={barSettings.gst_number}
-                onChange={(e) => handleBarSettingsChange('gst_number', e.target.value)}
-                className="input-modern"
-                placeholder="Enter GST number"
-              />
+              <input type="text" value={barSettings.gst_number} onChange={(e) => handleBarSettingsChange('gst_number', e.target.value)} className="cfg-input" placeholder="22AAAAA0000A1Z5" />
             </div>
-            <div className="form-group-modern full-width">
+            <div className="cfg-field span-2">
               <label>Address</label>
-              <textarea
-                value={barSettings.address}
-                onChange={(e) => handleBarSettingsChange('address', e.target.value)}
-                className="input-modern textarea-modern"
-                placeholder="Enter complete address"
-                rows="3"
-              />
+              <textarea value={barSettings.address} onChange={(e) => handleBarSettingsChange('address', e.target.value)} className="cfg-input cfg-textarea" placeholder="Full address printed on receipts" rows="3" />
             </div>
-            <div className="form-group-modern full-width">
+            <div className="cfg-field span-2">
               <label>Thank You Message</label>
-              <input
-                type="text"
-                value={barSettings.thank_you_message}
-                onChange={(e) => handleBarSettingsChange('thank_you_message', e.target.value)}
-                className="input-modern"
-                placeholder="Enter thank you message for bills"
-              />
+              <input type="text" value={barSettings.thank_you_message} onChange={(e) => handleBarSettingsChange('thank_you_message', e.target.value)} className="cfg-input" placeholder="Thank you for visiting!" />
             </div>
-            <div className="form-group-modern full-width" style={{ marginTop: '10px' }}>
-              <button 
-                onClick={saveBarSettings}
-                disabled={loading}
-                className="btn-modern btn-modern-primary"
-                style={{ width: 'fit-content' }}
-              >
-                <Save size={16} />
-                {loading ? 'Saving...' : 'Save Changes'}
+            <div className="cfg-field span-2">
+              <button onClick={saveBarSettings} disabled={loading} className="cfg-btn cfg-btn-primary" style={{ width: 'fit-content' }}>
+                <Save size={15} />
+                {loading ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
           </div>
         ) : (
-          <div className="display-grid">
-            <div className="display-item">
-              <h4>Shop Name</h4>
-              <p>{barSettings.bar_name || 'Not set'}</p>
-            </div>
-            <div className="display-item">
-              <h4>Contact Number</h4>
-              <p>{barSettings.contact_number || 'Not set'}</p>
-            </div>
-            <div className="display-item">
-              <h4>GST Number</h4>
-              <p>{barSettings.gst_number || 'Not set'}</p>
-            </div>
-            <div className="display-item" style={{ gridColumn: '1 / -1' }}>
-              <h4>Address</h4>
-              <p style={{ whiteSpace: 'pre-wrap' }}>{barSettings.address || 'Not set'}</p>
-            </div>
-            <div className="display-item" style={{ gridColumn: '1 / -1' }}>
-              <h4>Thank You Message</h4>
-              <p>{barSettings.thank_you_message || 'Thank you for visiting!'}</p>
-            </div>
-          </div>
+          <dl className="cfg-display-grid">
+            <div className="cfg-display-item"><dt>Shop Name</dt><dd>{barSettings.bar_name || '—'}</dd></div>
+            <div className="cfg-display-item"><dt>Contact Number</dt><dd>{barSettings.contact_number || '—'}</dd></div>
+            <div className="cfg-display-item"><dt>GST Number</dt><dd>{barSettings.gst_number || '—'}</dd></div>
+            <div className="cfg-display-item span-2"><dt>Address</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{barSettings.address || '—'}</dd></div>
+            <div className="cfg-display-item span-2"><dt>Thank You Message</dt><dd>{barSettings.thank_you_message || 'Thank you for visiting!'}</dd></div>
+          </dl>
         )}
       </div>
     </div>
@@ -762,134 +727,105 @@ const Settings = () => {
 
   const renderIntegrationsTab = () => (
     <>
-      {/* WhatsApp Linked Devices Section */}
-      <div className="settings-card-modern" style={{ marginBottom: '30px' }}>
-        <div className="settings-card-hdr">
-          <h2><MessageCircle size={20} style={{ color: '#25D366' }} /> WhatsApp Linked Devices</h2>
-        </div>
-        <div className="settings-card-body-modern">
-          <div className="display-grid">
+      {/* WhatsApp */}
+      <div className="cfg-card">
+        <div className="cfg-card-hdr">
+          <div className="cfg-card-hdr-left">
+            <div className="cfg-card-icon" style={{ background: '#f0fdf4' }}>
+              <MessageCircle size={16} color="#25D366" />
+            </div>
             <div>
-              <h4>Relay Status</h4>
-              <div style={{ marginTop: '10px' }}>
-                {whatsappStatus === 'CONNECTED' ? (
-                  <span className="status-badge connected">
-                    <Wifi size={16} /> Linked / Active
-                  </span>
-                ) : whatsappStatus === 'AUTHENTICATING' ? (
-                  <span className="status-badge authenticating">
-                    <RotateCcw size={16} className="spin" /> Syncing...
-                  </span>
-                ) : whatsappStatus === 'QR_READY' ? (
-                  <span className="status-badge qr-ready">
-                    <MessageCircle size={16} /> Scan QR Code
-                  </span>
-                ) : whatsappStatus === 'INITIALIZING' ? (
-                  <span className="status-badge initializing">
-                    <RotateCcw size={16} className="spin" /> Connecting...
-                  </span>
-                ) : (
-                  <span className="status-badge disconnected">
-                    <WifiOff size={16} /> Offline / Disabled
-                  </span>
-                )}
-              </div>
-
+              <h2>WhatsApp Receipts</h2>
+              <p>Link a phone to send receipts via WhatsApp</p>
+            </div>
+          </div>
+          {whatsappStatus === 'CONNECTED' ? (
+            <span className="cfg-badge cfg-badge-green"><Wifi size={12} /> Active</span>
+          ) : whatsappStatus === 'QR_READY' ? (
+            <span className="cfg-badge cfg-badge-yellow"><MessageCircle size={12} /> Scan QR</span>
+          ) : whatsappStatus === 'AUTHENTICATING' || whatsappStatus === 'INITIALIZING' ? (
+            <span className="cfg-badge cfg-badge-blue"><RotateCcw size={12} className="spin" /> Connecting</span>
+          ) : (
+            <span className="cfg-badge cfg-badge-red"><WifiOff size={12} /> Offline</span>
+          )}
+        </div>
+        <div className="cfg-card-body">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'center' }}>
+            <div>
+              <p style={{ margin: '0 0 16px', fontSize: '0.88rem', color: '#64748b', lineHeight: '1.6' }}>
+                Connect your WhatsApp via the relay service. Once linked, POS receipts are sent automatically from your phone.
+              </p>
               {whatsappStatus === 'CONNECTED' && (
-                <button
-                  onClick={handleWhatsappLogout}
-                  disabled={whatsappLoading}
-                  className="btn-modern btn-modern-secondary"
-                  style={{ marginTop: '24px', color: '#ef4444', borderColor: '#fca5a5' }}
-                >
-                  <WifiOff size={16} />
-                  {whatsappLoading ? 'Unlinking...' : 'Unlink Device'}
+                <button onClick={handleWhatsappLogout} disabled={whatsappLoading} className="cfg-btn cfg-btn-ghost" style={{ color: '#ef4444', borderColor: '#fca5a5' }}>
+                  <WifiOff size={14} />
+                  {whatsappLoading ? 'Unlinking…' : 'Unlink Device'}
                 </button>
               )}
+              {whatsappError && <p style={{ fontSize: '0.78rem', color: '#ef4444', margin: '10px 0 0' }}>{whatsappError}</p>}
             </div>
-
-            <div>
-              <div className="qr-card-container">
-                {whatsappStatus === 'QR_READY' && whatsappQr ? (
-                  <>
-                    <p style={{ margin: '0 0 14px 0', fontSize: '0.9rem', fontWeight: 'bold', color: '#1e293b' }}>
-                      Scan this QR code with WhatsApp Linked Devices:
-                    </p>
-                    <div style={{ background: '#ffffff', padding: '12px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-                      <img src={whatsappQr} alt="WhatsApp QR Code" style={{ width: '180px', height: '180px', display: 'block' }} />
-                    </div>
-                  </>
-                ) : whatsappStatus === 'CONNECTED' ? (
-                  <div style={{ color: '#16a34a' }}>
-                    <MessageCircle size={48} style={{ margin: '0 auto 12px auto' }} />
-                    <p style={{ margin: 0, fontWeight: '700', fontSize: '1.1rem' }}>WhatsApp Linked!</p>
-                    <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#64748b', lineHeight: '1.4' }}>
-                      POS receipts will be sent automatically from your connected phone.
-                    </p>
+            <div className="cfg-qr-shell" style={{ minHeight: '180px' }}>
+              {whatsappStatus === 'QR_READY' && whatsappQr ? (
+                <>
+                  <p style={{ margin: '0 0 12px', fontSize: '0.82rem', fontWeight: '600', color: '#1e293b' }}>Scan with WhatsApp → Linked Devices</p>
+                  <div style={{ background: '#fff', padding: '10px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <img src={whatsappQr} alt="WhatsApp QR" style={{ width: '160px', height: '160px', display: 'block' }} />
                   </div>
-                ) : whatsappStatus === 'AUTHENTICATING' ? (
-                  <div style={{ color: '#0288d1' }}>
-                    <RotateCcw size={48} className="spin" style={{ margin: '0 auto 12px auto' }} />
-                    <p style={{ margin: 0, fontWeight: '700' }}>Authenticated!</p>
-                    <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
-                      Syncing data. Please wait...
-                    </p>
-                  </div>
-                ) : whatsappStatus === 'INITIALIZING' ? (
-                  <div style={{ color: '#475569' }}>
-                    <RotateCcw size={48} className="spin" style={{ margin: '0 auto 12px auto' }} />
-                    <p style={{ margin: 0, fontWeight: '600' }}>Connecting to WhatsApp Session...</p>
-                    <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
-                      Preparing WhatsApp driver.
-                    </p>
-                  </div>
-                ) : (
-                  <div style={{ color: '#64748b' }}>
-                    <WifiOff size={48} style={{ margin: '0 auto 12px auto' }} />
-                    <p style={{ margin: 0, fontWeight: '600' }}>Relay is offline or linking is waiting.</p>
-                    {whatsappError && <p style={{ fontSize: '0.8rem', color: '#ef4444', margin: '8px 0 0 0' }}>{whatsappError}</p>}
-                  </div>
-                )}
-              </div>
+                </>
+              ) : whatsappStatus === 'CONNECTED' ? (
+                <div style={{ color: '#16a34a', textAlign: 'center' }}>
+                  <MessageCircle size={36} style={{ margin: '0 auto 8px' }} />
+                  <p style={{ margin: 0, fontWeight: '700', fontSize: '0.95rem' }}>Linked</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: '#64748b' }}>Receipts sending automatically</p>
+                </div>
+              ) : whatsappStatus === 'AUTHENTICATING' || whatsappStatus === 'INITIALIZING' ? (
+                <div style={{ color: '#475569', textAlign: 'center' }}>
+                  <RotateCcw size={32} className="spin" style={{ margin: '0 auto 8px' }} />
+                  <p style={{ margin: 0, fontWeight: '600', fontSize: '0.88rem' }}>Connecting…</p>
+                </div>
+              ) : (
+                <div style={{ color: '#94a3b8', textAlign: 'center' }}>
+                  <WifiOff size={32} style={{ margin: '0 auto 8px' }} />
+                  <p style={{ margin: 0, fontSize: '0.82rem' }}>Relay offline or not configured</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
-      {/* UPI Payments Section */}
-      <div className="settings-card-modern" style={{ marginBottom: '30px' }}>
-        <div className="settings-card-hdr">
-          <h2><CreditCard size={20} style={{ color: '#b6412c' }} /> UPI Payments</h2>
-          <button
-            onClick={() => setIsEditingBarInfo(!isEditingBarInfo)}
-            className="btn-modern btn-modern-secondary"
-          >
-            <Edit size={16} />
+
+      {/* UPI Payments */}
+      <div className="cfg-card">
+        <div className="cfg-card-hdr">
+          <div className="cfg-card-hdr-left">
+            <div className="cfg-card-icon" style={{ background: '#fdf1ef' }}>
+              <CreditCard size={16} color="#b6412c" />
+            </div>
+            <div>
+              <h2>UPI Payments</h2>
+              <p>Merchant UPI ID for kiosk QR payments</p>
+            </div>
+          </div>
+          <button onClick={() => setIsEditingBarInfo(!isEditingBarInfo)} className="cfg-btn cfg-btn-ghost">
+            <Edit size={14} />
             {isEditingBarInfo ? 'Cancel' : 'Edit'}
           </button>
         </div>
-        <div className="settings-card-body-modern">
-          <div className="form-group-modern">
-            <label>UPI VPA (Merchant UPI ID)</label>
+        <div className="cfg-card-body">
+          <div className="cfg-field" style={{ maxWidth: '440px' }}>
+            <label>UPI VPA (Merchant ID)</label>
             {isEditingBarInfo ? (
-              <input
-                type="text"
-                className="form-input-modern"
-                value={barSettings.upi_vpa || ''}
-                onChange={(e) => setBarSettings({ ...barSettings, upi_vpa: e.target.value })}
-                placeholder="e.g. yourname@okaxis or 9876543210@upi"
-              />
+              <input type="text" className="cfg-input" value={barSettings.upi_vpa || ''} onChange={(e) => setBarSettings({ ...barSettings, upi_vpa: e.target.value })} placeholder="yourname@okaxis" />
             ) : (
-              <p className="display-value">
-                {barSettings.upi_vpa || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Not configured — UPI QR will not work in kiosk</span>}
+              <p style={{ margin: 0, fontSize: '0.92rem', fontWeight: '600', color: barSettings.upi_vpa ? '#1e293b' : '#94a3b8', fontStyle: barSettings.upi_vpa ? 'normal' : 'italic' }}>
+                {barSettings.upi_vpa || 'Not configured — UPI QR will not work'}
               </p>
             )}
-            <small style={{ color: '#64748b', fontSize: '0.78rem' }}>
-              This is your UPI address (VPA). Customers scan the QR in kiosk to pay directly to this ID.
-            </small>
+            <p className="cfg-hint">Customers scan the QR in kiosk mode to pay directly to this ID.</p>
           </div>
           {isEditingBarInfo && (
-            <button onClick={saveBarSettings} disabled={loading} className="btn-modern btn-modern-primary" style={{ marginTop: '12px' }}>
-              {loading ? 'Saving...' : 'Save UPI Settings'}
+            <button onClick={saveBarSettings} disabled={loading} className="cfg-btn cfg-btn-primary" style={{ marginTop: '16px' }}>
+              <Save size={14} />
+              {loading ? 'Saving…' : 'Save'}
             </button>
           )}
         </div>
@@ -897,71 +833,200 @@ const Settings = () => {
     </>
   );
 
-  const renderDeliveryTab = () => (
-    <div className="settings-card-modern">
-      <div className="settings-card-hdr">
-        <h2><Truck size={20} style={{ color: '#b6412c' }} /> Delivery Settings</h2>
+  const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+  const toggleOfferDate = (dateStr) => {
+    const current = barSettings.offer_dates || [];
+    const updated = current.includes(dateStr)
+      ? current.filter((d) => d !== dateStr)
+      : [...current, dateStr].sort();
+    handleBarSettingsChange('offer_dates', updated);
+  };
+
+  const prevMonth = () => {
+    if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear((y) => y - 1); }
+    else setCalendarMonth((m) => m - 1);
+  };
+  const nextMonth = () => {
+    if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear((y) => y + 1); }
+    else setCalendarMonth((m) => m + 1);
+  };
+
+  const renderOfferCalendar = () => {
+    const year = calendarYear;
+    const month = calendarMonth;
+    const firstDayOfWeek = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const selectedDates = barSettings.offer_dates || [];
+
+    // Today in IST
+    const istNow = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
+    const todayStr = istNow.toISOString().slice(0, 10);
+
+    const cells = [];
+    for (let i = 0; i < firstDayOfWeek; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      cells.push({ day: d, dateStr });
+    }
+
+    return (
+      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '16px', maxWidth: '340px' }}>
+        {/* Month navigation */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+          <button onClick={prevMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '8px', display: 'flex', alignItems: 'center' }}>
+            <ChevronLeft size={18} style={{ color: '#475569' }} />
+          </button>
+          <strong style={{ fontSize: '0.95rem', color: '#1e293b' }}>{MONTH_NAMES[month]} {year}</strong>
+          <button onClick={nextMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '8px', display: 'flex', alignItems: 'center' }}>
+            <ChevronRight size={18} style={{ color: '#475569' }} />
+          </button>
+        </div>
+        {/* Day labels */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', marginBottom: '6px' }}>
+          {DAY_LABELS.map((d) => (
+            <div key={d} style={{ textAlign: 'center', fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', padding: '4px 0' }}>{d}</div>
+          ))}
+        </div>
+        {/* Day cells */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
+          {cells.map((cell, i) =>
+            cell === null ? (
+              <div key={`e-${i}`} />
+            ) : (
+              <button
+                key={cell.dateStr}
+                onClick={() => toggleOfferDate(cell.dateStr)}
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  border: cell.dateStr === todayStr ? '2px solid #1C5C3A' : 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: selectedDates.includes(cell.dateStr) ? '700' : '500',
+                  background: selectedDates.includes(cell.dateStr) ? '#EAB308' : 'transparent',
+                  color: selectedDates.includes(cell.dateStr) ? '#1e293b' : cell.dateStr === todayStr ? '#1C5C3A' : '#334155',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {cell.day}
+              </button>
+            )
+          )}
+        </div>
       </div>
-      <div className="settings-card-body-modern">
-        <p style={{ margin: '0 0 24px 0', fontSize: '0.92rem', color: '#64748b', lineHeight: '1.6' }}>
-          Enable home delivery on the customer website. Customers can choose to deliver to their address and pay online or cash on delivery.
+    );
+  };
+
+  const renderOffersTab = () => (
+    <div className="cfg-card">
+      <div className="cfg-card-hdr">
+        <div className="cfg-card-hdr-left">
+          <div className="cfg-card-icon" style={{ background: '#fefce8' }}>
+            <Tag size={16} color="#ca8a04" />
+          </div>
+          <div>
+            <h2>1+1 Offer</h2>
+            <p>Buy-one-get-one on selected dates</p>
+          </div>
+        </div>
+        {barSettings.offer_enabled
+          ? <span className="cfg-badge cfg-badge-yellow">Active</span>
+          : <span className="cfg-badge cfg-badge-slate">Off</span>}
+      </div>
+      <div className="cfg-card-body">
+        <p style={{ margin: '0 0 20px', fontSize: '0.88rem', color: '#64748b', lineHeight: '1.6' }}>
+          When active, every 2 waffles follow the <strong>1+1 rule</strong> — the cheaper one in each pair is free. Quantities lock to even numbers. Applies only on selected dates (IST).
         </p>
 
-        {/* Enable / Disable toggle */}
-        <div className="form-grid-modern single-column">
-          <div className="form-group-modern">
-            <label>Enable Delivery</label>
-            <label className="switch-wrapper" onClick={() => handleBarSettingsChange('delivery_enabled', !barSettings.delivery_enabled)}>
-              <div className={`switch-track ${barSettings.delivery_enabled ? 'active' : ''}`}>
-                <div className="switch-thumb" />
-              </div>
-              <span className="switch-label">
-                {barSettings.delivery_enabled ? 'Delivery is ON — customers can order to home' : 'Delivery is OFF — only dine-in / pickup'}
-              </span>
-            </label>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '520px' }}>
+          <label className="cfg-switch-row" onClick={() => handleBarSettingsChange('offer_enabled', !barSettings.offer_enabled)}>
+            <div className={`cfg-switch-track ${barSettings.offer_enabled ? 'on' : ''}`} style={barSettings.offer_enabled ? { background: '#EAB308' } : {}}>
+              <div className="cfg-switch-thumb" />
+            </div>
+            <span className="cfg-switch-label" style={barSettings.offer_enabled ? { color: '#92400e' } : {}}>
+              {barSettings.offer_enabled ? 'Offer ON — select dates below' : 'Offer OFF'}
+            </span>
+          </label>
 
-          {barSettings.delivery_enabled && (
+          {barSettings.offer_enabled && (
             <>
-              <div className="form-group-modern">
-                <label>Delivery Fee (₹)</label>
-                <input
-                  type="number"
-                  min="0"
-                  className="input-modern"
-                  value={barSettings.delivery_fee ?? 30}
-                  onChange={(e) => handleBarSettingsChange('delivery_fee', Number(e.target.value))}
-                  placeholder="e.g. 30"
-                />
-                <small style={{ color: '#64748b', fontSize: '0.78rem' }}>Charged when the order total is below the free delivery threshold.</small>
+              <div className="cfg-field">
+                <label>Offer Dates</label>
+                <p className="cfg-hint" style={{ margin: '0 0 10px' }}>Tap a date to toggle it on/off. Yellow = active.</p>
+                {renderOfferCalendar()}
               </div>
 
-              <div className="form-group-modern">
-                <label>Free Delivery Above (₹)</label>
-                <input
-                  type="number"
-                  min="0"
-                  className="input-modern"
-                  value={barSettings.delivery_free_above ?? 300}
-                  onChange={(e) => handleBarSettingsChange('delivery_free_above', Number(e.target.value))}
-                  placeholder="e.g. 300"
-                />
-                <small style={{ color: '#64748b', fontSize: '0.78rem' }}>
-                  Orders above this amount get free delivery. Set to 0 to always charge the fee.
-                </small>
-              </div>
+              {(barSettings.offer_dates || []).length > 0 && (
+                <div className="cfg-field">
+                  <label>Selected ({(barSettings.offer_dates || []).length})</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                    {(barSettings.offer_dates || []).map((d) => (
+                      <span key={d} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#fef9c3', border: '1px solid #fde68a', borderRadius: '999px', padding: '3px 10px', fontSize: '0.78rem', fontWeight: '600', color: '#92400e' }}>
+                        {d}
+                        <button onClick={() => toggleOfferDate(d)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#b45309', display: 'flex', lineHeight: 1 }}>✕</button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '14px 16px', fontSize: '0.88rem', color: '#15803d', lineHeight: '1.5' }}>
-                <strong>Example: </strong>
-                Fee ₹{barSettings.delivery_fee ?? 30} charged on orders below ₹{barSettings.delivery_free_above ?? 300}. Free above that.
+              <div className="cfg-alert-box cfg-alert-info">
+                <strong>How it works:</strong> Sort all waffles by price (high → low). The cheapest half are free.
+                E.g. 4 items ₹149 + ₹130 + ₹120 + ₹99 → you pay ₹149 + ₹130, free: ₹120 + ₹99.
               </div>
             </>
           )}
 
-          <div className="form-group-modern" style={{ marginTop: '8px' }}>
-            <button onClick={saveBarSettings} disabled={loading} className="btn-modern btn-modern-primary" style={{ width: 'fit-content' }}>
-              <Save size={16} />
-              {loading ? 'Saving...' : 'Save Delivery Settings'}
+          <div>
+            <button onClick={saveBarSettings} disabled={loading} className="cfg-btn cfg-btn-primary" style={{ background: '#ca8a04', borderColor: '#ca8a04' }}>
+              <Save size={14} />
+              {loading ? 'Saving…' : 'Save Offer Settings'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderDeliveryTab = () => (
+    <div className="cfg-card">
+      <div className="cfg-card-hdr">
+        <div className="cfg-card-hdr-left">
+          <div className="cfg-card-icon" style={{ background: '#fdf1ef' }}>
+            <Truck size={16} color="#b6412c" />
+          </div>
+          <div>
+            <h2>Delivery</h2>
+            <p>Home delivery on the customer website</p>
+          </div>
+        </div>
+        {barSettings.delivery_enabled
+          ? <span className="cfg-badge cfg-badge-green">Enabled</span>
+          : <span className="cfg-badge cfg-badge-slate">Disabled</span>}
+      </div>
+      <div className="cfg-card-body">
+        <div style={{ maxWidth: '480px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <label className="cfg-switch-row" onClick={() => handleBarSettingsChange('delivery_enabled', !barSettings.delivery_enabled)}>
+            <div className={`cfg-switch-track ${barSettings.delivery_enabled ? 'on' : ''}`}>
+              <div className="cfg-switch-thumb" />
+            </div>
+            <span className="cfg-switch-label">
+              {barSettings.delivery_enabled ? 'Delivery is ON — customers can order to home' : 'Delivery is OFF — dine-in / pickup only'}
+            </span>
+          </label>
+          {barSettings.delivery_enabled && (
+            <div className="cfg-alert-box cfg-alert-success">
+              🛵 Delivery is <strong>free</strong> for all orders within a <strong>2 km radius</strong>.
+            </div>
+          )}
+          <div>
+            <button onClick={saveBarSettings} disabled={loading} className="cfg-btn cfg-btn-primary">
+              <Save size={14} />
+              {loading ? 'Saving…' : 'Save'}
             </button>
           </div>
         </div>
@@ -970,102 +1035,51 @@ const Settings = () => {
   );
 
   const renderMenuQrTab = () => (
-    <div className="settings-card-modern">
-      <div className="settings-card-hdr">
-        <h2><QrCode size={20} style={{ color: '#EAB308' }} /> Self-Ordering Menu QR Code</h2>
-      </div>
-      <div className="settings-card-body-modern">
-        <p style={{ margin: '0 0 20px 0', fontSize: '0.95rem', color: '#64748b', lineHeight: '1.6' }}>
-          Scan this single QR code to view our menu and place orders from your mobile. You can print this QR code or download it to place on dining tables or at the takeaway counter.
-        </p>
-        
-        <div className="form-grid-modern single-column">
-          <div className="form-group-modern">
-            <label>Hosted Customer App URL</label>
-            <input
-              type="url"
-              className="input-modern"
-              value={barSettings.hosted_app_url || ''}
-              onChange={(e) => handleBarSettingsChange('hosted_app_url', e.target.value)}
-              placeholder={`e.g., https://malabar-waffle.web.app (fallback: ${window.location.origin})`}
-            />
-            <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0' }}>
-              If hosted on Firebase or a custom domain, enter it here. Otherwise, it defaults to the current network URL.
-            </p>
+    <div className="cfg-card">
+      <div className="cfg-card-hdr">
+        <div className="cfg-card-hdr-left">
+          <div className="cfg-card-icon" style={{ background: '#fefce8' }}>
+            <QrCode size={16} color="#ca8a04" />
           </div>
-          <div className="form-group-modern" style={{ marginTop: '10px' }}>
-            <button
-              onClick={saveBarSettings}
-              disabled={loading}
-              className="btn-modern btn-modern-primary"
-              style={{ width: 'fit-content' }}
-            >
-              <Save size={16} />
-              {loading ? 'Saving...' : 'Save Settings'}
-            </button>
+          <div>
+            <h2>Menu QR Code</h2>
+            <p>Self-ordering QR for tables and takeaway</p>
           </div>
         </div>
-        
-        <div 
-          style={{ 
-            marginTop: '30px', 
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center', 
-            padding: '30px', 
-            background: '#f8fafc', 
-            borderRadius: '20px', 
-            border: '1.5px dashed #cbd5e1',
-            textAlign: 'center',
-            maxWidth: '500px',
-            margin: '30px auto 0 auto'
-          }}
-        >
-          <div style={{ background: '#ffffff', padding: '20px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
-            {tableQrCodeUrl ? (
-              <img 
-                src={tableQrCodeUrl} 
-                alt="Ordering QR Code" 
-                style={{ width: '200px', height: '200px', display: 'block' }} 
-              />
-            ) : (
-              <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
-                Generating QR Code...
-              </div>
-            )}
+      </div>
+      <div className="cfg-card-body">
+        <div className="cfg-field" style={{ maxWidth: '480px', marginBottom: '20px' }}>
+          <label>Hosted Customer App URL</label>
+          <input type="url" className="cfg-input" value={barSettings.hosted_app_url || ''} onChange={(e) => handleBarSettingsChange('hosted_app_url', e.target.value)} placeholder={`https://your-store.web.app`} />
+          <p className="cfg-hint">Firebase / custom domain URL. Defaults to current network address if blank.</p>
+        </div>
+        <button onClick={saveBarSettings} disabled={loading} className="cfg-btn cfg-btn-primary" style={{ marginBottom: '28px' }}>
+          <Save size={14} />
+          {loading ? 'Saving…' : 'Save URL'}
+        </button>
+
+        <hr className="cfg-divider" />
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '8px 0' }}>
+          <div style={{ background: '#ffffff', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+            {tableQrCodeUrl
+              ? <img src={tableQrCodeUrl} alt="Menu QR" style={{ width: '180px', height: '180px', display: 'block' }} />
+              : <div style={{ width: '180px', height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.82rem' }}>Generating…</div>}
           </div>
-          
-          <strong style={{ fontSize: '1.25rem', color: '#1e293b', display: 'block', marginBottom: '8px' }}>
-            Customer Menu Link
-          </strong>
-          <code style={{ fontSize: '0.85rem', color: '#b6412c', wordBreak: 'break-all', display: 'block', marginBottom: '24px', background: '#fff3f0', padding: '6px 12px', borderRadius: '8px', border: '1px solid #ffe3dd' }}>
-            {`${barSettings.hosted_app_url || window.location.origin}/#/menu`}
-          </code>
-          
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-            <a 
-              href={`${barSettings.hosted_app_url || window.location.origin}/#/menu`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-modern btn-modern-secondary"
-              style={{ textDecoration: 'none', fontSize: '0.9rem', padding: '10px 18px' }}
-            >
+
+          <div>
+            <p style={{ margin: '0 0 4px', fontWeight: '700', fontSize: '0.9rem', color: '#1e293b', textAlign: 'center' }}>Customer Menu Link</p>
+            <code style={{ fontSize: '0.78rem', color: '#b6412c', wordBreak: 'break-all', display: 'block', background: '#fff3f0', padding: '5px 10px', borderRadius: '7px', border: '1px solid #ffe3dd', textAlign: 'center' }}>
+              {`${barSettings.hosted_app_url || window.location.origin}/#/menu`}
+            </code>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <a href={`${barSettings.hosted_app_url || window.location.origin}/#/menu`} target="_blank" rel="noopener noreferrer" className="cfg-btn cfg-btn-ghost" style={{ textDecoration: 'none' }}>
               Open Link
             </a>
-            <button 
-              onClick={handleDownloadQr}
-              className="btn-modern btn-modern-secondary"
-              style={{ fontSize: '0.9rem', padding: '10px 18px' }}
-            >
-              Download PNG
-            </button>
-            <button 
-              onClick={handlePrintQr}
-              className="btn-modern btn-modern-primary"
-              style={{ fontSize: '0.9rem', padding: '10px 18px', background: '#1C5C3A' }}
-            >
-              Print Poster / Card
-            </button>
+            <button onClick={handleDownloadQr} className="cfg-btn cfg-btn-ghost">Download PNG</button>
+            <button onClick={handlePrintQr} className="cfg-btn cfg-btn-primary" style={{ background: '#1C5C3A', borderColor: '#1C5C3A' }}>Print Poster</button>
           </div>
         </div>
       </div>
@@ -1073,122 +1087,90 @@ const Settings = () => {
   );
 
   const renderSecurityTab = () => (
-    <div className="settings-card-modern">
-      <div className="settings-card-hdr">
-        <h2><Lock size={20} style={{ color: '#ef4444' }} /> Security Settings</h2>
-        <button 
-          onClick={() => {
-            setIsEditingSecurity(!isEditingSecurity);
-            setCurrentPasswordInput('');
-            setNewPasswordInput('');
-            setConfirmPasswordInput('');
-          }}
-          className="btn-modern btn-modern-secondary"
-        >
-          <Edit size={16} />
+    <div className="cfg-card">
+      <div className="cfg-card-hdr">
+        <div className="cfg-card-hdr-left">
+          <div className="cfg-card-icon" style={{ background: '#fef2f2' }}>
+            <Lock size={16} color="#ef4444" />
+          </div>
+          <div>
+            <h2>Admin Password</h2>
+            <p>Protects Products, Sales, Settings and Spendings</p>
+          </div>
+        </div>
+        <button onClick={() => { setIsEditingSecurity(!isEditingSecurity); setCurrentPasswordInput(''); setNewPasswordInput(''); setConfirmPasswordInput(''); }} className="cfg-btn cfg-btn-ghost">
+          <Edit size={14} />
           {isEditingSecurity ? 'Cancel' : 'Change Password'}
         </button>
       </div>
-      <div className="settings-card-body-modern">
+      <div className="cfg-card-body">
         {isEditingSecurity ? (
-          <div className="form-grid-modern single-column">
-            <div className="form-group-modern">
+          <div className="cfg-form-grid cols-1">
+            <div className="cfg-field">
               <label>Current Password</label>
-              <input
-                type="password"
-                value={currentPasswordInput}
-                onChange={(e) => setCurrentPasswordInput(e.target.value)}
-                className="input-modern"
-                placeholder="Enter current password"
-              />
+              <input type="password" value={currentPasswordInput} onChange={(e) => setCurrentPasswordInput(e.target.value)} className="cfg-input" placeholder="Enter current password" />
             </div>
-            <div className="form-group-modern">
-              <label>New Password (6 digits/chars)</label>
-              <input
-                type="password"
-                value={newPasswordInput}
-                onChange={(e) => setNewPasswordInput(e.target.value.substring(0, 10))}
-                className="input-modern"
-                placeholder="Enter new password"
-              />
+            <div className="cfg-field">
+              <label>New Password (min 6 chars)</label>
+              <input type="password" value={newPasswordInput} onChange={(e) => setNewPasswordInput(e.target.value.substring(0, 10))} className="cfg-input" placeholder="Enter new password" />
             </div>
-            <div className="form-group-modern">
+            <div className="cfg-field">
               <label>Confirm New Password</label>
-              <input
-                type="password"
-                value={confirmPasswordInput}
-                onChange={(e) => setConfirmPasswordInput(e.target.value.substring(0, 10))}
-                className="input-modern"
-                placeholder="Confirm new password"
-              />
+              <input type="password" value={confirmPasswordInput} onChange={(e) => setConfirmPasswordInput(e.target.value.substring(0, 10))} className="cfg-input" placeholder="Confirm new password" />
             </div>
-            <div className="form-group-modern" style={{ marginTop: '10px' }}>
-              <button 
-                onClick={handlePasswordChange}
-                disabled={securityLoading}
-                className="btn-modern btn-modern-primary"
-                style={{ width: 'fit-content' }}
-              >
-                <Save size={16} />
-                {securityLoading ? 'Updating...' : 'Update Password'}
+            <div>
+              <button onClick={handlePasswordChange} disabled={securityLoading} className="cfg-btn cfg-btn-primary">
+                <Save size={14} />
+                {securityLoading ? 'Updating…' : 'Update Password'}
               </button>
             </div>
           </div>
         ) : (
-          <div>
-            <h4 style={{ margin: '0 0 10px 0', fontSize: '1rem', color: '#1e293b', fontWeight: '700' }}>
-              Admin Console Protection
-            </h4>
-            <p style={{ color: '#64748b', fontSize: '0.92rem', lineHeight: '1.6', margin: 0 }}>
-              Access to protected screens like Products, Sales, Settings, and Spendings requires the admin authorization password. The default password is <code>123456</code>.
-            </p>
-          </div>
+          <p style={{ margin: 0, fontSize: '0.88rem', color: '#64748b', lineHeight: '1.7', maxWidth: '480px' }}>
+            Access to protected screens requires the admin password. Default is <code style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: '5px', fontSize: '0.85em' }}>123456</code>. Change it above to secure your POS.
+          </p>
         )}
       </div>
     </div>
   );
 
   const renderSyncTab = () => (
-    <div className="settings-card-modern">
-      <div className="settings-card-hdr">
-        <h2><CloudLightning size={20} style={{ color: '#f59e0b' }} /> Firebase Cloud Sync</h2>
-      </div>
-      <div className="settings-card-body-modern">
-        <div className="display-grid" style={{ marginBottom: '24px' }}>
-          <div className="display-item" style={{ gridColumn: '1 / -1' }}>
-            <h4>Cloud Connection Status</h4>
-            <p style={{ marginTop: '6px' }}>
-              {getFirebaseDb() ? (
-                <span style={{ color: '#16a34a', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  ✓ Configured & Connected (Firestore live sync is active)
-                </span>
-              ) : (
-                <span style={{ color: '#ef4444', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  ✗ Not Configured (Configure credentials inside src/firebase.js first)
-                </span>
-              )}
-            </p>
+    <div className="cfg-card">
+      <div className="cfg-card-hdr">
+        <div className="cfg-card-hdr-left">
+          <div className="cfg-card-icon" style={{ background: '#fffbeb' }}>
+            <CloudLightning size={16} color="#d97706" />
+          </div>
+          <div>
+            <h2>Cloud Sync</h2>
+            <p>Firebase Firestore connection and menu upload</p>
           </div>
         </div>
+        {getFirebaseDb()
+          ? <span className="cfg-badge cfg-badge-green">Connected</span>
+          : <span className="cfg-badge cfg-badge-red">Not configured</span>}
+      </div>
+      <div className="cfg-card-body">
+        <dl className="cfg-display-grid" style={{ marginBottom: '20px' }}>
+          <div className="cfg-display-item span-2">
+            <dt>Firestore Status</dt>
+            <dd style={{ color: getFirebaseDb() ? '#16a34a' : '#ef4444' }}>
+              {getFirebaseDb() ? '✓ Configured — live sync active' : '✗ Not configured — edit src/firebase.js first'}
+            </dd>
+          </div>
+        </dl>
 
         {getFirebaseDb() && (
-          <div style={{ borderTop: '1px solid #eef2f6', paddingTop: '24px' }}>
-            <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: '#1e293b', fontWeight: '700' }}>
-              Manual Menu Sync
-            </h4>
-            <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0 0 16px 0', lineHeight: '1.5' }}>
-              Push your local products, prices, and categories to the cloud Firestore database so customers can access the live catalog online.
+          <>
+            <hr className="cfg-divider" />
+            <p style={{ margin: '0 0 14px', fontSize: '0.88rem', color: '#64748b', lineHeight: '1.6', maxWidth: '480px' }}>
+              Push local products, prices, and categories to Firestore so customers see the live catalog on the website.
             </p>
-            <button 
-              onClick={syncMenuToCloud}
-              disabled={syncingMenu}
-              className="btn-modern btn-modern-primary"
-              style={{ background: '#1C5C3A' }}
-            >
-              <CloudLightning size={16} />
-              {syncingMenu ? 'Syncing...' : 'Sync Menu to Cloud'}
+            <button onClick={syncMenuToCloud} disabled={syncingMenu} className="cfg-btn cfg-btn-primary" style={{ background: '#1C5C3A', borderColor: '#1C5C3A' }}>
+              <CloudLightning size={14} />
+              {syncingMenu ? 'Syncing…' : 'Sync Menu to Cloud'}
             </button>
-          </div>
+          </>
         )}
       </div>
     </div>
@@ -1196,567 +1178,638 @@ const Settings = () => {
 
   const renderSystemTab = () => (
     <>
-      {/* End of Day Operations */}
-      <div className="settings-card-modern">
-        <div className="settings-card-hdr">
-          <h2><RotateCcw size={20} style={{ color: '#1e293b' }} /> Daily Operations</h2>
+      {/* Close Sell */}
+      <div className="cfg-card">
+        <div className="cfg-card-hdr">
+          <div className="cfg-card-hdr-left">
+            <div className="cfg-card-icon" style={{ background: '#f1f5f9' }}>
+              <RotateCcw size={16} color="#475569" />
+            </div>
+            <div>
+              <h2>End of Day</h2>
+              <p>Close sell, generate reports and email backup</p>
+            </div>
+          </div>
         </div>
-        <div className="settings-card-body-modern">
-          <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: '#1e293b', fontWeight: '700' }}>
-            Close Sell & Generate Reports
-          </h4>
-          <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0 0 16px 0', lineHeight: '1.5' }}>
-            {"Closes the current day's business shift, creates a compressed ZIP file of all reports, backs up the database, and emails the package to the owner."}
+        <div className="cfg-card-body">
+          <p style={{ margin: '0 0 16px', fontSize: '0.88rem', color: '#64748b', lineHeight: '1.6', maxWidth: '480px' }}>
+            Closes the current shift, creates a ZIP of all reports, backs up the database, and emails everything to the owner.
           </p>
-          <button 
-            onClick={handleCloseSell}
-            disabled={closeSellLoading}
-            className="btn-modern btn-modern-primary"
-            style={{ background: '#1e293b' }}
-          >
-            <RotateCcw size={16} />
-            {closeSellLoading ? 'Processing Close Sell...' : 'Run Close Sell Now'}
+          <button onClick={handleCloseSell} disabled={closeSellLoading} className="cfg-btn cfg-btn-ghost">
+            <RotateCcw size={14} />
+            {closeSellLoading ? 'Processing…' : 'Run Close Sell Now'}
           </button>
         </div>
       </div>
 
-      {/* Danger Zone: Reset Application */}
-      <div className="settings-card-modern" style={{ marginTop: '24px', border: '1.5px solid #fca5a5' }}>
-        <div className="settings-card-hdr" style={{ background: '#fef2f2' }}>
-          <h2 style={{ color: '#ef4444' }}><AlertTriangle size={20} /> Danger Zone: Reset App</h2>
+      {/* Info tiles */}
+      <div className="cfg-info-grid">
+        <div className="cfg-info-tile">
+          <h3><Info size={15} color="#3b82f6" /> App Info</h3>
+          <table>
+            <tbody>
+              <tr><td>Version</td><td>2.0.0</td></tr>
+              <tr><td>Database</td><td>{typeof window !== 'undefined' && !!window.electronAPI ? 'SQLite' : 'IndexedDB'}</td></tr>
+              <tr><td>Platform</td><td>{typeof window !== 'undefined' && !!window.electronAPI ? 'Electron' : 'Android / Web'}</td></tr>
+            </tbody>
+          </table>
         </div>
-        <div className="settings-card-body-modern">
-          <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '12px', padding: '16px', marginBottom: '20px', color: '#b45309', fontSize: '0.9rem' }}>
-            <strong style={{ display: 'block', marginBottom: '6px' }}>Warning: This action is permanent!</strong>
-            Resetting the application will completely wipe all local products, tables, configurations, spendings, and sales records. Defaults will be restored.
-          </div>
-
-          {!showResetConfirm ? (
-            <button 
-              onClick={handleResetApplication}
-              disabled={resetLoading}
-              className="btn-modern btn-modern-danger"
-            >
-              <RotateCcw size={16} />
-              {resetLoading ? 'Resetting...' : 'Reset Entire Application'}
-            </button>
-          ) : (
-            <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '20px' }}>
-              <p style={{ margin: '0 0 12px 0', color: '#991b1b', fontWeight: '700' }}>
-                Are you absolutely sure? This cannot be undone.
-              </p>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#991b1b', marginBottom: '6px' }}>
-                  Please type &quot;reset app&quot; below to confirm:
-                </label>
-                <input
-                  type="text"
-                  value={resetConfirmText}
-                  onChange={(e) => setResetConfirmText(e.target.value)}
-                  placeholder="Type 'reset app'"
-                  className="input-modern"
-                  style={{ width: '100%', borderColor: '#fca5a5', background: '#ffffff', color: '#991b1b' }}
-                  disabled={resetLoading}
-                  autoComplete="off"
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button 
-                  onClick={handleResetApplication}
-                  disabled={resetLoading || resetConfirmText.trim().toLowerCase() !== 'reset app'}
-                  className="btn-modern btn-modern-danger"
-                >
-                  {resetLoading ? 'Resetting...' : 'Yes, Delete All Data'}
-                </button>
-                <button 
-                  onClick={cancelReset}
-                  disabled={resetLoading}
-                  className="btn-modern btn-modern-secondary"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+        <div className="cfg-info-tile">
+          <h3><HelpCircle size={15} color="#10b981" /> Support</h3>
+          <table>
+            <tbody>
+              <tr><td>Email</td><td style={{ color: '#b6412c' }}>ajitreddy013@gmail.com</td></tr>
+              <tr><td>Phone</td><td style={{ color: '#b6412c' }}>+91 7517323121</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Info & Support */}
-      <div className="info-cards-grid" style={{ marginTop: '24px' }}>
-        <div className="info-card">
-          <h3><Info size={18} style={{ color: '#3b82f6' }} /> Application Info</h3>
-          <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
-            <tbody>
-              <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                <td style={{ padding: '8px 0', color: '#64748b', fontWeight: '600' }}>Version:</td>
-                <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: '600' }}>2.0.0</td>
-              </tr>
-              <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                <td style={{ padding: '8px 0', color: '#64748b', fontWeight: '600' }}>Database:</td>
-                <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: '600' }}>
-                  {typeof window !== "undefined" && !!window.electronAPI ? 'SQLite' : 'IndexedDB (Dexie)'}
-                </td>
-              </tr>
-              <tr>
-                <td style={{ padding: '8px 0', color: '#64748b', fontWeight: '600' }}>Platform:</td>
-                <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: '600' }}>
-                  {typeof window !== "undefined" && !!window.electronAPI ? 'Electron (Desktop)' : 'Android / Web'}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+      {/* Danger Zone */}
+      <div className="cfg-card cfg-danger-card">
+        <div className="cfg-card-hdr">
+          <div className="cfg-card-hdr-left">
+            <div className="cfg-card-icon" style={{ background: '#fef2f2' }}>
+              <AlertTriangle size={16} color="#ef4444" />
+            </div>
+            <div>
+              <h2 style={{ color: '#ef4444' }}>Danger Zone</h2>
+              <p>Irreversible actions — proceed with caution</p>
+            </div>
+          </div>
         </div>
+        <div className="cfg-card-body">
+          <div className="cfg-alert-box cfg-alert-warn" style={{ marginBottom: '18px' }}>
+            <strong>Warning — this is permanent.</strong> Resetting wipes all local products, tables, configurations, spendings, and sales. Defaults are restored.
+          </div>
 
-        <div className="info-card">
-          <h3><HelpCircle size={18} style={{ color: '#10b981' }} /> Support</h3>
-          <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#475569', fontWeight: '600' }}>
-            For technical support:
-          </p>
-          <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
-            <tbody>
-              <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                <td style={{ padding: '8px 0', color: '#64748b', fontWeight: '600' }}>Email:</td>
-                <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: '600', color: '#b6412c' }}>
-                  ajitreddy013@gmail.com
-                </td>
-              </tr>
-              <tr>
-                <td style={{ padding: '8px 0', color: '#64748b', fontWeight: '600' }}>Phone:</td>
-                <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: '600', color: '#b6412c' }}>
-                  +91 7517323121
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          {!showResetConfirm ? (
+            <button onClick={handleResetApplication} disabled={resetLoading} className="cfg-btn cfg-btn-danger">
+              <RotateCcw size={14} />
+              {resetLoading ? 'Resetting…' : 'Reset Entire Application'}
+            </button>
+          ) : (
+            <div className="cfg-alert-box cfg-alert-danger" style={{ marginBottom: 0 }}>
+              <p style={{ margin: '0 0 10px', fontWeight: '700', fontSize: '0.9rem' }}>Are you absolutely sure? This cannot be undone.</p>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '6px' }}>Type &quot;reset app&quot; to confirm:</label>
+              <input type="text" value={resetConfirmText} onChange={(e) => setResetConfirmText(e.target.value)} placeholder="reset app" className="cfg-input" style={{ marginBottom: '12px', borderColor: '#fca5a5', background: '#fff' }} disabled={resetLoading} autoComplete="off" />
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={handleResetApplication} disabled={resetLoading || resetConfirmText.trim().toLowerCase() !== 'reset app'} className="cfg-btn cfg-btn-danger">
+                  {resetLoading ? 'Resetting…' : 'Yes, Delete All Data'}
+                </button>
+                <button onClick={cancelReset} disabled={resetLoading} className="cfg-btn cfg-btn-ghost">Cancel</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>
   );
 
   return (
-    <div className="settings-page-wrapper">
-      {/* Scope-isolated modern styles to avoid conflicts with global App.css */}
+    <div className="cfg-root">
       <style>{`
-        .settings-page-wrapper {
-          padding: 24px 12px;
-          max-width: 1250px;
-          margin: 0 auto;
+        /* ── Root ─────────────────────────────────────────────────────── */
+        .cfg-root {
+          min-height: 100vh;
+          background: #f1f5f9;
           font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
-          color: #2c3e50;
-        }
-        
-        .settings-header-modern {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 30px;
-          border-bottom: 2px solid #eef2f6;
-          padding-bottom: 16px;
-        }
-        
-        .settings-header-modern h1 {
-          margin: 0;
-          font-size: 1.85rem;
-          font-weight: 800;
           color: #1e293b;
+        }
+
+        /* ── Page header ──────────────────────────────────────────────── */
+        .cfg-page-header {
+          background: #ffffff;
+          border-bottom: 1px solid #e2e8f0;
+          padding: 0 32px;
           display: flex;
           align-items: center;
-          gap: 12px;
+          height: 64px;
+          gap: 14px;
+        }
+        .cfg-page-header-icon {
+          width: 36px; height: 36px;
+          background: linear-gradient(135deg, #b6412c 0%, #d85a42 100%);
+          border-radius: 10px;
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+        }
+        .cfg-page-header h1 {
+          margin: 0;
+          font-size: 1.15rem;
+          font-weight: 700;
+          color: #0f172a;
+          letter-spacing: -0.01em;
+        }
+        .cfg-page-header p {
+          margin: 0;
+          font-size: 0.82rem;
+          color: #94a3b8;
+          font-weight: 500;
         }
 
-        .settings-layout-modern {
+        /* ── Body layout ──────────────────────────────────────────────── */
+        .cfg-body {
           display: grid;
-          grid-template-columns: 260px 1fr;
-          gap: 30px;
+          grid-template-columns: 224px 1fr;
+          gap: 0;
+          max-width: 1280px;
+          margin: 0 auto;
+          padding: 28px 24px;
           align-items: start;
+          gap: 24px;
         }
 
-        .settings-nav-sidebar {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          background: rgba(255, 255, 255, 0.6);
-          backdrop-filter: blur(8px);
+        /* ── Sidebar ──────────────────────────────────────────────────── */
+        .cfg-sidebar {
+          background: #ffffff;
           border: 1px solid #e2e8f0;
           border-radius: 16px;
-          padding: 12px;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+          overflow: hidden;
+          position: sticky;
+          top: 24px;
         }
-
-        .settings-nav-btn {
+        .cfg-sidebar-brand {
+          padding: 18px 16px 14px;
+          border-bottom: 1px solid #f1f5f9;
           display: flex;
           align-items: center;
-          gap: 12px;
-          padding: 14px 16px;
-          border: none;
-          border-radius: 10px;
-          background: transparent;
+          gap: 10px;
+        }
+        .cfg-sidebar-brand-dot {
+          width: 8px; height: 8px;
+          border-radius: 50%;
+          background: #22c55e;
+          flex-shrink: 0;
+        }
+        .cfg-sidebar-brand span {
+          font-size: 0.78rem;
+          font-weight: 600;
           color: #64748b;
-          font-size: 0.95rem;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .cfg-nav-section {
+          padding: 10px 8px;
+        }
+        .cfg-nav-section + .cfg-nav-section {
+          border-top: 1px solid #f1f5f9;
+          padding-top: 10px;
+        }
+        .cfg-nav-label {
+          font-size: 0.68rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #94a3b8;
+          padding: 4px 10px 6px;
+        }
+        .cfg-nav-btn {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 9px 10px;
+          border: none;
+          border-radius: 9px;
+          background: transparent;
+          color: #475569;
+          font-size: 0.88rem;
           font-weight: 600;
           text-align: left;
           cursor: pointer;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: all 0.15s ease;
           width: 100%;
+          line-height: 1;
         }
-
-        .settings-nav-btn:hover {
-          background: rgba(182, 65, 44, 0.06);
+        .cfg-nav-btn:hover {
+          background: #f8fafc;
+          color: #1e293b;
+        }
+        .cfg-nav-btn.active {
+          background: #fdf1ef;
           color: #b6412c;
-          transform: translateX(4px);
+          font-weight: 700;
+        }
+        .cfg-nav-btn.active svg {
+          color: #b6412c;
+        }
+        .cfg-nav-btn svg {
+          flex-shrink: 0;
+          color: #94a3b8;
+        }
+        .cfg-nav-btn.active .cfg-nav-pip {
+          background: #b6412c;
+        }
+        .cfg-nav-pip {
+          width: 5px; height: 5px;
+          border-radius: 50%;
+          background: transparent;
+          margin-left: auto;
+          flex-shrink: 0;
         }
 
-        .settings-nav-btn.active {
-          background: linear-gradient(135deg, #b6412c 0%, #e05e46 100%);
-          color: #ffffff;
-          box-shadow: 0 6px 16px rgba(182, 65, 44, 0.2);
-        }
-
-        .settings-panel-container {
+        /* ── Panel area ───────────────────────────────────────────────── */
+        .cfg-panel {
           display: flex;
           flex-direction: column;
-          gap: 24px;
-          animation: settingsFadeIn 0.3s ease-out;
+          gap: 20px;
+          animation: cfgFadeIn 0.2s ease-out;
+        }
+        @keyframes cfgFadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
 
-        @keyframes settingsFadeIn {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Glassmorphic Cards */
-        .settings-card-modern {
-          background: rgba(255, 255, 255, 0.9);
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(226, 232, 240, 0.8);
-          border-radius: 20px;
-          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.02);
+        /* ── Cards ────────────────────────────────────────────────────── */
+        .cfg-card {
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
           overflow: hidden;
-          transition: all 0.3s ease;
         }
-
-        .settings-card-modern:hover {
-          box-shadow: 0 12px 36px rgba(0, 0, 0, 0.04);
-        }
-
-        .settings-card-hdr {
+        .cfg-card-hdr {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 22px 28px;
-          border-bottom: 1px solid #eef2f6;
-          background: rgba(248, 250, 252, 0.5);
+          padding: 18px 24px;
+          border-bottom: 1px solid #f1f5f9;
         }
-
-        .settings-card-hdr h2 {
-          margin: 0;
+        .cfg-card-hdr-left {
           display: flex;
           align-items: center;
-          gap: 12px;
-          font-size: 1.15rem;
+          gap: 10px;
+        }
+        .cfg-card-icon {
+          width: 32px; height: 32px;
+          border-radius: 8px;
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+        }
+        .cfg-card-hdr h2 {
+          margin: 0;
+          font-size: 0.98rem;
           font-weight: 700;
-          color: #1e293b;
+          color: #0f172a;
+        }
+        .cfg-card-hdr p {
+          margin: 2px 0 0;
+          font-size: 0.78rem;
+          color: #94a3b8;
+          font-weight: 500;
+        }
+        .cfg-card-body {
+          padding: 24px;
         }
 
-        .settings-card-body-modern {
-          padding: 28px;
-        }
-
-        /* Form Layouts */
-        .form-grid-modern {
+        /* ── Form elements ────────────────────────────────────────────── */
+        .cfg-form-grid {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
-          gap: 24px;
+          gap: 20px;
         }
-
-        .form-grid-modern.single-column {
+        .cfg-form-grid.cols-1 {
           grid-template-columns: 1fr;
-          max-width: 600px;
+          max-width: 520px;
         }
-
-        .form-group-modern {
+        .cfg-field {
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 6px;
         }
-
-        .form-group-modern.full-width {
+        .cfg-field.span-2 {
           grid-column: 1 / -1;
         }
-
-        .form-group-modern label {
-          font-size: 0.82rem;
+        .cfg-field label {
+          font-size: 0.75rem;
           font-weight: 700;
-          color: #475569;
+          color: #64748b;
           text-transform: uppercase;
-          letter-spacing: 0.05em;
+          letter-spacing: 0.06em;
         }
-
-        .input-modern {
-          padding: 12px 16px;
+        .cfg-input {
+          padding: 10px 14px;
           border: 1.5px solid #e2e8f0;
-          border-radius: 12px;
+          border-radius: 10px;
           background: #f8fafc;
           color: #1e293b;
-          font-size: 0.95rem;
-          transition: all 0.2s ease;
+          font-size: 0.92rem;
+          font-family: inherit;
+          transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+          width: 100%;
+          box-sizing: border-box;
         }
-
-        .input-modern:focus {
+        .cfg-input:focus {
           border-color: #b6412c;
           background: #ffffff;
           outline: none;
-          box-shadow: 0 0 0 3px rgba(182, 65, 44, 0.1);
+          box-shadow: 0 0 0 3px rgba(182, 65, 44, 0.08);
         }
-
-        .textarea-modern {
-          min-height: 90px;
+        .cfg-textarea {
+          min-height: 84px;
           resize: vertical;
         }
+        .cfg-hint {
+          font-size: 0.76rem;
+          color: #94a3b8;
+          line-height: 1.5;
+          margin: 0;
+        }
 
-        /* Toggle Custom Switch */
-        .switch-wrapper {
+        /* ── Toggle switch ────────────────────────────────────────────── */
+        .cfg-switch-row {
           display: flex;
           align-items: center;
           gap: 12px;
           cursor: pointer;
           user-select: none;
-          padding: 6px 0;
+          padding: 10px 0;
         }
-
-        .switch-track {
+        .cfg-switch-track {
           position: relative;
-          width: 50px;
-          height: 26px;
+          width: 44px; height: 24px;
           background: #cbd5e1;
-          border-radius: 13px;
-          transition: all 0.25s ease;
+          border-radius: 12px;
+          transition: background 0.2s;
+          flex-shrink: 0;
         }
-
-        .switch-track.active {
-          background: #1C5C3A;
-        }
-
-        .switch-thumb {
+        .cfg-switch-track.on { background: #1C5C3A; }
+        .cfg-switch-thumb {
           position: absolute;
-          top: 3px;
-          left: 3px;
-          width: 20px;
-          height: 20px;
-          background: #ffffff;
+          top: 2px; left: 2px;
+          width: 20px; height: 20px;
+          background: #fff;
           border-radius: 50%;
-          transition: all 0.25s cubic-bezier(0.3, 1.5, 0.7, 1);
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+          transition: left 0.2s cubic-bezier(0.3, 1.5, 0.7, 1);
+          box-shadow: 0 1px 4px rgba(0,0,0,0.18);
         }
-
-        .switch-track.active .switch-thumb {
-          left: 27px;
-        }
-
-        .switch-label {
-          font-size: 0.95rem;
+        .cfg-switch-track.on .cfg-switch-thumb { left: 22px; }
+        .cfg-switch-label {
+          font-size: 0.9rem;
           font-weight: 600;
           color: #334155;
         }
 
-        /* Buttons styling */
-        .btn-modern {
+        /* ── Buttons ──────────────────────────────────────────────────── */
+        .cfg-btn {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
-          padding: 12px 20px;
-          border-radius: 12px;
-          font-size: 0.95rem;
+          gap: 7px;
+          padding: 9px 18px;
+          border-radius: 10px;
+          font-size: 0.88rem;
           font-weight: 700;
           cursor: pointer;
-          transition: all 0.2s ease;
-          border: 1px solid transparent;
+          transition: all 0.15s ease;
+          border: 1.5px solid transparent;
+          font-family: inherit;
+          white-space: nowrap;
         }
-
-        .btn-modern-primary {
+        .cfg-btn-primary {
           background: #b6412c;
           color: #ffffff;
+          border-color: #b6412c;
         }
-
-        .btn-modern-primary:hover {
-          background: #d85a42;
+        .cfg-btn-primary:hover:not(:disabled) {
+          background: #c94e38;
+          box-shadow: 0 4px 12px rgba(182,65,44,0.25);
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(182, 65, 44, 0.2);
         }
-
-        .btn-modern-secondary {
-          background: #ffffff;
-          border-color: #cbd5e1;
+        .cfg-btn-ghost {
+          background: transparent;
+          border-color: #e2e8f0;
           color: #475569;
         }
-
-        .btn-modern-secondary:hover {
+        .cfg-btn-ghost:hover:not(:disabled) {
           background: #f8fafc;
-          border-color: #94a3b8;
+          border-color: #cbd5e1;
+          color: #1e293b;
         }
-
-        .btn-modern-danger {
+        .cfg-btn-danger {
           background: #ef4444;
           color: #ffffff;
+          border-color: #ef4444;
         }
-
-        .btn-modern-danger:hover {
+        .cfg-btn-danger:hover:not(:disabled) {
           background: #f87171;
           transform: translateY(-1px);
         }
-
-        .btn-modern:disabled {
-          opacity: 0.6;
+        .cfg-btn:disabled {
+          opacity: 0.55;
           cursor: not-allowed;
           transform: none !important;
           box-shadow: none !important;
         }
 
-        /* Displays */
-        .display-grid {
+        /* ── Display rows ─────────────────────────────────────────────── */
+        .cfg-display-grid {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
-          gap: 24px;
+          gap: 0;
         }
-
-        .display-item h4 {
-          margin: 0 0 6px 0;
-          font-size: 0.8rem;
-          color: #64748b;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
+        .cfg-display-item {
+          padding: 14px 16px;
+          border-bottom: 1px solid #f1f5f9;
+          border-right: 1px solid #f1f5f9;
+        }
+        .cfg-display-item:nth-child(2n) { border-right: none; }
+        .cfg-display-item.span-2 { grid-column: 1 / -1; border-right: none; }
+        .cfg-display-item:last-child, .cfg-display-item:nth-last-child(2):not(.span-2) { border-bottom: none; }
+        .cfg-display-item dt {
+          font-size: 0.72rem;
           font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.07em;
+          color: #94a3b8;
+          margin: 0 0 4px;
         }
-
-        .display-item p {
+        .cfg-display-item dd {
           margin: 0;
-          font-size: 1rem;
+          font-size: 0.92rem;
           color: #1e293b;
           font-weight: 500;
-          line-height: 1.5;
         }
 
-        /* QR Section */
-        .qr-card-container {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          border: 1.5px dashed #cbd5e1;
-          border-radius: 16px;
-          padding: 24px;
-          background: #f8fafc;
-          min-height: 250px;
-          text-align: center;
-        }
-
-        .status-badge {
+        /* ── Status badges ────────────────────────────────────────────── */
+        .cfg-badge {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          padding: 6px 12px;
+          padding: 5px 11px;
           border-radius: 999px;
-          font-size: 0.85rem;
+          font-size: 0.8rem;
           font-weight: 700;
         }
+        .cfg-badge-green  { background: #dcfce7; color: #15803d; }
+        .cfg-badge-blue   { background: #e0f2fe; color: #0369a1; }
+        .cfg-badge-yellow { background: #fef3c7; color: #b45309; }
+        .cfg-badge-slate  { background: #f1f5f9; color: #475569; }
+        .cfg-badge-red    { background: #fee2e2; color: #b91c1c; }
 
-        .status-badge.connected {
-          background: #dcfce7;
-          color: #15803d;
+        /* ── QR container ─────────────────────────────────────────────── */
+        .cfg-qr-shell {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          border: 1.5px dashed #e2e8f0;
+          border-radius: 14px;
+          padding: 28px 24px;
+          background: #f8fafc;
+          text-align: center;
+          min-height: 220px;
+          justify-content: center;
         }
 
-        .status-badge.authenticating {
-          background: #e0f2fe;
-          color: #0369a1;
-        }
-
-        .status-badge.qr-ready {
-          background: #fef3c7;
-          color: #b45309;
-        }
-
-        .status-badge.initializing {
-          background: #f1f5f9;
-          color: #475569;
-        }
-
-        .status-badge.disconnected {
-          background: #fee2e2;
-          color: #b91c1c;
-        }
-
-        /* Info Card support */
-        .info-cards-grid {
+        /* ── Info tiles ───────────────────────────────────────────────── */
+        .cfg-info-grid {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
-          gap: 20px;
+          gap: 16px;
         }
-
-        .info-card {
+        .cfg-info-tile {
           background: #f8fafc;
           border: 1px solid #e2e8f0;
-          border-radius: 16px;
-          padding: 20px;
+          border-radius: 14px;
+          padding: 18px 20px;
         }
-
-        .info-card h3 {
-          margin: 0 0 12px 0;
-          font-size: 1rem;
-          color: #1e293b;
+        .cfg-info-tile h3 {
+          margin: 0 0 10px;
+          font-size: 0.88rem;
           font-weight: 700;
+          color: #1e293b;
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 7px;
+        }
+        .cfg-info-tile table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+        .cfg-info-tile td { padding: 7px 0; border-bottom: 1px solid #f1f5f9; }
+        .cfg-info-tile tr:last-child td { border-bottom: none; }
+        .cfg-info-tile td:first-child { color: #64748b; font-weight: 600; }
+        .cfg-info-tile td:last-child { text-align: right; font-weight: 600; color: #1e293b; }
+
+        /* ── Danger zone ──────────────────────────────────────────────── */
+        .cfg-danger-card {
+          border-color: #fca5a5 !important;
+        }
+        .cfg-danger-card .cfg-card-hdr {
+          background: #fef2f2;
+          border-bottom-color: #fca5a5;
+        }
+        .cfg-alert-box {
+          border-radius: 10px;
+          padding: 14px 16px;
+          font-size: 0.85rem;
+          line-height: 1.6;
+          margin-bottom: 18px;
+        }
+        .cfg-alert-warn {
+          background: #fffbeb;
+          border: 1px solid #fde68a;
+          color: #92400e;
+        }
+        .cfg-alert-danger {
+          background: #fee2e2;
+          border: 1px solid #fca5a5;
+          color: #991b1b;
+        }
+        .cfg-alert-success {
+          background: #f0fdf4;
+          border: 1px solid #bbf7d0;
+          color: #15803d;
+        }
+        .cfg-alert-info {
+          background: #fffbeb;
+          border: 1px solid #fde68a;
+          color: #92400e;
         }
 
-        .settings-layout-modern {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 30px;
-          align-items: start;
+        /* ── Divider ──────────────────────────────────────────────────── */
+        .cfg-divider {
+          border: none;
+          border-top: 1px solid #f1f5f9;
+          margin: 20px 0;
         }
 
-        /* Responsive */
-        @media (max-width: 900px) {
-          .settings-layout-modern {
-            grid-template-columns: 1fr;
-          }
-          
-          .form-grid-modern, .display-grid, .info-cards-grid {
-            grid-template-columns: 1fr;
-          }
+        /* ── Responsive ───────────────────────────────────────────────── */
+        @media (max-width: 860px) {
+          .cfg-body { grid-template-columns: 1fr; padding: 16px; }
+          .cfg-sidebar { position: static; }
+          .cfg-form-grid { grid-template-columns: 1fr; }
+          .cfg-display-grid { grid-template-columns: 1fr; }
+          .cfg-info-grid { grid-template-columns: 1fr; }
+          .cfg-display-item { border-right: none; }
         }
       `}</style>
 
-      <div className="settings-layout-modern">
-        {/* Sidebar Navigation */}
-        <div className="settings-nav-sidebar">
-          {tabs.map((tab) => {
-            const IconComponent = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                className={`settings-nav-btn ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                <IconComponent size={18} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+      {/* ── Page header ── */}
+      <div className="cfg-page-header">
+        <div className="cfg-page-header-icon">
+          <SettingsIcon size={18} color="#fff" />
         </div>
+        <div>
+          <h1>Settings</h1>
+          <p>{barSettings.bar_name || 'Configure your store'}</p>
+        </div>
+      </div>
 
-        {/* Panel Container (Active Tab) */}
-        <div className="settings-panel-container">
-          {activeTab === 'general' && renderGeneralTab()}
+      <div className="cfg-body">
+        {/* ── Sidebar ── */}
+        <nav className="cfg-sidebar">
+          <div className="cfg-sidebar-brand">
+            <div className="cfg-sidebar-brand-dot" />
+            <span>{barSettings.bar_name || 'My Store'}</span>
+          </div>
+
+          <div className="cfg-nav-section">
+            <div className="cfg-nav-label">Store</div>
+            {[
+              { id: 'general',      label: 'General',        icon: Store },
+              { id: 'integrations', label: 'Integrations',   icon: MessageCircle },
+              { id: 'delivery',     label: 'Delivery',       icon: Truck },
+              { id: 'offers',       label: 'Offers',         icon: Tag },
+            ].map(({ id, label, icon: Icon }) => (
+              <button key={id} className={`cfg-nav-btn ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id)}>
+                <Icon size={16} /><span>{label}</span><span className="cfg-nav-pip" />
+              </button>
+            ))}
+          </div>
+
+          <div className="cfg-nav-section">
+            <div className="cfg-nav-label">Online</div>
+            {[
+              { id: 'menu-qr', label: 'Menu QR Code',   icon: QrCode },
+              { id: 'sync',    label: 'Cloud Sync',     icon: CloudLightning },
+            ].map(({ id, label, icon: Icon }) => (
+              <button key={id} className={`cfg-nav-btn ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id)}>
+                <Icon size={16} /><span>{label}</span><span className="cfg-nav-pip" />
+              </button>
+            ))}
+          </div>
+
+          <div className="cfg-nav-section">
+            <div className="cfg-nav-label">System</div>
+            {[
+              { id: 'security', label: 'Security',          icon: Lock },
+              { id: 'system',   label: 'System & Reset',    icon: AlertTriangle },
+            ].map(({ id, label, icon: Icon }) => (
+              <button key={id} className={`cfg-nav-btn ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id)}>
+                <Icon size={16} /><span>{label}</span><span className="cfg-nav-pip" />
+              </button>
+            ))}
+          </div>
+        </nav>
+
+        {/* ── Panel ── */}
+        <div className="cfg-panel">
+          {activeTab === 'general'      && renderGeneralTab()}
           {activeTab === 'integrations' && renderIntegrationsTab()}
-          {activeTab === 'delivery' && renderDeliveryTab()}
-          {activeTab === 'menu-qr' && renderMenuQrTab()}
-          {activeTab === 'security' && renderSecurityTab()}
-          {activeTab === 'sync' && renderSyncTab()}
-          {activeTab === 'system' && renderSystemTab()}
+          {activeTab === 'offers'       && renderOffersTab()}
+          {activeTab === 'delivery'     && renderDeliveryTab()}
+          {activeTab === 'menu-qr'      && renderMenuQrTab()}
+          {activeTab === 'security'     && renderSecurityTab()}
+          {activeTab === 'sync'         && renderSyncTab()}
+          {activeTab === 'system'       && renderSystemTab()}
         </div>
       </div>
     </div>

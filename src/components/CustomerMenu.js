@@ -23,6 +23,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import useBarSettings from '../utils/useBarSettings';
+import { isOfferActiveToday, calculateOfferDiscount } from '../utils/offerUtils';
 import QRCode from 'qrcode';
 
 const CustomerMenu = () => {
@@ -114,19 +115,21 @@ const CustomerMenu = () => {
 
   // Cart operations
   const addToCart = (productId) => {
+    const step = offerActive ? 2 : 1;
     setCart((prev) => ({
       ...prev,
-      [productId]: (prev[productId] || 0) + 1,
+      [productId]: (prev[productId] || 0) + step,
     }));
   };
 
   const removeFromCart = (productId) => {
+    const step = offerActive ? 2 : 1;
     setCart((prev) => {
       const copy = { ...prev };
-      if (copy[productId] <= 1) {
+      if (copy[productId] <= step) {
         delete copy[productId];
       } else {
-        copy[productId]--;
+        copy[productId] -= step;
       }
       return copy;
     });
@@ -148,6 +151,15 @@ const CustomerMenu = () => {
       0
     );
   }, [cartItemsList]);
+
+  const offerActive = useMemo(() => isOfferActiveToday(barSettings), [barSettings]);
+
+  const offerResult = useMemo(() => {
+    if (!offerActive || cartItemsList.length === 0) return { discountAmount: 0, freeItems: [] };
+    return calculateOfferDiscount(cartItemsList);
+  }, [offerActive, cartItemsList]);
+
+  const finalTotal = useMemo(() => Math.max(0, totalAmount - offerResult.discountAmount), [totalAmount, offerResult]);
 
   const totalQuantity = useMemo(() => {
     return Object.values(cart).reduce((sum, q) => sum + q, 0);
@@ -181,14 +193,14 @@ const CustomerMenu = () => {
       setUpiQrStatus('Generating UPI QR code...');
       setUpiQrPayment({
         orderId: orderNumber,
-        amount: totalAmount,
+        amount: finalTotal,
         qrImageUrl: '',
       });
 
       fetch(`${relayUrl}/payment/create-qr`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: totalAmount, orderId: orderNumber }),
+        body: JSON.stringify({ amount: finalTotal, orderId: orderNumber }),
       })
         .then((response) => response.json())
         .then(async (data) => {
@@ -205,7 +217,7 @@ const CustomerMenu = () => {
               const upiUri = `upi://pay?pa=${encodeURIComponent(
                 barSettings.upi_vpa
               )}&pn=${encodeURIComponent(barSettings.bar_name || '')}&am=${encodeURIComponent(
-                Number(totalAmount).toFixed(2)
+                Number(finalTotal).toFixed(2)
               )}&cu=INR&tn=${encodeURIComponent('Order ' + orderNumber)}`;
               qrImage = await QRCode.toDataURL(upiUri, {
                 errorCorrectionLevel: 'M',
@@ -221,7 +233,7 @@ const CustomerMenu = () => {
 
           setUpiQrPayment({
             orderId: orderNumber,
-            amount: totalAmount,
+            amount: finalTotal,
             qrImageUrl: qrImage,
             paymentLinkId: data.paymentLinkId || null,
           });
@@ -296,6 +308,7 @@ const CustomerMenu = () => {
         await startRazorpayPayment(orderNumber);
         payStatus = 'paid';
       }
+      // Use finalTotal (after 1+1 offer discount) for actual payment
 
       // Save order to Firestore
       const orderData = {
@@ -310,7 +323,8 @@ const CustomerMenu = () => {
           unitPrice: item.price,
           totalPrice: item.price * item.quantity,
         })),
-        totalAmount,
+        totalAmount: finalTotal,
+        discountAmount: offerResult.discountAmount,
         paymentMethod,
         paymentStatus: payStatus,
         orderStatus: 'pending_acceptance',
@@ -319,7 +333,7 @@ const CustomerMenu = () => {
 
       await addDoc(collection(db, 'orders'), orderData);
 
-      // Trigger automatic WhatsApp confirmation via Render backend
+      // Send WhatsApp confirmation to customer
       try {
         const relayUrl = APP_CONFIG.whatsappRelayUrl;
         await fetch(`${relayUrl}/payment/send-confirmation`, {
@@ -330,7 +344,7 @@ const CustomerMenu = () => {
             name,
             orderNumber,
             tableNumber,
-            totalAmount,
+            totalAmount: finalTotal,
             paymentMethod,
           }),
         });
@@ -553,6 +567,33 @@ const CustomerMenu = () => {
         </div>
       </header>
 
+      {/* 1+1 Offer Banner */}
+      {offerActive && (
+        <div style={{
+          background: 'linear-gradient(135deg, #EAB308 0%, #F59E0B 100%)',
+          padding: '14px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '12px',
+          boxShadow: '0 4px 16px rgba(234,179,8,0.35)',
+          position: 'sticky',
+          top: '92px',
+          zIndex: 95,
+        }}>
+          <span style={{ fontSize: '1.6rem', flexShrink: 0 }}>🎉</span>
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ margin: 0, fontWeight: '900', fontSize: '1.05rem', color: '#1e293b', letterSpacing: '-0.01em' }}>
+              BUY 1 GET 1 FREE — Today Only!
+            </p>
+            <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: '#1e293b', opacity: 0.8, fontWeight: '600' }}>
+              Add any 2 waffles · the cheaper one is FREE
+            </p>
+          </div>
+          <span style={{ fontSize: '1.6rem', flexShrink: 0 }}>🧇</span>
+        </div>
+      )}
+
       {/* Category Navigation Bar */}
       <div
         style={{
@@ -615,6 +656,19 @@ const CustomerMenu = () => {
                     alignItems: 'center',
                   }}
                 >
+                  {/* 1+1 badge on product image */}
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                  {offerActive && (
+                    <span style={{
+                      position: 'absolute', top: '-6px', left: '-6px', zIndex: 2,
+                      background: '#EAB308', color: '#1e293b',
+                      fontSize: '0.62rem', fontWeight: '900',
+                      padding: '2px 6px', borderRadius: '999px',
+                      border: '1.5px solid #fff',
+                      letterSpacing: '0.02em',
+                      boxShadow: '0 2px 6px rgba(234,179,8,0.4)',
+                    }}>1+1</span>
+                  )}
                   {product.image ? (
                     <img
                       src={product.image}
@@ -642,6 +696,7 @@ const CustomerMenu = () => {
                       <ShoppingBag size={24} />
                     </div>
                   )}
+                  </div>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <h3
@@ -800,8 +855,11 @@ const CustomerMenu = () => {
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {offerActive && offerResult.discountAmount > 0 && (
+              <span style={{ fontSize: '0.75rem', textDecoration: 'line-through', opacity: 0.6 }}>₹{totalAmount.toFixed(2)}</span>
+            )}
             <strong style={{ fontSize: '1.1rem' }}>
-              ₹{totalAmount.toFixed(2)}
+              ₹{finalTotal.toFixed(2)}
             </strong>
             <ChevronRight size={18} />
           </div>
@@ -903,6 +961,12 @@ const CustomerMenu = () => {
                   </strong>
                 </div>
               ))}
+              {offerActive && offerResult.discountAmount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '0.9rem', background: '#fef9c3', borderRadius: '8px', padding: '8px 10px' }}>
+                  <span style={{ fontWeight: '700', color: '#92400e' }}>🎉 1+1 Saving ({offerResult.freeItems.length} free)</span>
+                  <span style={{ fontWeight: '700', color: '#92400e' }}>-₹{offerResult.discountAmount.toFixed(2)}</span>
+                </div>
+              )}
               <div
                 style={{
                   display: 'flex',
@@ -912,72 +976,19 @@ const CustomerMenu = () => {
                 }}
               >
                 <strong>Total Amount</strong>
-                <strong style={{ color: '#1C5C3A' }}>
-                  ₹{totalAmount.toFixed(2)}
-                </strong>
+                <div style={{ textAlign: 'right' }}>
+                  {offerActive && offerResult.discountAmount > 0 && (
+                    <div style={{ fontSize: '0.85rem', textDecoration: 'line-through', color: '#94a3b8' }}>₹{totalAmount.toFixed(2)}</div>
+                  )}
+                  <strong style={{ color: '#1C5C3A' }}>
+                    ₹{finalTotal.toFixed(2)}
+                  </strong>
+                </div>
               </div>
             </div>
 
             {/* Checkout Form */}
             <form onSubmit={handlePlaceOrder}>
-              <div style={{ marginBottom: '16px' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    marginBottom: '6px',
-                    fontWeight: '600',
-                    fontSize: '0.9rem',
-                    color: '#4A5568',
-                  }}
-                >
-                  Your Name
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  placeholder="e.g. John Doe"
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    borderRadius: '10px',
-                    border: '1px solid #CBD5E1',
-                    outline: 'none',
-                    fontSize: '0.95rem',
-                  }}
-                />
-              </div>
-
-              <div style={{ marginBottom: '16px' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    marginBottom: '6px',
-                    fontWeight: '600',
-                    fontSize: '0.9rem',
-                    color: '#4A5568',
-                  }}
-                >
-                  WhatsApp Mobile Number
-                </label>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  required
-                  placeholder="10-digit number for receipts"
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    borderRadius: '10px',
-                    border: '1px solid #CBD5E1',
-                    outline: 'none',
-                    fontSize: '0.95rem',
-                  }}
-                />
-              </div>
-
               <div style={{ marginBottom: '24px' }}>
                 <label
                   style={{
@@ -1035,6 +1046,64 @@ const CustomerMenu = () => {
                     Pay at Counter (Cash)
                   </button>
                 </div>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '6px',
+                    fontWeight: '600',
+                    fontSize: '0.9rem',
+                    color: '#4A5568',
+                  }}
+                >
+                  Your Name
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  placeholder="e.g. John Doe"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: '10px',
+                    border: '1px solid #CBD5E1',
+                    outline: 'none',
+                    fontSize: '0.95rem',
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '6px',
+                    fontWeight: '600',
+                    fontSize: '0.9rem',
+                    color: '#4A5568',
+                  }}
+                >
+                  WhatsApp Mobile Number
+                </label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                  placeholder="10-digit number for receipts"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: '10px',
+                    border: '1px solid #CBD5E1',
+                    outline: 'none',
+                    fontSize: '0.95rem',
+                  }}
+                />
               </div>
 
               <button
