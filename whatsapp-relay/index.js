@@ -636,27 +636,34 @@ app.get('/payment-done', (req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Payment Successful</title>
   <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center;
-           justify-content: center; min-height: 100vh; margin: 0; background: #f0fdf4; color: #166534; }
-    .icon { font-size: 72px; margin-bottom: 16px; }
-    h1 { font-size: 1.6rem; margin: 0 0 8px; }
-    p { color: #4b5563; font-size: 1rem; margin: 4px 0; }
-    button { margin-top: 24px; padding: 10px 28px; font-size: 1rem; font-weight: 700;
-             background: #166534; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+           justify-content: center; min-height: 100vh; margin: 0; background: #f0fdf4; color: #166534;
+           cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; padding: 24px; text-align: center; }
+    .icon { font-size: 88px; margin-bottom: 12px; }
+    h1 { font-size: 2rem; margin: 0 0 8px; }
+    p { color: #4b5563; font-size: 1.1rem; margin: 4px 0; }
+    button { margin-top: 28px; padding: 22px 48px; font-size: 1.4rem; font-weight: 700;
+             background: #166534; color: #fff; border: none; border-radius: 14px; cursor: pointer;
+             animation: pulse 1.1s ease-in-out infinite; }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(22,101,52,0.5); }
+      50% { transform: scale(1.05); box-shadow: 0 0 0 16px rgba(22,101,52,0); }
+    }
   </style>
 </head>
-<body>
+<body onclick="returnToApp()">
   <div class="icon">✅</div>
   <h1>Payment Successful!</h1>
-  <p>Returning to app…</p>
-  <button onclick="returnToApp()">Return to App</button>
+  <p>Tap anywhere below to go back to the register</p>
+  <button onclick="returnToApp()">⬅ Return to App</button>
   <script>
     function returnToApp() {
-      // Android intent URL: brings kiosk app (com.ajitreddy.counterflowpos) to foreground
-      // Chrome Custom Tab intercepts intent:// URLs and launches/focuses the target app.
-      // This works WITHOUT any APK changes because the LAUNCHER intent filter is already registered.
+      // Android intent URL: brings kiosk app (com.ajitreddy.counterflowpos) to foreground.
+      // Requires a real tap — Chrome silently blocks intent:// navigation without a user gesture,
+      // so this only fires from the onclick handlers above, never automatically on page load.
       window.location.href = 'intent://#Intent;package=com.ajitreddy.counterflowpos;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end';
-      // Fallback for non-Android (desktop testing)
       setTimeout(function() {
         try {
           if (window.opener && !window.opener.closed) { window.opener.focus(); }
@@ -664,8 +671,7 @@ app.get('/payment-done', (req, res) => {
         window.close();
       }, 300);
     }
-    // Auto-trigger immediately on load
-    returnToApp();
+    if (navigator.vibrate) { try { navigator.vibrate([200, 100, 200]); } catch(e) {} }
   </script>
 </body>
 </html>`);
