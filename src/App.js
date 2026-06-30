@@ -42,9 +42,8 @@ import { playIncomingOrderChime } from "./utils/feedbackUtils";
 
 // Icon imports for navigation menu
 import {
-  Package,         // Products and inventory icons
-  ShoppingCart,    // POS system icon
-  BarChart3,       // Dashboard and reports icon
+  Package,
+  BarChart3,
   Settings as SettingsIcon, // Settings icon
   Menu,            // Menu open icon
   X,               // Menu close icon
@@ -409,13 +408,12 @@ function AppContent() {
    * Each item corresponds to a major business module.
    */
   const menuItems = [
-    { path: "/dashboard", name: "Dashboard", icon: BarChart3 },     // Dashboard (first)
-    { path: "/", name: "Cart", icon: ShoppingCart },                // Point of sale
-    { path: "/orders", name: "Live Orders", icon: ClipboardList },   // Kitchen/Live orders
-    { path: "/products", name: "Products", icon: Package },        // Product catalog
-    { path: "/reports", name: "Reports", icon: BarChart3 },         // Sales reports
-    { path: "/spendings", name: "Spendings", icon: DollarSign },   // Expense tracking
-    { path: "/settings", name: "Settings", icon: SettingsIcon },   // Configuration
+    { path: "/dashboard", name: "Dashboard", icon: BarChart3 },
+    { path: "/orders", name: "Live Orders", icon: ClipboardList },
+    { path: "/products", name: "Products", icon: Package },
+    { path: "/reports", name: "Reports", icon: BarChart3 },
+    { path: "/spendings", name: "Spendings", icon: DollarSign },
+    { path: "/settings", name: "Settings", icon: SettingsIcon },
   ];
 
   const activeMenuItem = menuItems.find((item) => item.path === location.pathname) || menuItems[0];
@@ -537,7 +535,11 @@ function AppContent() {
         )}
         <Routes>
           <Route path="/menu" element={<CustomerMenu />} />
-          <Route path="/" element={<POSSystem isKiosk={!isAdminUnlocked} onOpenUnlockModal={() => setShowUnlockModal(true)} />} />
+          <Route path="/" element={
+            isAdminUnlocked
+              ? <Navigate to="/dashboard" replace />
+              : <POSSystem isKiosk={true} onOpenUnlockModal={() => setShowUnlockModal(true)} />
+          } />
           {isAdminUnlocked ? (
             <>
               <Route path="/products" element={<ProductManagement />} />
