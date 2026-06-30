@@ -442,14 +442,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   }, [cart]);
 
   const addToCart = (product) => {
-    const step = offerActive ? 2 : 1;
     const existingItem = cart.find((item) => item.id === product.id);
 
     if (existingItem) {
       setCart(
         cart.map((item) =>
           item.id === product.id
-            ? { ...item, quantity: item.quantity + step }
+            ? { ...item, quantity: item.quantity + 1 }
             : item
         )
       );
@@ -461,7 +460,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           name: product.name,
           price: product.price,
           image: product.image || '',
-          quantity: step,
+          quantity: 1,
           maxStock: product.counter_stock,
         },
       ]);
@@ -472,10 +471,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   };
 
   const updateQuantity = (productId, newQuantity) => {
-    // When offer is active, snap to nearest lower even number
-    if (offerActive && newQuantity > 0 && newQuantity % 2 !== 0) {
-      newQuantity = newQuantity - 1;
-    }
     if (newQuantity <= 0) {
       removeFromCart(productId);
       return;
@@ -1339,7 +1334,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                                       >
                                         <button
                                           onClick={() =>
-                                            updateQuantity(product.id, qty - (offerActive ? 2 : 1))
+                                            updateQuantity(product.id, qty - 1)
                                           }
                                           className="kiosk-qty-btn minus"
                                           style={{
@@ -1559,7 +1554,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                       >
                         <button
                           onClick={() =>
-                            updateQuantity(item.id, item.quantity - (offerActive ? 2 : 1))
+                            updateQuantity(item.id, item.quantity - 1)
                           }
                           className="qty-btn"
                         >
@@ -1570,7 +1565,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                         </span>
                         <button
                           onClick={() =>
-                            updateQuantity(item.id, item.quantity + (offerActive ? 2 : 1))
+                            updateQuantity(item.id, item.quantity + 1)
                           }
                           className="qty-btn"
                         >
