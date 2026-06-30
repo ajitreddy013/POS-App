@@ -73,7 +73,8 @@ function getSuccessOrderIdFromLocation() {
   if (hashOrderId) return hashOrderId;
 
   const searchParams = new URLSearchParams(window.location.search);
-  return searchParams.get('payment') === 'success' && searchParams.get('orderId')
+  return searchParams.get('payment') === 'success' &&
+    searchParams.get('orderId')
     ? searchParams.get('orderId')
     : null;
 }
@@ -175,43 +176,6 @@ const CustomerMenu = () => {
       }
     }
   }, [searchParams, setSearchParams]);
-
-  useEffect(() => {
-    if (!orderSuccess || !barSettings) return;
-
-    const storageKey = 'customerWebsitePendingWhatsAppConfirmation';
-    const storedConfirmation = sessionStorage.getItem(storageKey);
-    if (!storedConfirmation || upiConfirmationSentRef.current) return;
-
-    let confirmationPayload;
-    try {
-      confirmationPayload = JSON.parse(storedConfirmation);
-    } catch (parseError) {
-      console.error(
-        'Invalid pending WhatsApp confirmation payload:',
-        parseError
-      );
-      sessionStorage.removeItem(storageKey);
-      return;
-    }
-
-    if (
-      !confirmationPayload ||
-      confirmationPayload.orderNumber !== orderSuccess
-    )
-      return;
-
-    upiConfirmationSentRef.current = true;
-    (async () => {
-      try {
-        await sendWhatsAppConfirmation(confirmationPayload);
-        sessionStorage.removeItem(storageKey);
-      } catch (err) {
-        console.error('UPI WhatsApp confirmation failed:', err);
-        upiConfirmationSentRef.current = false;
-      }
-    })();
-  }, [barSettings, orderSuccess, sendWhatsAppConfirmation]);
 
   useEffect(() => {
     const tableParam = searchParams.get('table');
@@ -365,6 +329,43 @@ const CustomerMenu = () => {
     },
     [barSettings]
   );
+
+  useEffect(() => {
+    if (!orderSuccess || !barSettings) return;
+
+    const storageKey = 'customerWebsitePendingWhatsAppConfirmation';
+    const storedConfirmation = sessionStorage.getItem(storageKey);
+    if (!storedConfirmation || upiConfirmationSentRef.current) return;
+
+    let confirmationPayload;
+    try {
+      confirmationPayload = JSON.parse(storedConfirmation);
+    } catch (parseError) {
+      console.error(
+        'Invalid pending WhatsApp confirmation payload:',
+        parseError
+      );
+      sessionStorage.removeItem(storageKey);
+      return;
+    }
+
+    if (
+      !confirmationPayload ||
+      confirmationPayload.orderNumber !== orderSuccess
+    )
+      return;
+
+    upiConfirmationSentRef.current = true;
+    (async () => {
+      try {
+        await sendWhatsAppConfirmation(confirmationPayload);
+        sessionStorage.removeItem(storageKey);
+      } catch (err) {
+        console.error('UPI WhatsApp confirmation failed:', err);
+        upiConfirmationSentRef.current = false;
+      }
+    })();
+  }, [barSettings, orderSuccess, sendWhatsAppConfirmation]);
 
   // Cart operations
   const addToCart = (productId) => {
