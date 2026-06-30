@@ -698,7 +698,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         });
       } catch (_) { /* browserPageLoaded not supported — polling/Firestore handle detection */ }
 
-      await Browser.open({ url: data.paymentLink, presentationStyle: 'fullscreen' });
+      // Try native Capacitor Browser first; fall back to window.open if unavailable.
+      // The return_url page uses an Android intent URL so no window reference needed.
+      try {
+        await Browser.open({ url: data.paymentLink, presentationStyle: 'fullscreen' });
+      } catch (_) {
+        window.open(data.paymentLink, '_blank');
+      }
 
       qrPaymentPendingRef.current = true;
       setUpiQrPayment({ orderId, amount, qrImageUrl: null, mode: 'cashfree', hostedUrl: data.paymentLink });
