@@ -89,6 +89,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const noticeTimeoutRef = useRef(null);
   const qrPollIntervalRef = useRef(null);
   const cfUnsubRef = useRef(null);
+  const cfBrowserListenerRef = useRef(null);
 
   const executeSaleWriteRef = useRef(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -674,6 +675,29 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       if (!data.success) throw new Error(data.error || 'Failed to create Cashfree order.');
 
       const cfOrderId = data.cfOrderId || data.orderId;
+
+      // Listen for page loads inside the in-app browser.
+      // When Cashfree redirects to the return_url, this fires and we check
+      // payment status directly from Cashfree API (not Firestore) — most reliable trigger.
+      if (cfBrowserListenerRef.current) {
+        cfBrowserListenerRef.current.remove();
+        cfBrowserListenerRef.current = null;
+      }
+      cfBrowserListenerRef.current = await Browser.addListener('browserPageLoaded', async () => {
+        if (!qrPaymentPendingRef.current) return;
+        try {
+          const statusRes = await fetch(`${relayUrl}/payment/cashfree/order-status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cfOrderId }),
+          });
+          const statusData = await statusRes.json();
+          if (statusData.success && statusData.paid && qrPaymentPendingRef.current) {
+            completeCashfreePayment();
+          }
+        } catch (_) { /* polling fallback handles failures */ }
+      });
+
       await Browser.open({ url: data.paymentLink, presentationStyle: 'fullscreen' });
 
       qrPaymentPendingRef.current = true;
@@ -739,6 +763,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     if (cfUnsubRef.current) {
       cfUnsubRef.current();
       cfUnsubRef.current = null;
+    }
+    if (cfBrowserListenerRef.current) {
+      cfBrowserListenerRef.current.remove();
+      cfBrowserListenerRef.current = null;
     }
     // Close the Cashfree in-app browser (Capacitor Browser plugin)
     Browser.close().catch(() => {});
@@ -837,6 +865,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     if (cfUnsubRef.current) {
       cfUnsubRef.current();
       cfUnsubRef.current = null;
+    }
+    if (cfBrowserListenerRef.current) {
+      cfBrowserListenerRef.current.remove();
+      cfBrowserListenerRef.current = null;
     }
     qrPaymentPendingRef.current = false;
     setUpiQrPayment(null);
