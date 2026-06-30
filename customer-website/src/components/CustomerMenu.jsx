@@ -102,6 +102,7 @@ const CustomerMenu = () => {
   const [orderType, setOrderType] = useState('dine_in'); // 'dine_in' | 'delivery'
   const [deliveryAddress, setDeliveryAddress] = useState({ address: '', pincode: '', landmark: '' });
   const [addressWarning, setAddressWarning] = useState('');
+  const upiConfirmationSentRef = useRef(false);
 
   const db = useMemo(() => getFirebaseDb(), []);
   const { barSettings } = useBarSettings();
@@ -147,6 +148,36 @@ const CustomerMenu = () => {
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!orderSuccess || !barSettings) return;
+
+    const storageKey = 'customerWebsitePendingWhatsAppConfirmation';
+    const storedConfirmation = sessionStorage.getItem(storageKey);
+    if (!storedConfirmation || upiConfirmationSentRef.current) return;
+
+    let confirmationPayload;
+    try {
+      confirmationPayload = JSON.parse(storedConfirmation);
+    } catch (parseError) {
+      console.error('Invalid pending WhatsApp confirmation payload:', parseError);
+      sessionStorage.removeItem(storageKey);
+      return;
+    }
+
+    if (!confirmationPayload || confirmationPayload.orderNumber !== orderSuccess) return;
+
+    upiConfirmationSentRef.current = true;
+    (async () => {
+      try {
+        await sendWhatsAppConfirmation(confirmationPayload);
+        sessionStorage.removeItem(storageKey);
+      } catch (err) {
+        console.error('UPI WhatsApp confirmation failed:', err);
+        upiConfirmationSentRef.current = false;
+      }
+    })();
+  }, [barSettings, orderSuccess, sendWhatsAppConfirmation]);
 
   useEffect(() => {
     const tableParam = searchParams.get('table');
@@ -249,6 +280,22 @@ const CustomerMenu = () => {
     return (totalQuantity + 1) / 2;
   }, [isOfferCartOdd, totalQuantity]);
 
+  const sendWhatsAppConfirmation = useCallback(async (confirmationPayload) => {
+    const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+    const response = await fetch(`${relayUrl}/payment/send-confirmation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(confirmationPayload),
+    });
+
+    const responseBody = await response.json().catch(() => ({}));
+    if (!response.ok || responseBody.success === false) {
+      throw new Error(responseBody.error || 'Failed to send WhatsApp confirmation.');
+    }
+
+    return responseBody;
+  }, [barSettings]);
+
   // Cart operations
   const addToCart = (productId) => {
     setCart((prev) => ({ ...prev, [productId]: (prev[productId] || 0) + 1 }));
@@ -342,6 +389,25 @@ const CustomerMenu = () => {
       if (paymentMethod === 'upi') {
       // ── UPI PAYMENT: Save order → get Cashfree link → redirect ──
         setUpiQrStatus('Creating your order...');
+        const confirmationPayload = {
+          phone,
+          name,
+          orderNumber,
+          tableNumber,
+          totalAmount: finalTotal,
+          discountAmount: offerResult.discountAmount,
+          paymentMethod,
+          items: cartItemsList.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            totalPrice: item.price * item.quantity,
+          })),
+          subtotal: totalAmount,
+          deliveryFee: deliveryFeeAmount,
+          orderType,
+          ...(orderType === 'delivery' && { deliveryAddress }),
+        };
 
         // 1. Save order to Firestore (pending)
         const orderData = {
@@ -374,6 +440,7 @@ const CustomerMenu = () => {
             const cashfree = window.Cashfree({
               mode: data.environment || 'sandbox'
             });
+            sessionStorage.setItem('customerWebsitePendingWhatsAppConfirmation', JSON.stringify(confirmationPayload));
             await cashfree.checkout({
               paymentSessionId: data.paymentSessionId,
               redirectTarget: '_self'
@@ -387,10 +454,30 @@ const CustomerMenu = () => {
         } else {
           console.warn('Cashfree SDK not loaded, falling back to direct URL redirection.');
           if (!data.paymentLink) throw new Error('No payment link received from server. Please try again.');
+          sessionStorage.setItem('customerWebsitePendingWhatsAppConfirmation', JSON.stringify(confirmationPayload));
           window.location.href = data.paymentLink;
         }
       } else {
         // Cash / COD payment
+        const confirmationPayload = {
+          phone,
+          name,
+          orderNumber,
+          tableNumber,
+          totalAmount: finalTotal,
+          discountAmount: offerResult.discountAmount,
+          paymentMethod,
+          items: cartItemsList.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            totalPrice: item.price * item.quantity,
+          })),
+          subtotal: totalAmount,
+          deliveryFee: deliveryFeeAmount,
+          orderType,
+          ...(orderType === 'delivery' && { deliveryAddress }),
+        };
         const orderData = {
           orderNumber, customerName: name, customerPhone: phone, tableNumber,
           items: cartItemsList.map((item) => ({ productId: String(item.id), name: item.name, quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity })),
@@ -403,29 +490,7 @@ const CustomerMenu = () => {
 
         // Send WhatsApp confirmation
         try {
-          const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-          await fetch(`${relayUrl}/payment/send-confirmation`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              phone,
-              name,
-              orderNumber,
-              tableNumber,
-              totalAmount: finalTotal,
-              discountAmount: offerResult.discountAmount,
-              paymentMethod,
-              items: cartItemsList.map((item) => ({
-                name: item.name,
-                quantity: item.quantity,
-                unitPrice: item.price,
-                totalPrice: item.price * item.quantity
-              })),
-              subtotal: totalAmount,
-              deliveryFee: deliveryFeeAmount,
-              orderType,
-              ...(orderType === 'delivery' && { deliveryAddress }),
-            }),
-          });
+          await sendWhatsAppConfirmation(confirmationPayload);
         } catch (waErr) { console.error('WhatsApp notification failed:', waErr); }
 
         setCart({});
