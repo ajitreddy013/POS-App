@@ -299,10 +299,10 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
   // Store info header
   let storeHeader = `*${shopName}*`;
   if (settings.address) {
-    storeHeader += `\n📍 ${settings.address}`;
+    storeHeader += `\n${settings.address}`;
   }
   if (settings.contact_number) {
-    storeHeader += `\n📞 ${settings.contact_number}`;
+    storeHeader += `\n${settings.contact_number}`;
   }
   if (settings.gst_number) {
     storeHeader += `\nGSTIN: ${settings.gst_number}`;
@@ -325,19 +325,21 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
 
     const calcSubtotal = subtotal || items.reduce((sum, item) => sum + (item.totalPrice || (item.unitPrice * item.quantity) || 0), 0);
 
+    const fmtAmt = (val, sign = '') => (sign + '₹' + Number(Math.abs(val)).toFixed(2)).padStart(10);
+
     let summaryList = `------------------------\n`;
-    summaryList += "Subtotal:".padStart(15) + " " + calcSubtotal.toFixed(2).padStart(8);
+    summaryList += "Subtotal".padEnd(14) + fmtAmt(calcSubtotal);
 
     if (discountAmount > 0) {
-      summaryList += "\n" + "Discount:".padStart(15) + " " + ("-" + Number(discountAmount).toFixed(2)).padStart(8);
+      summaryList += "\n" + "Discount".padEnd(14) + fmtAmt(discountAmount, '-');
     }
     if (taxAmount > 0) {
-      summaryList += "\n" + "Tax:".padStart(15) + " " + Number(taxAmount).toFixed(2).padStart(8);
+      summaryList += "\n" + "Tax".padEnd(14) + fmtAmt(taxAmount);
     }
     if (deliveryFee > 0) {
-      summaryList += "\n" + "Delivery:".padStart(15) + " " + Number(deliveryFee).toFixed(2).padStart(8);
+      summaryList += "\n" + "Delivery".padEnd(14) + fmtAmt(deliveryFee);
     }
-    summaryList += "\n" + "Total:".padStart(15) + " " + ("₹" + Number(totalAmount).toFixed(2)).padStart(8);
+    summaryList += "\n------------------------\n" + "TOTAL".padEnd(14) + fmtAmt(totalAmount);
 
     receiptTable = "\n```\n" + itemsHeader + "\n" + itemsList + "\n" + summaryList + "\n```\n";
   } else {
