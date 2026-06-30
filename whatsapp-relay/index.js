@@ -235,19 +235,23 @@ async function getShopSettings() {
     address: '',
     contact_number: '',
     gst_number: '',
-    thank_you_message: 'Thank you for visiting! Please visit again.'
+    thank_you_message: 'Thank you for visiting! Please visit again.',
   };
   if (firebaseInitialized) {
     try {
       const db = getFirestore();
-      const settingsDoc = await db.collection('settings').doc('bar_settings').get();
+      const settingsDoc = await db
+        .collection('settings')
+        .doc('bar_settings')
+        .get();
       if (settingsDoc.exists) {
         const data = settingsDoc.data();
         settings.bar_name = data.bar_name || settings.bar_name;
         settings.address = data.address || '';
         settings.contact_number = data.contact_number || '';
         settings.gst_number = data.gst_number || '';
-        settings.thank_you_message = data.thank_you_message || settings.thank_you_message;
+        settings.thank_you_message =
+          data.thank_you_message || settings.thank_you_message;
       }
     } catch (err) {
       console.warn('Failed to load shop settings:', err.message);
@@ -292,7 +296,13 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
   }
 
   // Personalized greeting
-  const hasTable = tableNumber && tableNumber !== 'Parcel' && tableNumber !== 'Takeaway' && tableNumber !== 'Kiosk' && tableNumber !== 'Website' && tableNumber !== 'Online';
+  const hasTable =
+    tableNumber &&
+    tableNumber !== 'Parcel' &&
+    tableNumber !== 'Takeaway' &&
+    tableNumber !== 'Kiosk' &&
+    tableNumber !== 'Website' &&
+    tableNumber !== 'Online';
   const tableSuffix = hasTable ? ` for *Table ${tableNumber}*` : '';
   const greeting = `Hi *${name}*,\nWe have received your ${isPaid ? 'payment & ' : ''}order *#${orderNumber}*${tableSuffix}.`;
 
@@ -317,16 +327,27 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
   if (items && items.length > 0) {
     // All rows = 24 chars: name(12) + qty(3) + amt(9)
     // amt = '₹X.XX' right-aligned in 9 chars — same column for items AND summary
-    const fmtAmt = (val, sign = '') => (sign + '₹' + Number(Math.abs(val)).toFixed(2)).padStart(9);
+    const fmtAmt = (val, sign = '') =>
+      (sign + Number(Math.abs(val)).toFixed(2)).padStart(9);
     const itemsHeader = `${'Item'.padEnd(12)}${'Qty'.padEnd(3)}${'Amt'.padStart(9)}`;
-    const itemsList = items.map(item => {
-      const nameStr = (item.name || '').substring(0, 12).padEnd(12);
-      const qtyStr = ('x' + (item.quantity || 1)).padEnd(3);
-      const amtStr = fmtAmt(item.totalPrice || (item.unitPrice * item.quantity) || 0);
-      return `${nameStr}${qtyStr}${amtStr}`;
-    }).join('\n');
+    const itemsList = items
+      .map((item) => {
+        const nameStr = (item.name || '').substring(0, 12).padEnd(12);
+        const qtyStr = ('x' + (item.quantity || 1)).padEnd(3);
+        const amtStr = fmtAmt(
+          item.totalPrice || item.unitPrice * item.quantity || 0
+        );
+        return `${nameStr}${qtyStr}${amtStr}`;
+      })
+      .join('\n');
 
-    const calcSubtotal = subtotal || items.reduce((sum, item) => sum + (item.totalPrice || (item.unitPrice * item.quantity) || 0), 0);
+    const calcSubtotal =
+      subtotal ||
+      items.reduce(
+        (sum, item) =>
+          sum + (item.totalPrice || item.unitPrice * item.quantity || 0),
+        0
+      );
     const dividerRow = '-'.repeat(24);
 
     let summaryList = `${dividerRow}\n`;
@@ -340,9 +361,19 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
     if (deliveryFee > 0) {
       summaryList += '\n' + 'Delivery'.padEnd(15) + fmtAmt(deliveryFee);
     }
-    summaryList += `\n${dividerRow}\n` + 'TOTAL'.padEnd(15) + fmtAmt(totalAmount);
+    summaryList +=
+      `\n${dividerRow}\n` + 'TOTAL'.padEnd(15) + fmtAmt(totalAmount, '₹');
 
-    receiptTable = "\n```\n" + itemsHeader + "\n" + dividerRow + "\n" + itemsList + "\n" + summaryList + "\n```\n";
+    receiptTable =
+      '\n```\n' +
+      itemsHeader +
+      '\n' +
+      dividerRow +
+      '\n' +
+      itemsList +
+      '\n' +
+      summaryList +
+      '\n```\n';
   } else {
     receiptTable = `\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}*\n`;
   }
@@ -359,7 +390,8 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
       : `*Please pay Cash at the counter* while the kitchen prepares your delicious order! 😋`;
   }
 
-  const footerText = settings.thank_you_message || "Thank you for visiting! Please visit again.";
+  const footerText =
+    settings.thank_you_message || 'Thank you for visiting! Please visit again.';
 
   // Delivery address block
   let deliveryBlock = '';
@@ -467,10 +499,16 @@ function cashfreeRequest(method, path, body, clientHeaders = {}) {
   return new Promise((resolve, reject) => {
     const clientId = process.env.CASHFREE_CLIENT_ID;
     const clientSecret = process.env.CASHFREE_CLIENT_SECRET;
-    const isProd = (process.env.CASHFREE_ENV || '').toUpperCase() === 'PRODUCTION' || (process.env.CASHFREE_ENV || '').toUpperCase() === 'PROD';
-    
+    const isProd =
+      (process.env.CASHFREE_ENV || '').toUpperCase() === 'PRODUCTION' ||
+      (process.env.CASHFREE_ENV || '').toUpperCase() === 'PROD';
+
     if (!clientId || !clientSecret) {
-      return reject(new Error('Cashfree credentials (CASHFREE_CLIENT_ID, CASHFREE_CLIENT_SECRET) are missing.'));
+      return reject(
+        new Error(
+          'Cashfree credentials (CASHFREE_CLIENT_ID, CASHFREE_CLIENT_SECRET) are missing.'
+        )
+      );
     }
 
     const hostname = isProd ? 'api.cashfree.com' : 'sandbox.cashfree.com';
@@ -488,7 +526,8 @@ function cashfreeRequest(method, path, body, clientHeaders = {}) {
         'x-client-secret': clientSecret,
         'x-client-device': clientHeaders['x-client-device'] || 'mobile',
         'x-client-os': clientHeaders['x-client-os'] || 'android',
-        'x-client-rendering-type': clientHeaders['x-client-rendering-type'] || 'mweb',
+        'x-client-rendering-type':
+          clientHeaders['x-client-rendering-type'] || 'mweb',
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(data),
       },
@@ -496,14 +535,17 @@ function cashfreeRequest(method, path, body, clientHeaders = {}) {
 
     const req = https.request(options, (res) => {
       let responseBody = '';
-      res.on('data', (chunk) => { responseBody += chunk; });
+      res.on('data', (chunk) => {
+        responseBody += chunk;
+      });
       res.on('end', () => {
         try {
           const parsed = JSON.parse(responseBody);
           if (res.statusCode >= 200 && res.statusCode < 300) {
             resolve(parsed);
           } else {
-            const errorMessage = parsed.message || `HTTP Error ${res.statusCode}: ${responseBody}`;
+            const errorMessage =
+              parsed.message || `HTTP Error ${res.statusCode}: ${responseBody}`;
             reject(new Error(errorMessage));
           }
         } catch (err) {
@@ -516,14 +558,16 @@ function cashfreeRequest(method, path, body, clientHeaders = {}) {
       });
     });
 
-    req.on('error', (err) => { reject(err); });
+    req.on('error', (err) => {
+      reject(err);
+    });
 
-    if (data) { req.write(data); }
+    if (data) {
+      req.write(data);
+    }
     req.end();
   });
 }
-
-
 
 // Create Cashfree PG Order
 app.post('/payment/cashfree/create-order', async (req, res) => {
@@ -535,7 +579,8 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
   if (!amount || !orderId || !cfClientId || !cfClientSecret) {
     return res.status(400).json({
       success: false,
-      error: 'Missing required fields: amount and orderId must be provided, and Cashfree credentials must be configured on the server.',
+      error:
+        'Missing required fields: amount and orderId must be provided, and Cashfree credentials must be configured on the server.',
     });
   }
 
@@ -549,7 +594,9 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
     }
 
     // For kiosk, append timestamp so retries don't clash with existing CF orders
-    const cfOrderId = isKiosk ? `${String(orderId)}_${Date.now()}` : String(orderId);
+    const cfOrderId = isKiosk
+      ? `${String(orderId)}_${Date.now()}`
+      : String(orderId);
 
     const payload = {
       order_id: cfOrderId,
@@ -564,13 +611,15 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       order_meta: {
         return_url: isKiosk
           ? 'https://pos-app-nqsm.onrender.com/payment-done'
-          : (req.body.returnUrl || `${req.headers.origin || 'https://counterflow-kiosk.web.app'}/?payment=success&orderId=${orderId}`),
-        notify_url: 'https://pos-app-nqsm.onrender.com/payment/cashfree/webhook',
+          : req.body.returnUrl ||
+            `${req.headers.origin || 'https://counterflow-kiosk.web.app'}/?payment=success&orderId=${orderId}`,
+        notify_url:
+          'https://pos-app-nqsm.onrender.com/payment/cashfree/webhook',
       },
       order_note: `Order ${orderId}`,
       order_tags: {
-        order_number: String(orderId)
-      }
+        order_number: String(orderId),
+      },
     };
 
     // If Kiosk/Counter Mode, restrict to UPI (using correct order_meta nested structure)
@@ -578,8 +627,8 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       payload.order_meta.payment_methods_filters = {
         methods: {
           action: 'ALLOW',
-          values: ['upi']
-        }
+          values: ['upi'],
+        },
       };
     }
 
@@ -589,25 +638,35 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       clientHeaders = {
         'x-client-device': 'desktop',
         'x-client-os': 'windows',
-        'x-client-rendering-type': 'web'
+        'x-client-rendering-type': 'web',
       };
     }
 
-    console.log(`Creating Cashfree Order for ${orderId} (CF id: ${cfOrderId}), isKiosk: ${isKiosk}, Amount: ${payload.order_amount}`);
-    const response = await cashfreeRequest('POST', '/orders', payload, clientHeaders);
+    console.log(
+      `Creating Cashfree Order for ${orderId} (CF id: ${cfOrderId}), isKiosk: ${isKiosk}, Amount: ${payload.order_amount}`
+    );
+    const response = await cashfreeRequest(
+      'POST',
+      '/orders',
+      payload,
+      clientHeaders
+    );
 
-    const isProd = cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
+    const isProd =
+      cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
 
     // Construct the checkout redirect link pointing to our customer website's SDK checkout page
     // For kiosk, always use the customer website base so the CF SDK checkout page loads correctly
     const webBase = isKiosk
       ? 'https://counterflow-kiosk.web.app'
-      : (req.body.returnUrl
-          ? new URL(req.body.returnUrl).origin
-          : (req.headers.origin || 'https://counterflow-kiosk.web.app'));
+      : req.body.returnUrl
+        ? new URL(req.body.returnUrl).origin
+        : req.headers.origin || 'https://counterflow-kiosk.web.app';
     const paymentLink = `${webBase}/#/checkout?sessionId=${response.payment_session_id}&env=${isProd ? 'production' : 'sandbox'}`;
 
-    console.log(`Cashfree Order ${response.order_id} created. Payment link: ${paymentLink}`);
+    console.log(
+      `Cashfree Order ${response.order_id} created. Payment link: ${paymentLink}`
+    );
 
     res.json({
       success: true,
@@ -686,7 +745,10 @@ app.post('/payment/cashfree/kiosk-order', async (req, res) => {
   const cfEnv = process.env.CASHFREE_ENV || 'TEST';
 
   if (!amount || !orderId || !cfClientId || !cfClientSecret) {
-    return res.status(400).json({ success: false, error: 'Missing required fields or Cashfree credentials.' });
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields or Cashfree credentials.',
+    });
   }
 
   try {
@@ -694,7 +756,8 @@ app.post('/payment/cashfree/kiosk-order', async (req, res) => {
     if (formattedPhone.length === 10) formattedPhone = `91${formattedPhone}`;
     if (formattedPhone.length < 10) formattedPhone = '919999999999';
 
-    const isProd = cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
+    const isProd =
+      cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
     const cfOrderId = `${String(orderId)}_${Date.now()}`;
 
     const payload = {
@@ -709,7 +772,8 @@ app.post('/payment/cashfree/kiosk-order', async (req, res) => {
       },
       order_meta: {
         return_url: 'https://pos-app-nqsm.onrender.com/payment-done',
-        notify_url: 'https://pos-app-nqsm.onrender.com/payment/cashfree/webhook',
+        notify_url:
+          'https://pos-app-nqsm.onrender.com/payment/cashfree/webhook',
         payment_methods: 'upi',
       },
       order_note: `Order #${orderId}`,
@@ -722,14 +786,26 @@ app.post('/payment/cashfree/kiosk-order', async (req, res) => {
       'x-client-rendering-type': 'web',
     };
 
-    console.log(`[Kiosk Order] Creating Cashfree order for POS #${orderId}, CF ID: ${cfOrderId}`);
-    const order = await cashfreeRequest('POST', '/orders', payload, clientHeaders);
-    console.log(`[Kiosk Order] CF order response keys: ${Object.keys(order).join(', ')}`);
-    console.log(`[Kiosk Order] payment_link: ${order.payment_link}, session: ${order.payment_session_id}`);
+    console.log(
+      `[Kiosk Order] Creating Cashfree order for POS #${orderId}, CF ID: ${cfOrderId}`
+    );
+    const order = await cashfreeRequest(
+      'POST',
+      '/orders',
+      payload,
+      clientHeaders
+    );
+    console.log(
+      `[Kiosk Order] CF order response keys: ${Object.keys(order).join(', ')}`
+    );
+    console.log(
+      `[Kiosk Order] payment_link: ${order.payment_link}, session: ${order.payment_session_id}`
+    );
 
     // Use Cashfree's own payment_link if present, otherwise construct from session ID
-    const hostedUrl = order.payment_link
-      || (isProd
+    const hostedUrl =
+      order.payment_link ||
+      (isProd
         ? `https://payments.cashfree.com/order/#${order.payment_session_id}`
         : `https://sandbox.cashfree.com/order/#${order.payment_session_id}`);
 
@@ -744,14 +820,20 @@ app.post('/payment/cashfree/kiosk-order', async (req, res) => {
     });
   } catch (err) {
     console.error('[Kiosk Order] Failed:', err.message);
-    res.status(500).json({ success: false, error: err.message || 'Failed to create kiosk order.' });
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to create kiosk order.',
+    });
   }
 });
 
 // Check Cashfree order payment status by CF order ID
 app.post('/payment/cashfree/order-status', async (req, res) => {
   const { cfOrderId } = req.body;
-  if (!cfOrderId) return res.status(400).json({ success: false, error: 'Missing cfOrderId.' });
+  if (!cfOrderId)
+    return res
+      .status(400)
+      .json({ success: false, error: 'Missing cfOrderId.' });
   try {
     const order = await cashfreeRequest('GET', `/orders/${cfOrderId}`);
     const paid = order.order_status === 'PAID';
@@ -772,7 +854,10 @@ app.post('/payment/cashfree/upi-qr', async (req, res) => {
   const cfEnv = process.env.CASHFREE_ENV || 'TEST';
 
   if (!amount || !orderId || !cfClientId || !cfClientSecret) {
-    return res.status(400).json({ success: false, error: 'Missing required fields or Cashfree credentials.' });
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields or Cashfree credentials.',
+    });
   }
 
   try {
@@ -780,7 +865,8 @@ app.post('/payment/cashfree/upi-qr', async (req, res) => {
     if (formattedPhone.length === 10) formattedPhone = `91${formattedPhone}`;
     if (formattedPhone.length < 10) formattedPhone = '919999999999';
 
-    const isProd = cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
+    const isProd =
+      cfEnv.toUpperCase() === 'PRODUCTION' || cfEnv.toUpperCase() === 'PROD';
 
     // 1. Create the order
     const cfOrderId = `${String(orderId)}_${Date.now()}`;
@@ -795,13 +881,16 @@ app.post('/payment/cashfree/upi-qr', async (req, res) => {
         customer_email: 'customer@malabarwaffle.com',
       },
       order_meta: {
-        notify_url: 'https://pos-app-nqsm.onrender.com/payment/cashfree/webhook',
+        notify_url:
+          'https://pos-app-nqsm.onrender.com/payment/cashfree/webhook',
       },
       order_note: `Order ${orderId}`,
       order_tags: { order_number: String(orderId) },
     };
 
-    console.log(`[UPI QR] Creating Cashfree order for ${orderId}, amount: ${orderPayload.order_amount}`);
+    console.log(
+      `[UPI QR] Creating Cashfree order for ${orderId}, amount: ${orderPayload.order_amount}`
+    );
     const order = await cashfreeRequest('POST', '/orders', orderPayload);
 
     // 2. Initiate UPI QR payment — Cashfree returns a base64 QR image
@@ -815,14 +904,27 @@ app.post('/payment/cashfree/upi-qr', async (req, res) => {
     };
 
     console.log(`[UPI QR] Initiating UPI QR for order ${order.order_id}`);
-    const payResponse = await cashfreeRequest('POST', '/orders/pay', payPayload);
-    console.log(`[UPI QR] Pay response for ${order.order_id}:`, JSON.stringify(payResponse));
+    const payResponse = await cashfreeRequest(
+      'POST',
+      '/orders/pay',
+      payPayload
+    );
+    console.log(
+      `[UPI QR] Pay response for ${order.order_id}:`,
+      JSON.stringify(payResponse)
+    );
 
     const qrData = payResponse?.data?.payload?.qrcode || '';
 
     if (!qrData) {
-      console.error('[UPI QR] No QR data returned. Full response:', JSON.stringify(payResponse));
-      return res.status(502).json({ success: false, error: 'Cashfree did not return a UPI QR code. Check logs.' });
+      console.error(
+        '[UPI QR] No QR data returned. Full response:',
+        JSON.stringify(payResponse)
+      );
+      return res.status(502).json({
+        success: false,
+        error: 'Cashfree did not return a UPI QR code. Check logs.',
+      });
     }
 
     res.json({
@@ -834,7 +936,10 @@ app.post('/payment/cashfree/upi-qr', async (req, res) => {
     });
   } catch (err) {
     console.error('[UPI QR] Failed:', err.message);
-    res.status(500).json({ success: false, error: err.message || 'Failed to create Cashfree UPI QR.' });
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to create Cashfree UPI QR.',
+    });
   }
 });
 
@@ -847,12 +952,17 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
   if (payload.type === 'PAYMENT_SUCCESS_WEBHOOK') {
     const cfOrderId = payload.data.order.order_id;
     // Use order_tags.order_number (the POS sale number) if present; fallback to raw Cashfree order_id
-    const orderNumber = payload.data.order.order_tags?.order_number || cfOrderId;
-    console.log(`Cashfree Webhook: Payment success event for CF Order ${cfOrderId}, POS Order #${orderNumber}`);
+    const orderNumber =
+      payload.data.order.order_tags?.order_number || cfOrderId;
+    console.log(
+      `Cashfree Webhook: Payment success event for CF Order ${cfOrderId}, POS Order #${orderNumber}`
+    );
 
     try {
       const orderDetails = await cashfreeRequest('GET', `/orders/${cfOrderId}`);
-      console.log(`Cashfree Active Verification for Order #${orderNumber}: status = ${orderDetails.order_status}`);
+      console.log(
+        `Cashfree Active Verification for Order #${orderNumber}: status = ${orderDetails.order_status}`
+      );
 
       if (orderDetails.order_status === 'PAID') {
         if (firebaseInitialized) {
@@ -863,7 +973,9 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
             .get();
 
           if (snapshot.empty) {
-            console.warn(`No Firestore order found with orderNumber: ${orderNumber}`);
+            console.warn(
+              `No Firestore order found with orderNumber: ${orderNumber}`
+            );
           } else {
             snapshot.forEach(async (doc) => {
               const orderData = doc.data();
@@ -871,39 +983,59 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
                 paymentStatus: 'paid',
                 orderStatus: 'pending_acceptance',
               });
-              console.log(`Updated Firestore Order ID: ${doc.id} paymentStatus to "paid", orderStatus to "pending_acceptance"`);
+              console.log(
+                `Updated Firestore Order ID: ${doc.id} paymentStatus to "paid", orderStatus to "pending_acceptance"`
+              );
 
               if (connectionStatus === 'CONNECTED' && sock) {
                 const phone = orderData.customerPhone;
                 if (phone) {
                   const cleanNumber = formatWhatsAppNumber(phone);
                   const settings = await getShopSettings();
-                  const messageText = buildUnifiedReceiptMessage(settings.bar_name, settings, {
-                    ...orderData,
-                    orderNumber,
-                    paymentStatus: 'paid'
-                  });
+                  const messageText = buildUnifiedReceiptMessage(
+                    settings.bar_name,
+                    settings,
+                    {
+                      ...orderData,
+                      orderNumber,
+                      paymentStatus: 'paid',
+                    }
+                  );
 
                   try {
                     await sock.sendMessage(cleanNumber, { text: messageText });
-                    console.log(`Sent Cashfree payment confirmation WhatsApp for Order #${orderNumber} to: ${cleanNumber}`);
+                    console.log(
+                      `Sent Cashfree payment confirmation WhatsApp for Order #${orderNumber} to: ${cleanNumber}`
+                    );
                   } catch (waErr) {
-                    console.error(`Failed to send WhatsApp confirmation:`, waErr);
+                    console.error(
+                      `Failed to send WhatsApp confirmation:`,
+                      waErr
+                    );
                   }
                 }
               } else {
-                console.warn('WhatsApp Client is not connected. Cannot send payment confirmation.');
+                console.warn(
+                  'WhatsApp Client is not connected. Cannot send payment confirmation.'
+                );
               }
             });
           }
         } else {
-          console.warn('Firebase Admin SDK not initialized. Cannot update paymentStatus in Firestore.');
+          console.warn(
+            'Firebase Admin SDK not initialized. Cannot update paymentStatus in Firestore.'
+          );
         }
       } else {
-        console.warn(`Webhook said paid, but Cashfree API check returned: ${orderDetails.order_status}`);
+        console.warn(
+          `Webhook said paid, but Cashfree API check returned: ${orderDetails.order_status}`
+        );
       }
     } catch (err) {
-      console.error(`Cashfree active verification failed for Order #${orderNumber}:`, err.message);
+      console.error(
+        `Cashfree active verification failed for Order #${orderNumber}:`,
+        err.message
+      );
     }
   }
 
@@ -932,8 +1064,6 @@ app.post('/device/verify', (req, res) => {
   res.json({ authorized });
 });
 
-
-
 // Send Order Confirmation message on WhatsApp
 app.post('/payment/send-confirmation', async (req, res) => {
   const {
@@ -954,12 +1084,10 @@ app.post('/payment/send-confirmation', async (req, res) => {
   } = req.body;
 
   if (!phone || !orderNumber) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        error: 'Missing required fields: phone and orderNumber.',
-      });
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: phone and orderNumber.',
+    });
   }
 
   if (connectionStatus !== 'CONNECTED' || !sock) {
@@ -973,22 +1101,27 @@ app.post('/payment/send-confirmation', async (req, res) => {
   const cleanNumber = formatWhatsAppNumber(phone);
   try {
     const settings = await getShopSettings();
-    const messageText = buildUnifiedReceiptMessage(settings.bar_name, settings, {
-      orderNumber,
-      customerName: name,
-      customerPhone: phone,
-      tableNumber,
-      totalAmount,
-      paymentMethod,
-      paymentStatus: paymentStatus || (paymentMethod === 'upi' ? 'paid' : 'pending'),
-      items,
-      subtotal,
-      discountAmount,
-      taxAmount,
-      deliveryFee: deliveryFee || 0,
-      orderType: orderType || 'dine_in',
-      deliveryAddress: deliveryAddress || null,
-    });
+    const messageText = buildUnifiedReceiptMessage(
+      settings.bar_name,
+      settings,
+      {
+        orderNumber,
+        customerName: name,
+        customerPhone: phone,
+        tableNumber,
+        totalAmount,
+        paymentMethod,
+        paymentStatus:
+          paymentStatus || (paymentMethod === 'upi' ? 'paid' : 'pending'),
+        items,
+        subtotal,
+        discountAmount,
+        taxAmount,
+        deliveryFee: deliveryFee || 0,
+        orderType: orderType || 'dine_in',
+        deliveryAddress: deliveryAddress || null,
+      }
+    );
 
     console.log(`Sending order confirmation WhatsApp to: ${cleanNumber}`);
     await sock.sendMessage(cleanNumber, { text: messageText });
@@ -999,69 +1132,88 @@ app.post('/payment/send-confirmation', async (req, res) => {
   }
 });
 
-
-
 // ─── Local WhatsApp Order Notifier ───────────────────────────────────────────
 // Watches Firestore for orders that need a WhatsApp receipt and sends them from
 // this relay (which has WhatsApp connected). Covers both UPI paid orders (set
 // by the Cashfree webhook on Render) and COD orders placed via the customer site.
 function startOrderWhatsAppWatcher() {
   if (!firebaseInitialized) {
-    console.warn('[WA Watcher] Firebase not initialized — skipping order watcher.');
+    console.warn(
+      '[WA Watcher] Firebase not initialized — skipping order watcher.'
+    );
     return;
   }
   const db = getFirestore();
   const processedIds = new Set(); // in-memory guard against double-sends
 
-  db.collection('orders')
-    .onSnapshot((snapshot) => {
-      snapshot.docChanges().forEach(async (change) => {
-        if (change.type !== 'added' && change.type !== 'modified') return;
+  const scanForPendingReceipts = async () => {
+    try {
+      const snapshot = await db.collection('orders').get();
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const docId = doc.id;
 
-        const docId = change.doc.id;
-        const data = change.doc.data();
-
-        // Skip if already sent or already processed this session
         if (data.whatsappSent || processedIds.has(docId)) return;
 
         const needsWhatsApp =
           data.paymentStatus === 'paid' ||
-          (data.orderStatus === 'pending_acceptance' && data.paymentMethod !== 'upi');
+          (data.orderStatus === 'pending_acceptance' &&
+            data.paymentMethod !== 'upi');
 
-        if (!needsWhatsApp) return;
-        if (!data.customerPhone) return;
+        if (!needsWhatsApp || !data.customerPhone) return;
 
-        // Mark immediately to prevent race conditions
         processedIds.add(docId);
-        try {
-          await change.doc.ref.update({ whatsappSent: true });
-        } catch (_) { /* non-fatal */ }
 
-        if (connectionStatus !== 'CONNECTED' || !sock) {
-          console.warn(`[WA Watcher] WA not connected — cannot send for order #${data.orderNumber}`);
-          return;
-        }
+        (async () => {
+          try {
+            await doc.ref.update({ whatsappSent: true });
+          } catch (_) {
+            /* non-fatal */
+          }
 
-        try {
-          const settings = await getShopSettings();
-          const messageText = buildUnifiedReceiptMessage(settings.bar_name, settings, {
-            ...data,
-            orderNumber: data.orderNumber,
-            paymentStatus: data.paymentStatus || 'pending',
-          });
-          const cleanNumber = formatWhatsAppNumber(data.customerPhone);
-          await sock.sendMessage(cleanNumber, { text: messageText });
-          console.log(`[WA Watcher] Sent WhatsApp receipt for order #${data.orderNumber} to ${cleanNumber}`);
-        } catch (err) {
-          console.error(`[WA Watcher] Failed to send WhatsApp for order #${data.orderNumber}:`, err.message);
-          processedIds.delete(docId); // allow retry on next change
-        }
+          if (connectionStatus !== 'CONNECTED' || !sock) {
+            console.warn(
+              `[WA Watcher] WA not connected — cannot send for order #${data.orderNumber}`
+            );
+            return;
+          }
+
+          try {
+            const settings = await getShopSettings();
+            const messageText = buildUnifiedReceiptMessage(
+              settings.bar_name,
+              settings,
+              {
+                ...data,
+                orderNumber: data.orderNumber,
+                paymentStatus: data.paymentStatus || 'pending',
+              }
+            );
+            const cleanNumber = formatWhatsAppNumber(data.customerPhone);
+            await sock.sendMessage(cleanNumber, { text: messageText });
+            console.log(
+              `[WA Watcher] Sent WhatsApp receipt for order #${data.orderNumber} to ${cleanNumber}`
+            );
+          } catch (err) {
+            console.error(
+              `[WA Watcher] Failed to send WhatsApp for order #${data.orderNumber}:`,
+              err.message
+            );
+            processedIds.delete(docId); // allow retry on next poll
+          }
+        })();
       });
-    }, (err) => {
-      console.error('[WA Watcher] Firestore listener error:', err.message);
-    });
+    } catch (err) {
+      console.error('[WA Watcher] Polling error:', err.message);
+    }
+  };
 
-  console.log('[WA Watcher] Listening for orders that need WhatsApp receipts...');
+  scanForPendingReceipts();
+  setInterval(scanForPendingReceipts, 15000);
+
+  console.log(
+    '[WA Watcher] Polling Firestore for orders that need WhatsApp receipts...'
+  );
 }
 
 // Start Server
@@ -1076,12 +1228,17 @@ app.listen(port, () => {
   const selfUrl = process.env.RENDER_EXTERNAL_URL;
   if (selfUrl) {
     console.log(`Keep-alive self-ping enabled → ${selfUrl}/health every 8 min`);
-    setInterval(() => {
-      https.get(`${selfUrl}/health`, (res) => {
-        res.resume(); // consume response to free socket
-      }).on('error', (err) => {
-        console.warn(`Keep-alive ping failed: ${err.message}`);
-      });
-    }, 8 * 60 * 1000);
+    setInterval(
+      () => {
+        https
+          .get(`${selfUrl}/health`, (res) => {
+            res.resume(); // consume response to free socket
+          })
+          .on('error', (err) => {
+            console.warn(`Keep-alive ping failed: ${err.message}`);
+          });
+      },
+      8 * 60 * 1000
+    );
   }
 });
