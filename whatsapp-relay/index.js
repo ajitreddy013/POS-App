@@ -638,12 +638,26 @@ app.get('/payment-done', (req, res) => {
     .icon { font-size: 64px; margin-bottom: 16px; }
     h1 { font-size: 1.6rem; margin: 0 0 8px; }
     p { color: #4b5563; font-size: 1rem; }
+    .countdown { font-size: 0.9rem; color: #6b7280; margin-top: 8px; }
   </style>
 </head>
 <body>
   <div class="icon">✅</div>
   <h1>Payment Successful!</h1>
-  <p>Please return to the POS app to complete your order.</p>
+  <p>Returning to the app…</p>
+  <p class="countdown" id="cd">Closing in 3 seconds</p>
+  <script>
+    var sec = 3;
+    var cd = document.getElementById('cd');
+    var t = setInterval(function() {
+      sec--;
+      cd.textContent = sec > 0 ? 'Closing in ' + sec + ' second' + (sec !== 1 ? 's' : '') : 'Closing…';
+      if (sec <= 0) {
+        clearInterval(t);
+        window.close();
+      }
+    }, 1000);
+  </script>
 </body>
 </html>`);
 });
