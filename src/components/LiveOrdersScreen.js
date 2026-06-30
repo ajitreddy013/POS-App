@@ -95,7 +95,7 @@ const LiveOrdersScreen = () => {
   }, []);
 
   return (
-    <div style={{ padding: '16px', background: '#f6f3ee', minHeight: 'calc(100vh - 60px)', fontFamily: 'Outfit, sans-serif' }}>
+    <div style={{ padding: '16px 16px calc(96px + env(safe-area-inset-bottom, 0px))', background: '#f6f3ee', minHeight: 'calc(100dvh - 60px)', fontFamily: 'Outfit, sans-serif', boxSizing: 'border-box' }}>
       {orders.length === 0 ? (
         <div style={{ background: '#ffffff', borderRadius: '16px', border: '1.5px solid #e6ded3', padding: '40px 20px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
           <AlertCircle size={40} style={{ color: '#7f766a', margin: '0 auto 12px auto', opacity: 0.6 }} />
@@ -106,7 +106,7 @@ const LiveOrdersScreen = () => {
 
           {/* Left: Order Cards List */}
           {(!isMobile || !selectedOrder) && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '78vh', overflowY: 'auto', paddingRight: '4px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 'calc(100dvh - 180px)', overflowY: 'auto', paddingRight: '4px', paddingBottom: '8px' }}>
               {orders.map((order) => {
                 const isSelected = selectedOrder?.id === order.id;
                 const isDelivery = order.orderType === 'delivery';
@@ -247,6 +247,9 @@ const LiveOrdersScreen = () => {
               border: `1.5px solid ${selectedOrder.orderType === 'delivery' ? '#d8b4fe' : '#e6ded3'}`,
               padding: '16px',
               boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
+              maxHeight: 'calc(100dvh - 140px)',
+              overflowY: 'auto',
+              paddingBottom: 'calc(28px + env(safe-area-inset-bottom, 0px))',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #f2e7db', paddingBottom: '12px', marginBottom: '16px' }}>
                 <div>
