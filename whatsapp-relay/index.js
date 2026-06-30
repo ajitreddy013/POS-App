@@ -283,12 +283,12 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
   let statusHeader;
   if (isDelivery) {
     statusHeader = isPaid
-      ? `*🟢 DELIVERY ORDER — PAID ONLINE 🟢*`
-      : `*🛵 DELIVERY ORDER — CASH ON DELIVERY 🛵*`;
+      ? `*🟢 DELIVERY ORDER — PAID ONLINE*`
+      : `*🔴 DELIVERY ORDER — CASH ON DELIVERY*`;
   } else {
     statusHeader = isPaid
-      ? `*🟢 PAID VIA UPI (ONLINE) 🟢*`
-      : `*🔴 CASH PAYMENT - PAY AT COUNTER 🔴*`;
+      ? `*🟢 PAID VIA UPI (ONLINE)*`
+      : `*🔴 CASH PAYMENT - PAY AT COUNTER*`;
   }
 
   // Personalized greeting
@@ -315,33 +315,34 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
   // Items list monospaced table (if items are available)
   let receiptTable = '';
   if (items && items.length > 0) {
-    const itemsHeader = `Item         Qty   Amt\n------------------------`;
+    // All rows = 24 chars: name(12) + qty(3) + amt(9)
+    // amt = '₹X.XX' right-aligned in 9 chars — same column for items AND summary
+    const fmtAmt = (val, sign = '') => (sign + '₹' + Number(Math.abs(val)).toFixed(2)).padStart(9);
+    const itemsHeader = `${'Item'.padEnd(12)}${'Qty'.padEnd(3)}${'Amt'.padStart(9)}`;
     const itemsList = items.map(item => {
       const nameStr = (item.name || '').substring(0, 12).padEnd(12);
-      const qtyStr = (item.quantity || 1).toString().padStart(2);
-      const amtStr = (item.totalPrice || (item.unitPrice * item.quantity) || 0).toFixed(2).padStart(8);
-      return `${nameStr} ${qtyStr} ${amtStr}`;
+      const qtyStr = ('x' + (item.quantity || 1)).padEnd(3);
+      const amtStr = fmtAmt(item.totalPrice || (item.unitPrice * item.quantity) || 0);
+      return `${nameStr}${qtyStr}${amtStr}`;
     }).join('\n');
 
     const calcSubtotal = subtotal || items.reduce((sum, item) => sum + (item.totalPrice || (item.unitPrice * item.quantity) || 0), 0);
+    const dividerRow = '-'.repeat(24);
 
-    const fmtAmt = (val, sign = '') => (sign + '₹' + Number(Math.abs(val)).toFixed(2)).padStart(10);
-
-    let summaryList = `------------------------\n`;
-    summaryList += "Subtotal".padEnd(14) + fmtAmt(calcSubtotal);
-
+    let summaryList = `${dividerRow}\n`;
+    summaryList += 'Subtotal'.padEnd(15) + fmtAmt(calcSubtotal);
     if (discountAmount > 0) {
-      summaryList += "\n" + "Discount".padEnd(14) + fmtAmt(discountAmount, '-');
+      summaryList += '\n' + 'Discount'.padEnd(15) + fmtAmt(discountAmount, '-');
     }
     if (taxAmount > 0) {
-      summaryList += "\n" + "Tax".padEnd(14) + fmtAmt(taxAmount);
+      summaryList += '\n' + 'Tax'.padEnd(15) + fmtAmt(taxAmount);
     }
     if (deliveryFee > 0) {
-      summaryList += "\n" + "Delivery".padEnd(14) + fmtAmt(deliveryFee);
+      summaryList += '\n' + 'Delivery'.padEnd(15) + fmtAmt(deliveryFee);
     }
-    summaryList += "\n------------------------\n" + "TOTAL".padEnd(14) + fmtAmt(totalAmount);
+    summaryList += `\n${dividerRow}\n` + 'TOTAL'.padEnd(15) + fmtAmt(totalAmount);
 
-    receiptTable = "\n```\n" + itemsHeader + "\n" + itemsList + "\n" + summaryList + "\n```\n";
+    receiptTable = "\n```\n" + itemsHeader + "\n" + dividerRow + "\n" + itemsList + "\n" + summaryList + "\n```\n";
   } else {
     receiptTable = `\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}*\n`;
   }

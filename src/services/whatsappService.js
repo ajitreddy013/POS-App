@@ -55,9 +55,9 @@ export const whatsappService = {
     const orderNumber = billData.billNumber || billData.saleNumber;
 
     const isCash = billData.paymentMethod.toLowerCase() === "cash";
-    const paymentHeader = isCash 
-      ? `*🔴 CASH PAYMENT - PAY AT COUNTER 🔴*`
-      : `*🟢 PAID VIA UPI (ONLINE) 🟢*`;
+    const paymentHeader = isCash
+      ? `*🔴 CASH PAYMENT - PAY AT COUNTER*`
+      : `*🟢 PAID VIA UPI (ONLINE)*`;
 
     const hasTable = billData.tableNumber && billData.tableNumber !== 'Parcel' && billData.tableNumber !== 'Takeaway' && billData.tableNumber !== 'Kiosk';
     const tableSuffix = hasTable ? ` for *Table ${billData.tableNumber}*` : '';
@@ -77,30 +77,30 @@ export const whatsappService = {
     const divider = `------------------------------------`;
     const dateStr = `Date: ${billData.saleDate || getLocalDateTimeString()}`;
 
-    // Format receipt items list in a monospaced block for perfect alignment on WhatsApp
-    // Total width = 24 characters to prevent wrapping on narrow mobile screens
-    const itemsHeader = `Item         Qty   Amt\n------------------------`;
+    // All rows = 24 chars: name(12) + qty(3) + amt(9)
+    // amt = '₹X.XX' right-aligned in 9 chars — same column for items AND summary
+    const fmtAmt = (val, sign = '') => (sign + '₹' + Math.abs(Number(val)).toFixed(2)).padStart(9);
+    const dividerRow = '-'.repeat(24);
+    const itemsHeader = `${'Item'.padEnd(12)}${'Qty'.padEnd(3)}${'Amt'.padStart(9)}`;
     const itemsList = billData.items.map(item => {
       const nameStr = item.name.substring(0, 12).padEnd(12);
-      const qtyStr = item.quantity.toString().padStart(2);
-      const amtStr = (item.unitPrice * item.quantity).toFixed(2).padStart(8);
-      return `${nameStr} ${qtyStr} ${amtStr}`;
+      const qtyStr = ('x' + item.quantity).padEnd(3);
+      const amtStr = fmtAmt(item.unitPrice * item.quantity);
+      return `${nameStr}${qtyStr}${amtStr}`;
     }).join("\n");
-    
-    // Add Subtotal and Total inside the code block so they align with the Amount column
-    let summaryList = `------------------------\n`;
-    summaryList += "Subtotal:".padStart(15) + " " + billData.subtotal.toFixed(2).padStart(8);
-    
+
+    let summaryList = `${dividerRow}\n`;
+    summaryList += 'Subtotal'.padEnd(15) + fmtAmt(billData.subtotal);
     if (billData.discountAmount > 0) {
-      summaryList += "\n" + "Discount:".padStart(15) + " " + ("-" + billData.discountAmount.toFixed(2)).padStart(8);
+      summaryList += '\n' + 'Discount'.padEnd(15) + fmtAmt(billData.discountAmount, '-');
     }
     if (billData.taxAmount > 0) {
-      summaryList += "\n" + "Tax:".padStart(15) + " " + billData.taxAmount.toFixed(2).padStart(8);
+      summaryList += '\n' + 'Tax'.padEnd(15) + fmtAmt(billData.taxAmount);
     }
-    summaryList += "\n" + "Total:".padStart(15) + " " + ("₹" + billData.totalAmount.toFixed(2)).padStart(8);
+    summaryList += `\n${dividerRow}\n` + 'TOTAL'.padEnd(15) + fmtAmt(billData.totalAmount);
 
     // Triple backticks force WhatsApp to use a monospaced font
-    const receiptTable = "```\n" + itemsHeader + "\n" + itemsList + "\n" + summaryList + "\n```";
+    const receiptTable = "```\n" + itemsHeader + "\n" + dividerRow + "\n" + itemsList + "\n" + summaryList + "\n```";
 
     const footerInstruction = isCash 
       ? `*Please pay Cash at the counter* while the kitchen prepares your delicious order! 😋`

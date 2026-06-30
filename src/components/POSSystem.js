@@ -748,7 +748,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       if (cfWindowRef.current && !cfWindowRef.current.closed) {
         cfWindowRef.current.close();
       }
-    } catch (_) {}
+    } catch (_) { /* best-effort close */ }
     cfWindowRef.current = null;
     setUpiQrStatus('Payment received. Completing order...');
     setTimeout(async () => {
