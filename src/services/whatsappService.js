@@ -1,52 +1,63 @@
-import { getLocalDateTimeString } from "../utils/dateUtils";
+import { getLocalDateTimeString } from '../utils/dateUtils';
 
 export const whatsappService = {
   getStatus: async (relayUrl) => {
-    if (!relayUrl) return { status: "DISCONNECTED", error: "Relay URL not configured" };
+    if (!relayUrl)
+      return { status: 'DISCONNECTED', error: 'Relay URL not configured' };
     try {
-      const cleanUrl = relayUrl.replace(/\/$/, ""); // Remove trailing slash
-      
+      const cleanUrl = relayUrl.replace(/\/$/, ''); // Remove trailing slash
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 4000);
-      
-      const response = await fetch(`${cleanUrl}/status`, { signal: controller.signal });
+
+      const response = await fetch(`${cleanUrl}/status`, {
+        signal: controller.signal,
+      });
       clearTimeout(timeoutId);
-      
+
       if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
       return await response.json();
     } catch (err) {
-      console.error("Failed to check WhatsApp relay status:", err);
-      return { status: "DISCONNECTED", error: err.name === "AbortError" ? "Request timed out" : err.message };
+      console.error('Failed to check WhatsApp relay status:', err);
+      return {
+        status: 'DISCONNECTED',
+        error: err.name === 'AbortError' ? 'Request timed out' : err.message,
+      };
     }
   },
 
   // Disconnect / Logout linked WhatsApp device
   logout: async (relayUrl) => {
-    if (!relayUrl) return { success: false, error: "Relay URL not configured" };
+    if (!relayUrl) return { success: false, error: 'Relay URL not configured' };
     try {
-      const cleanUrl = relayUrl.replace(/\/$/, "");
+      const cleanUrl = relayUrl.replace(/\/$/, '');
       const response = await fetch(`${cleanUrl}/logout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
       });
       return await response.json();
     } catch (err) {
-      console.error("Failed to logout WhatsApp relay:", err);
+      console.error('Failed to logout WhatsApp relay:', err);
       return { success: false, error: err.message };
     }
   },
 
   // Format bill details into a compact text receipt and send it
   sendBill: async (relayUrl, settings, billData) => {
-    if (!relayUrl) return { success: false, error: "WhatsApp Relay URL not set in Settings" };
+    if (!relayUrl)
+      return {
+        success: false,
+        error: 'WhatsApp Relay URL not set in Settings',
+      };
 
     // Ensure phone number has country code (defaults to 91 for India if not specified)
-    let phone = billData.customerPhone ? billData.customerPhone.trim() : "";
-    if (!phone) return { success: false, error: "Customer phone number is required" };
-    
+    let phone = billData.customerPhone ? billData.customerPhone.trim() : '';
+    if (!phone)
+      return { success: false, error: 'Customer phone number is required' };
+
     // Remove non-digits
-    phone = phone.replace(/\D/g, "");
-    const defaultCountryCode = settings.whatsapp_default_country_code || "91";
+    phone = phone.replace(/\D/g, '');
+    const defaultCountryCode = settings.whatsapp_default_country_code || '91';
     if (phone.length === 10) {
       phone = `${defaultCountryCode}${phone}`;
     }
@@ -54,16 +65,20 @@ export const whatsappService = {
     const name = billData.customerName || 'Customer';
     const orderNumber = billData.billNumber || billData.saleNumber;
 
-    const isCash = billData.paymentMethod.toLowerCase() === "cash";
+    const isCash = billData.paymentMethod.toLowerCase() === 'cash';
     const paymentHeader = isCash
       ? `*🔴 CASH PAYMENT - PAY AT COUNTER*`
       : `*🟢 PAID VIA UPI (ONLINE)*`;
 
-    const hasTable = billData.tableNumber && billData.tableNumber !== 'Parcel' && billData.tableNumber !== 'Takeaway' && billData.tableNumber !== 'Kiosk';
+    const hasTable =
+      billData.tableNumber &&
+      billData.tableNumber !== 'Parcel' &&
+      billData.tableNumber !== 'Takeaway' &&
+      billData.tableNumber !== 'Kiosk';
     const tableSuffix = hasTable ? ` for *Table ${billData.tableNumber}*` : '';
     const greeting = `Hi *${name}*,\nWe have received your order *#${orderNumber}*${tableSuffix}.`;
 
-    let storeHeader = `*${settings.bar_name || "CounterFlow Food Truck"}*`;
+    let storeHeader = `*${settings.bar_name || 'CounterFlow Food Truck'}*`;
     if (settings.address) {
       storeHeader += `\n${settings.address}`;
     }
@@ -78,35 +93,53 @@ export const whatsappService = {
     const dateStr = `Date: ${billData.saleDate || getLocalDateTimeString()}`;
 
     // All rows = 24 chars: name(12) + qty(3) + amt(9)
-    // amt = '₹X.XX' right-aligned in 9 chars — same column for items AND summary
-    const fmtAmt = (val, sign = '') => (sign + '₹' + Math.abs(Number(val)).toFixed(2)).padStart(9);
+    // amt = 'X.XX' right-aligned in 9 chars — only the total row keeps the rupee symbol
+    const fmtAmt = (val, sign = '') =>
+      (sign + Math.abs(Number(val)).toFixed(2)).padStart(9);
     const dividerRow = '-'.repeat(24);
     const itemsHeader = `${'Item'.padEnd(12)}${'Qty'.padEnd(3)}${'Amt'.padStart(9)}`;
-    const itemsList = billData.items.map(item => {
-      const nameStr = item.name.substring(0, 12).padEnd(12);
-      const qtyStr = ('x' + item.quantity).padEnd(3);
-      const amtStr = fmtAmt(item.unitPrice * item.quantity);
-      return `${nameStr}${qtyStr}${amtStr}`;
-    }).join("\n");
+    const itemsList = billData.items
+      .map((item) => {
+        const nameStr = item.name.substring(0, 12).padEnd(12);
+        const qtyStr = ('x' + item.quantity).padEnd(3);
+        const amtStr = fmtAmt(item.unitPrice * item.quantity);
+        return `${nameStr}${qtyStr}${amtStr}`;
+      })
+      .join('\n');
 
     let summaryList = `${dividerRow}\n`;
     summaryList += 'Subtotal'.padEnd(15) + fmtAmt(billData.subtotal);
     if (billData.discountAmount > 0) {
-      summaryList += '\n' + 'Discount'.padEnd(15) + fmtAmt(billData.discountAmount, '-');
+      summaryList +=
+        '\n' + 'Discount'.padEnd(15) + fmtAmt(billData.discountAmount, '-');
     }
     if (billData.taxAmount > 0) {
       summaryList += '\n' + 'Tax'.padEnd(15) + fmtAmt(billData.taxAmount);
     }
-    summaryList += `\n${dividerRow}\n` + 'TOTAL'.padEnd(15) + fmtAmt(billData.totalAmount);
+    summaryList +=
+      `\n${dividerRow}\n` +
+      'TOTAL'.padEnd(15) +
+      fmtAmt(billData.totalAmount, '₹');
 
     // Triple backticks force WhatsApp to use a monospaced font
-    const receiptTable = "```\n" + itemsHeader + "\n" + dividerRow + "\n" + itemsList + "\n" + summaryList + "\n```";
+    const receiptTable =
+      '```\n' +
+      itemsHeader +
+      '\n' +
+      dividerRow +
+      '\n' +
+      itemsList +
+      '\n' +
+      summaryList +
+      '\n```';
 
-    const footerInstruction = isCash 
+    const footerInstruction = isCash
       ? `*Please pay Cash at the counter* while the kitchen prepares your delicious order! 😋`
       : `Please wait while the kitchen prepares your delicious order! 😋`;
 
-    const footerText = settings.thank_you_message || "Thank you for visiting! Please visit again.";
+    const footerText =
+      settings.thank_you_message ||
+      'Thank you for visiting! Please visit again.';
 
     // Assemble the complete message
     const message = `${paymentHeader}
@@ -125,14 +158,14 @@ ${footerInstruction}
 ${footerText}`;
 
     try {
-      const cleanUrl = relayUrl.replace(/\/$/, "");
+      const cleanUrl = relayUrl.replace(/\/$/, '');
       const response = await fetch(`${cleanUrl}/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: phone,
-          message: message
-        })
+          message: message,
+        }),
       });
 
       const result = await response.json();
@@ -141,8 +174,8 @@ ${footerText}`;
       }
       return result;
     } catch (err) {
-      console.error("Failed to send WhatsApp bill:", err);
+      console.error('Failed to send WhatsApp bill:', err);
       return { success: false, error: err.message };
     }
-  }
+  },
 };
