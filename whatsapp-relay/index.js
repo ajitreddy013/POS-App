@@ -101,7 +101,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-06-28-delivery-webhook-fix-v5';
+const relayVersion = '2026-07-01-wa-order-watcher-v1';
 
 app.use(cors());
 app.use(express.json());
@@ -649,12 +649,23 @@ app.get('/payment-done', (req, res) => {
   <div class="icon">✅</div>
   <h1>Payment Successful!</h1>
   <p>Returning to app…</p>
-  <button onclick="window.close()">Return to App</button>
+  <button onclick="returnToApp()">Return to App</button>
   <script>
-    try {
-      if (window.opener && !window.opener.closed) { window.opener.focus(); }
-    } catch(e) {}
-    window.close();
+    function returnToApp() {
+      // Android intent URL: brings kiosk app (com.ajitreddy.counterflowpos) to foreground
+      // Chrome Custom Tab intercepts intent:// URLs and launches/focuses the target app.
+      // This works WITHOUT any APK changes because the LAUNCHER intent filter is already registered.
+      window.location.href = 'intent://#Intent;package=com.ajitreddy.counterflowpos;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end';
+      // Fallback for non-Android (desktop testing)
+      setTimeout(function() {
+        try {
+          if (window.opener && !window.opener.closed) { window.opener.focus(); }
+        } catch(e) {}
+        window.close();
+      }, 300);
+    }
+    // Auto-trigger immediately on load
+    returnToApp();
   </script>
 </body>
 </html>`);
@@ -984,11 +995,75 @@ app.post('/payment/send-confirmation', async (req, res) => {
 
 
 
+// ─── Local WhatsApp Order Notifier ───────────────────────────────────────────
+// Watches Firestore for orders that need a WhatsApp receipt and sends them from
+// this relay (which has WhatsApp connected). Covers both UPI paid orders (set
+// by the Cashfree webhook on Render) and COD orders placed via the customer site.
+function startOrderWhatsAppWatcher() {
+  if (!firebaseInitialized) {
+    console.warn('[WA Watcher] Firebase not initialized — skipping order watcher.');
+    return;
+  }
+  const db = getFirestore();
+  const processedIds = new Set(); // in-memory guard against double-sends
+
+  db.collection('orders')
+    .onSnapshot((snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        if (change.type !== 'added' && change.type !== 'modified') return;
+
+        const docId = change.doc.id;
+        const data = change.doc.data();
+
+        // Skip if already sent or already processed this session
+        if (data.whatsappSent || processedIds.has(docId)) return;
+
+        const needsWhatsApp =
+          data.paymentStatus === 'paid' ||
+          (data.orderStatus === 'pending_acceptance' && data.paymentMethod !== 'upi');
+
+        if (!needsWhatsApp) return;
+        if (!data.customerPhone) return;
+
+        // Mark immediately to prevent race conditions
+        processedIds.add(docId);
+        try {
+          await change.doc.ref.update({ whatsappSent: true });
+        } catch (_) { /* non-fatal */ }
+
+        if (connectionStatus !== 'CONNECTED' || !sock) {
+          console.warn(`[WA Watcher] WA not connected — cannot send for order #${data.orderNumber}`);
+          return;
+        }
+
+        try {
+          const settings = await getShopSettings();
+          const messageText = buildUnifiedReceiptMessage(settings.bar_name, settings, {
+            ...data,
+            orderNumber: data.orderNumber,
+            paymentStatus: data.paymentStatus || 'pending',
+          });
+          const cleanNumber = formatWhatsAppNumber(data.customerPhone);
+          await sock.sendMessage(cleanNumber, { text: messageText });
+          console.log(`[WA Watcher] Sent WhatsApp receipt for order #${data.orderNumber} to ${cleanNumber}`);
+        } catch (err) {
+          console.error(`[WA Watcher] Failed to send WhatsApp for order #${data.orderNumber}:`, err.message);
+          processedIds.delete(docId); // allow retry on next change
+        }
+      });
+    }, (err) => {
+      console.error('[WA Watcher] Firestore listener error:', err.message);
+    });
+
+  console.log('[WA Watcher] Listening for orders that need WhatsApp receipts...');
+}
+
 // Start Server
 app.listen(port, () => {
   console.log(`WhatsApp Cloud-Relay Server running on port ${port}`);
   console.log(`Relay version: ${relayVersion}`);
   initializeClient();
+  startOrderWhatsAppWatcher();
 
   // Self-ping every 8 minutes to prevent Render free-tier cold starts.
   // RENDER_EXTERNAL_URL is set automatically by Render; absent locally so this is a no-op there.
