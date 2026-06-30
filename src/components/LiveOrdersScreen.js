@@ -124,7 +124,7 @@ const LiveOrdersScreen = () => {
                       border: isSelected
                         ? (isDelivery ? '2.5px solid #7e22ce' : '2.5px solid #b6412c')
                         : (isDelivery ? '1.5px solid #d8b4fe' : (isCompleted ? '1.5px dashed #ccc' : '1.5px solid #e6ded3')),
-                      padding: '10px',
+                      padding: '10px 44px 10px 10px',
                       cursor: 'pointer',
                       boxShadow: isSelected
                         ? (isDelivery ? '0 4px 10px rgba(126,34,206,0.12)' : '0 4px 10px rgba(182,65,44,0.08)')
@@ -213,8 +213,9 @@ const LiveOrdersScreen = () => {
                     title={isTicked ? 'Unmark as done' : 'Mark as done'}
                     style={{
                       position: 'absolute',
-                      top: '8px',
-                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      right: '10px',
                       zIndex: 10,
                       background: isTicked ? '#16a34a' : '#ffffff',
                       border: isTicked ? '2px solid #16a34a' : '2px solid #d1d5db',

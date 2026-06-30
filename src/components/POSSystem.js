@@ -44,6 +44,7 @@ import {
   onSnapshot,
   doc,
   updateDoc,
+  getDoc,
 } from 'firebase/firestore';
 
 const formatCurrency = (value) => `₹${Number(value || 0).toFixed(2)}`;
@@ -190,7 +191,22 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
   const loadBarSettings = async () => {
     try {
-      const settings = await dbService.getBarSettings();
+      let settings = await dbService.getBarSettings();
+
+      // Merge Firestore settings — ensures toggles (delivery, offer, etc.)
+      // shown in the app always reflect the live cloud state
+      try {
+        const db = getFirebaseDb();
+        if (db) {
+          const snap = await getDoc(doc(db, 'settings', 'bar_settings'));
+          if (snap.exists()) {
+            settings = { ...settings, ...snap.data() };
+          }
+        }
+      } catch (_) {
+        // Firestore unavailable — use local settings only
+      }
+
       setBarSettings(settings);
 
       // Check if WhatsApp is linked and active
@@ -496,6 +512,16 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     return calculateOfferDiscount(cart).freeItems;
   }, [offerActive, cart]);
 
+  const isOfferCartOdd = useMemo(() => {
+    if (!offerActive) return false;
+    return totalCartItems % 2 !== 0;
+  }, [offerActive, totalCartItems]);
+
+  const offerAddMoreCount = useMemo(() => {
+    if (!isOfferCartOdd) return 0;
+    return (totalCartItems + 1) / 2;
+  }, [isOfferCartOdd, totalCartItems]);
+
   const cartTotal = useMemo(() => {
     return Math.max(0, cartSubtotal - cartDiscountAmount - offerDiscount);
   }, [cartSubtotal, cartDiscountAmount, offerDiscount]);
@@ -582,6 +608,11 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const processSale = async (method) => {
     if (cart.length === 0) {
       showNotice('error', 'Cart is empty.', 4000);
+      return;
+    }
+
+    if (isOfferCartOdd) {
+      showNotice('warning', `➕ Add 1 more item to get ${offerAddMoreCount} item${offerAddMoreCount > 1 ? 's' : ''} free!`, 5000);
       return;
     }
 
@@ -1662,6 +1693,14 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   <span style={{ fontWeight: '700' }}>-{formatCurrency(offerDiscount)}</span>
                 </div>
               )}
+              {offerActive && isOfferCartOdd && totalCartItems > 0 && (
+                <div
+                  className="summary-line cart-summary-row"
+                  style={{ fontSize: '12px', marginBottom: '4px', color: '#92400e', background: '#fff7ed', border: '1.5px dashed #f97316', borderRadius: '6px', padding: '5px 8px', fontWeight: '700' }}
+                >
+                  <span>➕ Add 1 more → get {offerAddMoreCount} free!</span>
+                </div>
+              )}
               <div
                 className="summary-line total cart-summary-total"
                 style={{
@@ -1686,7 +1725,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               <button
                 className="payment-action-card payment-action-upi"
                 onClick={() => processSale('upi')}
-                disabled={cart.length === 0 || loading}
+                disabled={cart.length === 0 || loading || isOfferCartOdd}
                 style={{
                   flex: 1,
                   background: '#ffffff',
@@ -1705,7 +1744,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   outline: 'none',
                 }}
                 onMouseEnter={(e) => {
-                  if (cart.length > 0 && !loading) {
+                  if (cart.length > 0 && !loading && !isOfferCartOdd) {
                     e.currentTarget.style.borderColor = '#ef4444';
                     e.currentTarget.style.transform = 'translateY(-2px)';
                     e.currentTarget.style.boxShadow =
@@ -1743,7 +1782,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               <button
                 className="payment-action-card payment-action-cash"
                 onClick={() => processSale('cash')}
-                disabled={cart.length === 0 || loading}
+                disabled={cart.length === 0 || loading || isOfferCartOdd}
                 style={{
                   flex: 1,
                   background: '#ffffff',
@@ -1762,7 +1801,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   outline: 'none',
                 }}
                 onMouseEnter={(e) => {
-                  if (cart.length > 0 && !loading) {
+                  if (cart.length > 0 && !loading && !isOfferCartOdd) {
                     e.currentTarget.style.borderColor = '#16a34a';
                     e.currentTarget.style.transform = 'translateY(-2px)';
                     e.currentTarget.style.boxShadow =

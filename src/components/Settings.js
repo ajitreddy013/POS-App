@@ -4,7 +4,7 @@ import { dbService } from '../services/dbService';
 import { whatsappService } from '../services/whatsappService';
 import { APP_CONFIG } from '../config';
 import { getFirebaseDb } from '../firebase';
-import { doc, writeBatch, setDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, writeBatch, setDoc, getDocs, getDoc, collection } from 'firebase/firestore';
 import QRCode from 'qrcode';
 
 const Settings = () => {
@@ -285,7 +285,21 @@ const Settings = () => {
 
   const loadBarSettings = async () => {
     try {
-      const settings = await dbService.getBarSettings();
+      let settings = await dbService.getBarSettings();
+
+      // Merge Firestore settings so the app reflects whatever is live in the cloud
+      try {
+        const db = getFirebaseDb();
+        if (db) {
+          const snap = await getDoc(doc(db, 'settings', 'bar_settings'));
+          if (snap.exists()) {
+            settings = { ...settings, ...snap.data() };
+          }
+        }
+      } catch (_) {
+        // Firestore unavailable — use local settings only
+      }
+
       setBarSettings(settings);
     } catch (error) {
       // Failed to load bar settings

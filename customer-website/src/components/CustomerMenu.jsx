@@ -38,6 +38,26 @@ import useBarSettings from '../hooks/useBarSettings';
 import QRCode from 'qrcode';
 import malabarLogo from '../assets/malabar-waffle-logo.png';
 
+function isOfferActiveToday(barSettings) {
+  if (!barSettings?.offer_enabled) return false;
+  const dates = barSettings.offer_dates || [];
+  if (dates.length === 0) return false;
+  const istDate = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
+  return dates.includes(istDate.toISOString().slice(0, 10));
+}
+
+function calculateOfferDiscount(cartItems) {
+  const flat = [];
+  cartItems.forEach((item) => {
+    for (let i = 0; i < item.quantity; i++) flat.push({ name: item.name, price: Number(item.price) });
+  });
+  flat.sort((a, b) => b.price - a.price);
+  const freeCount = Math.floor(flat.length / 2);
+  if (freeCount === 0) return { discountAmount: 0, freeItems: [] };
+  const freeItems = flat.slice(flat.length - freeCount);
+  return { discountAmount: freeItems.reduce((s, i) => s + i.price, 0), freeItems };
+}
+
 const CustomerMenu = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
@@ -189,23 +209,7 @@ const CustomerMenu = () => {
     return map;
   }, [filteredProducts]);
 
-  // Cart operations
-  const addToCart = (productId) => {
-    setCart((prev) => ({ ...prev, [productId]: (prev[productId] || 0) + 1 }));
-  };
-
-  const removeFromCart = (productId) => {
-    setCart((prev) => {
-      const copy = { ...prev };
-      if (copy[productId] <= 1) delete copy[productId];
-      else copy[productId]--;
-      return copy;
-    });
-  };
-
-  const deleteFromCart = (productId) => {
-    setCart((prev) => { const copy = { ...prev }; delete copy[productId]; return copy; });
-  };
+  const offerActive = useMemo(() => isOfferActiveToday(barSettings), [barSettings]);
 
   const cartItemsList = useMemo(() => {
     return Object.entries(cart)
@@ -219,9 +223,42 @@ const CustomerMenu = () => {
   const totalAmount = useMemo(() => cartItemsList.reduce((sum, item) => sum + item.price * item.quantity, 0), [cartItemsList]);
   const totalQuantity = useMemo(() => Object.values(cart).reduce((sum, q) => sum + q, 0), [cart]);
 
+  const offerResult = useMemo(() => {
+    if (!offerActive || cartItemsList.length === 0) return { discountAmount: 0, freeItems: [] };
+    return calculateOfferDiscount(cartItemsList);
+  }, [offerActive, cartItemsList]);
+
+  const isOfferCartOdd = useMemo(() => {
+    if (!offerActive) return false;
+    return totalQuantity % 2 !== 0;
+  }, [offerActive, totalQuantity]);
+
+  const offerAddMoreCount = useMemo(() => {
+    if (!isOfferCartOdd) return 0;
+    return (totalQuantity + 1) / 2;
+  }, [isOfferCartOdd, totalQuantity]);
+
+  // Cart operations
+  const addToCart = (productId) => {
+    setCart((prev) => ({ ...prev, [productId]: (prev[productId] || 0) + 1 }));
+  };
+
+  const removeFromCart = (productId) => {
+    setCart((prev) => {
+      const copy = { ...prev };
+      if ((copy[productId] || 0) <= 1) delete copy[productId];
+      else copy[productId] -= 1;
+      return copy;
+    });
+  };
+
+  const deleteFromCart = (productId) => {
+    setCart((prev) => { const copy = { ...prev }; delete copy[productId]; return copy; });
+  };
+
   const deliveryFeeAmount = 0;
 
-  const finalTotal = totalAmount;
+  const finalTotal = useMemo(() => Math.max(0, totalAmount - offerResult.discountAmount), [totalAmount, offerResult]);
 
   useEffect(() => {
     if (totalQuantity === 0 && activeTab === 'cart') setActiveTab('menu');
@@ -236,6 +273,7 @@ const CustomerMenu = () => {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   const handleSelectPaymentMethod = (method) => {
+    if (isOfferCartOdd) return;
     const cleanPhone = phone.replace(/\D/g, '');
     if (!phone.trim() || cleanPhone.length < 10) {
       setPhoneWarning('Please enter a valid 10-digit WhatsApp number first!');
@@ -252,6 +290,7 @@ const CustomerMenu = () => {
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     if (cartItemsList.length === 0) return;
+    if (isOfferCartOdd) return;
 
     const cleanPhone = phone.replace(/\D/g, '');
     if (!phone.trim() || cleanPhone.length < 10) {
@@ -301,7 +340,7 @@ const CustomerMenu = () => {
         const orderData = {
           orderNumber, customerName: name, customerPhone: phone, tableNumber,
           items: cartItemsList.map((item) => ({ productId: String(item.id), name: item.name, quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity })),
-          subtotal: totalAmount, deliveryFee: deliveryFeeAmount, totalAmount: finalTotal, discountAmount: 0,
+          subtotal: totalAmount, deliveryFee: deliveryFeeAmount, totalAmount: finalTotal, discountAmount: offerResult.discountAmount,
           orderType, ...(orderType === 'delivery' && { deliveryAddress }),
           paymentMethod, paymentStatus: 'pending', orderStatus: 'pending_acceptance', createdAt: serverTimestamp(),
         };
@@ -349,7 +388,7 @@ const CustomerMenu = () => {
           orderNumber, customerName: name, customerPhone: phone, tableNumber,
           items: cartItemsList.map((item) => ({ productId: String(item.id), name: item.name, quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity })),
           subtotal: totalAmount, deliveryFee: deliveryFeeAmount, totalAmount: finalTotal,
-          discountAmount: 0,
+          discountAmount: offerResult.discountAmount,
           orderType, ...(orderType === 'delivery' && { deliveryAddress }),
           paymentMethod, paymentStatus: 'pending', orderStatus: 'pending_acceptance', createdAt: serverTimestamp(),
         };
@@ -366,7 +405,7 @@ const CustomerMenu = () => {
               orderNumber,
               tableNumber,
               totalAmount: finalTotal,
-              discountAmount: 0,
+              discountAmount: offerResult.discountAmount,
               paymentMethod,
               items: cartItemsList.map((item) => ({
                 name: item.name,
@@ -532,6 +571,14 @@ const CustomerMenu = () => {
             )}
           </div>
 
+          {/* ═══ 1+1 OFFER BANNER ═══ */}
+          {offerActive && (
+            <div style={{ margin: '10px 14px 0', background: 'linear-gradient(135deg, #fef9c3 0%, #fef3c7 100%)', border: '1.5px solid #fde68a', borderRadius: '14px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '1.3rem' }}>🎉</span>
+              <p style={{ margin: 0, fontWeight: '800', fontSize: '0.9rem', color: '#92400e' }}>1+1 Offer Active Today!</p>
+            </div>
+          )}
+
           {/* ═══ PRODUCT LIST BY CATEGORY (Kiosk Style) ═══ */}
           <div style={{ paddingBottom: '20px' }}>
             {Object.entries(groupedProducts).map(([categoryName, items]) => (
@@ -626,12 +673,14 @@ const CustomerMenu = () => {
             {totalQuantity > 0 && (
               <div
                 onClick={() => setActiveTab('cart')}
-                style={{ flex: 1, background: '#b6412c', borderRadius: '999px', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff', boxShadow: '0 10px 28px rgba(182,65,44,0.35)', cursor: 'pointer' }}
+                style={{ flex: 1, background: offerActive && isOfferCartOdd ? '#d97706' : '#b6412c', borderRadius: '999px', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff', boxShadow: offerActive && isOfferCartOdd ? '0 10px 28px rgba(217,119,6,0.35)' : '0 10px 28px rgba(182,65,44,0.35)', cursor: 'pointer' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <ShoppingCart size={18} />
                   <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>
-                    {totalQuantity} | {formatCurrency(totalAmount)}
+                    {offerActive && isOfferCartOdd
+                      ? `➕ Add 1 more item!`
+                      : `${totalQuantity} | ${formatCurrency(totalAmount)}`}
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -760,16 +809,16 @@ const CustomerMenu = () => {
                   <button
                     type="button"
                     onClick={() => { setOrderType('dine_in'); setAddressWarning(''); }}
-                    style={{ padding: '10px 8px', borderRadius: '12px', border: orderType === 'dine_in' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: orderType === 'dine_in' ? '#fbf7f4' : '#ffffff', color: orderType === 'dine_in' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}
+                    style={{ padding: '10px 8px', borderRadius: '12px', border: orderType === 'dine_in' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: orderType === 'dine_in' ? '#fbf7f4' : '#ffffff', color: orderType === 'dine_in' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
                   >
-                    <span style={{ fontSize: '1.2rem' }}>🍽️</span><span>Dine In / Pickup</span>
+                    <span>Dine In / Pickup</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => { setOrderType('delivery'); setAddressWarning(''); }}
-                    style={{ padding: '10px 8px', borderRadius: '12px', border: orderType === 'delivery' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: orderType === 'delivery' ? '#fbf7f4' : '#ffffff', color: orderType === 'delivery' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}
+                    style={{ padding: '10px 8px', borderRadius: '12px', border: orderType === 'delivery' ? '2px solid #b6412c' : '1.5px solid #e6ded3', background: orderType === 'delivery' ? '#fbf7f4' : '#ffffff', color: orderType === 'delivery' ? '#b6412c' : '#7f766a', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
                   >
-                    <span style={{ fontSize: '1.2rem' }}>🛵</span><span>Home Delivery</span>
+                    <span>Home Delivery</span>
                   </button>
                 </div>
               </div>
@@ -872,11 +921,25 @@ const CustomerMenu = () => {
               )}
               {orderType === 'delivery' && barSettings?.delivery_enabled && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '0.88rem', paddingBottom: '8px', borderBottom: '1px solid #f6f3ee' }}>
-                  <span style={{ color: '#7f766a' }}>Delivery fee</span>
+                  <span style={{ color: '#7f766a' }}>Delivery fee <span style={{ color: '#b6412c', fontWeight: '700' }}>2 km</span></span>
                   {deliveryFeeAmount === 0
                     ? <span style={{ color: '#1c8d3c', fontWeight: '700' }}>Free!</span>
                     : <span style={{ color: '#221f1a' }}>{formatCurrency(deliveryFeeAmount)}</span>
                   }
+                </div>
+              )}
+              {offerActive && offerResult.discountAmount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '0.9rem', paddingBottom: '8px', borderBottom: '1px solid #f6f3ee' }}>
+                  <span style={{ fontWeight: '700', color: '#92400e' }}>🎉 1+1 Saving ({offerResult.freeItems.length} free)</span>
+                  <span style={{ fontWeight: '700', color: '#92400e' }}>-{formatCurrency(offerResult.discountAmount)}</span>
+                </div>
+              )}
+              {offerActive && isOfferCartOdd && totalQuantity > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', padding: '8px 10px', background: '#fff7ed', border: '1.5px dashed #f97316', borderRadius: '10px' }}>
+                  <span style={{ fontSize: '1rem' }}>➕</span>
+                  <span style={{ fontWeight: '700', fontSize: '0.85rem', color: '#92400e' }}>
+                    Add 1 more item to get {offerAddMoreCount} item{offerAddMoreCount > 1 ? 's' : ''} free!
+                  </span>
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '1.05rem', fontWeight: '700', paddingTop: '4px' }}>
@@ -899,7 +962,7 @@ const CustomerMenu = () => {
                   </button>
                 </div>
               </div>
-              <button type="submit" disabled={submitting} style={{ width: '100%', background: '#b6412c', color: '#ffffff', border: 'none', padding: '12px', borderRadius: '24px', fontSize: '0.98rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 6px 20px rgba(182,65,44,0.3)', opacity: submitting ? 0.8 : 1, transition: 'opacity 0.2s' }}>
+              <button type="submit" disabled={submitting || isOfferCartOdd} style={{ width: '100%', background: isOfferCartOdd ? '#9ca3af' : '#b6412c', color: '#ffffff', border: 'none', padding: '12px', borderRadius: '24px', fontSize: '0.98rem', fontWeight: '700', cursor: isOfferCartOdd ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: isOfferCartOdd ? 'none' : '0 6px 20px rgba(182,65,44,0.3)', opacity: submitting ? 0.8 : 1, transition: 'opacity 0.2s' }}>
                 {submitting
                   ? <><Loader2 className="animate-spin" size={18} />Processing...</>
                   : paymentMethod === 'upi'

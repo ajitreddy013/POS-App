@@ -115,21 +115,19 @@ const CustomerMenu = () => {
 
   // Cart operations
   const addToCart = (productId) => {
-    const step = offerActive ? 2 : 1;
     setCart((prev) => ({
       ...prev,
-      [productId]: (prev[productId] || 0) + step,
+      [productId]: (prev[productId] || 0) + 1,
     }));
   };
 
   const removeFromCart = (productId) => {
-    const step = offerActive ? 2 : 1;
     setCart((prev) => {
       const copy = { ...prev };
-      if (copy[productId] <= step) {
+      if (copy[productId] <= 1) {
         delete copy[productId];
       } else {
-        copy[productId] -= step;
+        copy[productId] -= 1;
       }
       return copy;
     });
