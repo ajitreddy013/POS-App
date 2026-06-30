@@ -1722,25 +1722,9 @@ const Settings = () => {
         }
       `}</style>
 
-      {/* ── Page header ── */}
-      <div className="cfg-page-header">
-        <div className="cfg-page-header-icon">
-          <SettingsIcon size={18} color="#fff" />
-        </div>
-        <div>
-          <h1>Settings</h1>
-          <p>{barSettings.bar_name || 'Configure your store'}</p>
-        </div>
-      </div>
-
       <div className="cfg-body">
         {/* ── Sidebar ── */}
         <nav className="cfg-sidebar">
-          <div className="cfg-sidebar-brand">
-            <div className="cfg-sidebar-brand-dot" />
-            <span>{barSettings.bar_name || 'My Store'}</span>
-          </div>
-
           <div className="cfg-nav-section">
             <div className="cfg-nav-label">Store</div>
             {[

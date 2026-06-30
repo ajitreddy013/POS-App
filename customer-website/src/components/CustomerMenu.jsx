@@ -66,7 +66,13 @@ const CustomerMenu = () => {
   const [activeTab, setActiveTab] = useState('menu'); // 'menu' or 'cart'
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  const [orderSuccess, setOrderSuccess] = useState(null);
+  const [orderSuccess, setOrderSuccess] = useState(() => {
+    // Read synchronously so the success screen renders on the very first paint,
+    // before any useEffect or loadMenu runs — avoids the loading screen flash.
+    const hashSearch = window.location.hash.split('?')[1] || '';
+    const p = new URLSearchParams(hashSearch);
+    return p.get('payment') === 'success' && p.get('orderId') ? p.get('orderId') : null;
+  });
   const [upiQrStatus, setUpiQrStatus] = useState('');
   const [upiQrLoading, setUpiQrLoading] = useState(false);
   const [upiQrCodeDataUrl, setUpiQrCodeDataUrl] = useState('');
@@ -122,11 +128,16 @@ const CustomerMenu = () => {
     link.href = 'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap';
     link.rel = 'stylesheet';
     document.head.appendChild(link);
-    loadMenu();
+    // Skip loading the menu if we're showing the payment success screen
+    if (!orderSuccess) {
+      loadMenu();
+    } else {
+      setLoading(false);
+    }
     return () => {
       document.head.removeChild(link);
     };
-  }, [loadMenu]);
+  }, [loadMenu, orderSuccess]);
 
   useEffect(() => {
     const paymentParam = searchParams.get('payment');
@@ -280,16 +291,6 @@ const CustomerMenu = () => {
 
   const handleSelectPaymentMethod = (method) => {
     if (isOfferCartOdd) return;
-    const cleanPhone = phone.replace(/\D/g, '');
-    if (!phone.trim() || cleanPhone.length < 10) {
-      setPhoneWarning('Please enter a valid 10-digit WhatsApp number first!');
-      setTimeout(() => setPhoneWarning(''), 3000);
-      if (phoneInputRef.current) {
-        phoneInputRef.current.focus();
-      }
-      return;
-    }
-    setPhoneWarning('');
     setPaymentMethod(method);
   };
 
@@ -451,17 +452,7 @@ const CustomerMenu = () => {
     );
   }
 
-  // ─── RENDER: Loading ───
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f6f3ee' }}>
-        <Loader2 className="animate-spin" size={48} style={{ color: '#b6412c' }} />
-        <p style={{ marginTop: '16px', color: '#7f766a', fontFamily: '"Outfit", sans-serif', fontWeight: '600' }}>Loading delicious waffles...</p>
-      </div>
-    );
-  }
-
-  // ─── RENDER: Order Success ───
+  // ─── RENDER: Order Success (checked before loading so payment return skips the loading screen) ───
   if (orderSuccess) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '32px 24px', fontFamily: '"Outfit", sans-serif', background: '#b6412c', color: '#ffffff', textAlign: 'center' }}>
@@ -479,6 +470,16 @@ const CustomerMenu = () => {
         <button className="success-button-anim" onClick={() => setOrderSuccess(null)} style={{ background: '#ffffff', color: '#b6412c', border: 'none', padding: '14px 36px', borderRadius: '28px', fontWeight: '700', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           Order Something Else <Sparkles size={16} />
         </button>
+      </div>
+    );
+  }
+
+  // ─── RENDER: Loading ───
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f6f3ee' }}>
+        <Loader2 className="animate-spin" size={48} style={{ color: '#b6412c' }} />
+        <p style={{ marginTop: '16px', color: '#7f766a', fontFamily: '"Outfit", sans-serif', fontWeight: '600' }}>Loading delicious waffles...</p>
       </div>
     );
   }
