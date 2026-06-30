@@ -256,9 +256,15 @@ const CustomerMenu = () => {
     setCart((prev) => { const copy = { ...prev }; delete copy[productId]; return copy; });
   };
 
-  const deliveryFeeAmount = 0;
+  const DELIVERY_FEE = 30;
+  const DELIVERY_FREE_ABOVE = 300;
 
-  const finalTotal = useMemo(() => Math.max(0, totalAmount - offerResult.discountAmount), [totalAmount, offerResult]);
+  const deliveryFeeAmount = useMemo(() => {
+    if (orderType !== 'delivery') return 0;
+    return totalAmount >= DELIVERY_FREE_ABOVE ? 0 : DELIVERY_FEE;
+  }, [orderType, totalAmount]);
+
+  const finalTotal = useMemo(() => Math.max(0, totalAmount + deliveryFeeAmount - offerResult.discountAmount), [totalAmount, deliveryFeeAmount, offerResult]);
 
   useEffect(() => {
     if (totalQuantity === 0 && activeTab === 'cart') setActiveTab('menu');
@@ -342,7 +348,7 @@ const CustomerMenu = () => {
           items: cartItemsList.map((item) => ({ productId: String(item.id), name: item.name, quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity })),
           subtotal: totalAmount, deliveryFee: deliveryFeeAmount, totalAmount: finalTotal, discountAmount: offerResult.discountAmount,
           orderType, ...(orderType === 'delivery' && { deliveryAddress }),
-          paymentMethod, paymentStatus: 'pending', orderStatus: 'pending_acceptance', createdAt: serverTimestamp(),
+          paymentMethod, paymentStatus: 'pending', orderStatus: 'awaiting_payment', createdAt: serverTimestamp(),
         };
         await addDoc(collection(db, 'orders'), orderData);
 
@@ -920,12 +926,23 @@ const CustomerMenu = () => {
                 </div>
               )}
               {orderType === 'delivery' && barSettings?.delivery_enabled && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '0.88rem', paddingBottom: '8px', borderBottom: '1px solid #f6f3ee' }}>
-                  <span style={{ color: '#7f766a' }}>Delivery fee <span style={{ color: '#b6412c', fontWeight: '700' }}>2 km</span></span>
-                  {deliveryFeeAmount === 0
-                    ? <span style={{ color: '#1c8d3c', fontWeight: '700' }}>Free!</span>
-                    : <span style={{ color: '#221f1a' }}>{formatCurrency(deliveryFeeAmount)}</span>
-                  }
+                <div style={{ paddingBottom: '8px', borderBottom: '1px solid #f6f3ee' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '0.88rem' }}>
+                    <span style={{ color: '#7f766a' }}>Delivery fee</span>
+                    {deliveryFeeAmount === 0
+                      ? <span style={{ color: '#1c8d3c', fontWeight: '700' }}>Free!</span>
+                      : <span style={{ color: '#221f1a', fontWeight: '700' }}>{formatCurrency(deliveryFeeAmount)}</span>
+                    }
+                  </div>
+                  {deliveryFeeAmount > 0 ? (
+                    <div style={{ marginTop: '4px', fontSize: '0.78rem', color: '#92400e', fontWeight: '600' }}>
+                      Add items worth ₹{Math.ceil(DELIVERY_FREE_ABOVE - totalAmount)} more for free delivery!
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: '4px', fontSize: '0.78rem', color: '#1c8d3c', fontWeight: '600' }}>
+                      Free delivery on orders above ₹{DELIVERY_FREE_ABOVE}
+                    </div>
+                  )}
                 </div>
               )}
               {offerActive && offerResult.discountAmount > 0 && (

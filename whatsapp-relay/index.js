@@ -840,8 +840,9 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
               const orderData = doc.data();
               await doc.ref.update({
                 paymentStatus: 'paid',
+                orderStatus: 'pending_acceptance',
               });
-              console.log(`Updated Firestore Order ID: ${doc.id} paymentStatus to "paid"`);
+              console.log(`Updated Firestore Order ID: ${doc.id} paymentStatus to "paid", orderStatus to "pending_acceptance"`);
 
               if (connectionStatus === 'CONNECTED' && sock) {
                 const phone = orderData.customerPhone;
