@@ -274,16 +274,6 @@ const CustomerMenu = () => {
 
   const handleSelectPaymentMethod = (method) => {
     if (isOfferCartOdd) return;
-    const cleanPhone = phone.replace(/\D/g, '');
-    if (!phone.trim() || cleanPhone.length < 10) {
-      setPhoneWarning('Please enter a valid 10-digit WhatsApp number first!');
-      setTimeout(() => setPhoneWarning(''), 3000);
-      if (phoneInputRef.current) {
-        phoneInputRef.current.focus();
-      }
-      return;
-    }
-    setPhoneWarning('');
     setPaymentMethod(method);
   };
 
