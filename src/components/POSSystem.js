@@ -537,9 +537,8 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const calculateTotal = () => cartTotal;
 
   const generateSaleNumber = async () => {
-    // Generate a sequential order number based on total sales
     const allSales = (await dbService.getSales()) || [];
-    return (allSales.length + 1).toString();
+    return `A-${allSales.length + 1}`;
   };
 
   const executeSaleWrite = async (selectedMethod) => {

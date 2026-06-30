@@ -12,6 +12,8 @@ import {
   getDocs,
   addDoc,
   serverTimestamp,
+  query,
+  where,
 } from 'firebase/firestore';
 import { APP_CONFIG } from '../config';
 import {
@@ -297,7 +299,18 @@ const CustomerMenu = () => {
     }
 
     setSubmitting(true);
-    const orderNumber = `W-${Date.now().toString().slice(-6)}`;
+    let orderNumber = `A-${Date.now().toString().slice(-6)}`;
+    try {
+      const q = query(
+        collection(db, 'orders'),
+        where('orderNumber', '>=', 'A-'),
+        where('orderNumber', '<=', 'A-')
+      );
+      const snap = await getDocs(q);
+      orderNumber = `A-${snap.size + 1}`;
+    } catch (err) {
+      console.error('Failed to generate sequential A- order number, falling back:', err);
+    }
 
     try {
       let payStatus = 'pending';
