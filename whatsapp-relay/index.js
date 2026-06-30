@@ -59,6 +59,9 @@ const serviceAccountPath = path.join(__dirname, 'service-account.json');
 
 // Use a flag instead of admin.apps.length which is unreliable in firebase-admin v14+
 let firebaseInitialized = false;
+let firestoreIntegrationEnabled = false;
+let firestoreWatcherInterval = null;
+let firestoreAuthDisabledNotified = false;
 
 if (fs.existsSync(serviceAccountPath)) {
   console.log(
@@ -68,6 +71,7 @@ if (fs.existsSync(serviceAccountPath)) {
     const serviceAccount = require(serviceAccountPath);
     initializeApp({ credential: cert(serviceAccount) });
     firebaseInitialized = true;
+    firestoreIntegrationEnabled = true;
     console.log('Firebase Admin SDK initialized successfully.');
   } catch (err) {
     console.error(
@@ -89,6 +93,7 @@ if (fs.existsSync(serviceAccountPath)) {
       }),
     });
     firebaseInitialized = true;
+    firestoreIntegrationEnabled = true;
     console.log('Firebase Admin SDK initialized successfully.');
   } catch (err) {
     console.error('Failed to initialize Firebase Admin SDK:', err);
@@ -110,6 +115,28 @@ app.use(express.json());
 let connectionStatus = 'INITIALIZING'; // INITIALIZING, QR_READY, CONNECTED, DISCONNECTED
 let activeQrCode = null; // Store QR code data URI
 let sock = null;
+
+function isFirestoreUnauthenticatedError(err) {
+  return (
+    err?.code === 16 ||
+    /UNAUTHENTICATED/i.test(err?.message || '') ||
+    /invalid authentication credentials/i.test(err?.message || '')
+  );
+}
+
+function disableFirestoreIntegration(reason) {
+  if (!firestoreIntegrationEnabled) return;
+  firestoreIntegrationEnabled = false;
+  firebaseInitialized = false;
+  if (firestoreWatcherInterval) {
+    clearInterval(firestoreWatcherInterval);
+    firestoreWatcherInterval = null;
+  }
+  if (!firestoreAuthDisabledNotified) {
+    firestoreAuthDisabledNotified = true;
+    console.warn(`[WA Watcher] Firestore integration disabled: ${reason}`);
+  }
+}
 
 // Initialize WhatsApp Client (Baileys)
 async function initializeClient() {
@@ -965,7 +992,7 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
       );
 
       if (orderDetails.order_status === 'PAID') {
-        if (firebaseInitialized) {
+        if (firebaseInitialized && firestoreIntegrationEnabled) {
           const db = getFirestore();
           const ordersRef = db.collection('orders');
           const snapshot = await ordersRef
@@ -1032,6 +1059,11 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
         );
       }
     } catch (err) {
+      if (isFirestoreUnauthenticatedError(err)) {
+        disableFirestoreIntegration(err.message);
+        res.json({ status: 'ok' });
+        return;
+      }
       console.error(
         `Cashfree active verification failed for Order #${orderNumber}:`,
         err.message
@@ -1137,7 +1169,7 @@ app.post('/payment/send-confirmation', async (req, res) => {
 // this relay (which has WhatsApp connected). Covers both UPI paid orders (set
 // by the Cashfree webhook on Render) and COD orders placed via the customer site.
 function startOrderWhatsAppWatcher() {
-  if (!firebaseInitialized) {
+  if (!firebaseInitialized || !firestoreIntegrationEnabled) {
     console.warn(
       '[WA Watcher] Firebase not initialized — skipping order watcher.'
     );
@@ -1204,12 +1236,16 @@ function startOrderWhatsAppWatcher() {
         })();
       });
     } catch (err) {
+      if (isFirestoreUnauthenticatedError(err)) {
+        disableFirestoreIntegration(err.message);
+        return;
+      }
       console.error('[WA Watcher] Polling error:', err.message);
     }
   };
 
   scanForPendingReceipts();
-  setInterval(scanForPendingReceipts, 15000);
+  firestoreWatcherInterval = setInterval(scanForPendingReceipts, 15000);
 
   console.log(
     '[WA Watcher] Polling Firestore for orders that need WhatsApp receipts...'
