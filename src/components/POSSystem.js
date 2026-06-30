@@ -88,6 +88,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const noticeTimeoutRef = useRef(null);
   const qrPollIntervalRef = useRef(null);
   const cfUnsubRef = useRef(null);
+  const cfWindowRef = useRef(null);
   const executeSaleWriteRef = useRef(null);
   const [showSearch, setShowSearch] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -170,6 +171,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   useEffect(() => {
     loadProducts();
     loadBarSettings();
+
+    // Pre-warm the deployed relay so the first payment is instant
+    fetch(`${APP_CONFIG.whatsappRelayUrl}/health`).catch(() => {});
 
     return () => {
       if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
@@ -442,6 +446,11 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   }, [cart]);
 
   const addToCart = (product) => {
+    // Pre-warm the deployed relay the moment the customer adds their first item
+    if (isKiosk && cart.length === 0) {
+      fetch(`${APP_CONFIG.whatsappRelayUrl}/health`).catch(() => {});
+    }
+
     const existingItem = cart.find((item) => item.id === product.id);
 
     if (existingItem) {
@@ -664,7 +673,11 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       if (!data.success) throw new Error(data.error || 'Failed to create Cashfree order.');
 
       const cfOrderId = data.cfOrderId || data.orderId;
-      window.open(data.paymentLink, '_blank');
+      cfWindowRef.current = window.open(
+        data.paymentLink,
+        'cashfree_payment',
+        'width=800,height=700,toolbar=0,menubar=0,scrollbars=1,resizable=1'
+      );
 
       qrPaymentPendingRef.current = true;
       setUpiQrPayment({ orderId, amount, qrImageUrl: null, mode: 'cashfree', hostedUrl: data.paymentLink });
@@ -730,6 +743,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       cfUnsubRef.current();
       cfUnsubRef.current = null;
     }
+    // Close the Cashfree payment popup from the kiosk side
+    try {
+      if (cfWindowRef.current && !cfWindowRef.current.closed) {
+        cfWindowRef.current.close();
+      }
+    } catch (_) {}
+    cfWindowRef.current = null;
     setUpiQrStatus('Payment received. Completing order...');
     setTimeout(async () => {
       setUpiQrPayment(null);

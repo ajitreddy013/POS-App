@@ -637,28 +637,23 @@ app.get('/payment-done', (req, res) => {
   <style>
     body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center;
            justify-content: center; min-height: 100vh; margin: 0; background: #f0fdf4; color: #166534; }
-    .icon { font-size: 64px; margin-bottom: 16px; }
+    .icon { font-size: 72px; margin-bottom: 16px; }
     h1 { font-size: 1.6rem; margin: 0 0 8px; }
-    p { color: #4b5563; font-size: 1rem; }
-    .countdown { font-size: 0.9rem; color: #6b7280; margin-top: 8px; }
+    p { color: #4b5563; font-size: 1rem; margin: 4px 0; }
+    button { margin-top: 24px; padding: 10px 28px; font-size: 1rem; font-weight: 700;
+             background: #166534; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
   </style>
 </head>
 <body>
   <div class="icon">✅</div>
   <h1>Payment Successful!</h1>
-  <p>Returning to the app…</p>
-  <p class="countdown" id="cd">Closing in 3 seconds</p>
+  <p>Returning to app…</p>
+  <button onclick="window.close()">Return to App</button>
   <script>
-    var sec = 3;
-    var cd = document.getElementById('cd');
-    var t = setInterval(function() {
-      sec--;
-      cd.textContent = sec > 0 ? 'Closing in ' + sec + ' second' + (sec !== 1 ? 's' : '') : 'Closing…';
-      if (sec <= 0) {
-        clearInterval(t);
-        window.close();
-      }
-    }, 1000);
+    try {
+      if (window.opener && !window.opener.closed) { window.opener.focus(); }
+    } catch(e) {}
+    window.close();
   </script>
 </body>
 </html>`);
@@ -993,4 +988,18 @@ app.listen(port, () => {
   console.log(`WhatsApp Cloud-Relay Server running on port ${port}`);
   console.log(`Relay version: ${relayVersion}`);
   initializeClient();
+
+  // Self-ping every 8 minutes to prevent Render free-tier cold starts.
+  // RENDER_EXTERNAL_URL is set automatically by Render; absent locally so this is a no-op there.
+  const selfUrl = process.env.RENDER_EXTERNAL_URL;
+  if (selfUrl) {
+    console.log(`Keep-alive self-ping enabled → ${selfUrl}/health every 8 min`);
+    setInterval(() => {
+      https.get(`${selfUrl}/health`, (res) => {
+        res.resume(); // consume response to free socket
+      }).on('error', (err) => {
+        console.warn(`Keep-alive ping failed: ${err.message}`);
+      });
+    }, 8 * 60 * 1000);
+  }
 });
