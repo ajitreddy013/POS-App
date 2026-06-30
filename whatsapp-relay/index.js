@@ -363,7 +363,7 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
   // Delivery address block
   let deliveryBlock = '';
   if (isDelivery && deliveryAddress) {
-    deliveryBlock = `\n📍 *Deliver to:*\n${deliveryAddress.address || ''}${deliveryAddress.landmark ? ', ' + deliveryAddress.landmark : ''}\nPincode: ${deliveryAddress.pincode || ''}\n`;
+    deliveryBlock = `\n*Deliver to:*\n${deliveryAddress.address || ''}${deliveryAddress.landmark ? ', ' + deliveryAddress.landmark : ''}\nPincode: ${deliveryAddress.pincode || ''}\n`;
   }
 
   // Assemble the message

@@ -65,10 +65,10 @@ export const whatsappService = {
 
     let storeHeader = `*${settings.bar_name || "CounterFlow Food Truck"}*`;
     if (settings.address) {
-      storeHeader += `\n📍 ${settings.address}`;
+      storeHeader += `\n${settings.address}`;
     }
     if (settings.contact_number) {
-      storeHeader += `\n📞 ${settings.contact_number}`;
+      storeHeader += `\n${settings.contact_number}`;
     }
     if (settings.gst_number) {
       storeHeader += `\nGSTIN: ${settings.gst_number}`;
