@@ -1424,7 +1424,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 <div
                   key={product.id}
                   className="minimal-product-card"
-                  onClick={() => addToCart(product)}
+                  style={{ cursor: 'default' }}
                 >
                   <div className="minimal-card-image-wrapper">
                     {product.image ? (

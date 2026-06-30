@@ -5,10 +5,9 @@ export function isOfferActiveToday(barSettings) {
   if (!barSettings?.offer_enabled) return false;
   const dates = barSettings.offer_dates || [];
   if (dates.length === 0) return false;
-  // Convert current UTC time to IST (UTC+5:30)
-  const now = new Date();
-  const istDate = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
-  const today = istDate.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+  // Specific dates selected = only active on those dates (IST)
+  const istDate = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
+  const today = istDate.toISOString().slice(0, 10);
   return dates.includes(today);
 }
 

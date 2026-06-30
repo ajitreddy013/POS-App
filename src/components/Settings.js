@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Wifi, WifiOff, CreditCard, Lock, CloudLightning, QrCode, Truck, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Wifi, WifiOff, Lock, CloudLightning, QrCode, Truck, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { dbService } from '../services/dbService';
 import { whatsappService } from '../services/whatsappService';
 import { APP_CONFIG } from '../config';
@@ -93,7 +93,7 @@ const Settings = () => {
 
   const handlePrintQr = () => {
     const hostedUrl = barSettings.hosted_app_url || window.location.origin;
-    const targetUrl = `${hostedUrl}/#/menu`;
+    const targetUrl = hostedUrl;
     QRCode.toDataURL(targetUrl, { width: 512, margin: 1 })
       .then(qrDataUrl => {
         const printWindow = window.open('', '_blank');
@@ -191,7 +191,7 @@ const Settings = () => {
 
   const handleDownloadQr = () => {
     const hostedUrl = barSettings.hosted_app_url || window.location.origin;
-    const targetUrl = `${hostedUrl}/#/menu`;
+    const targetUrl = hostedUrl;
     QRCode.toDataURL(targetUrl, { width: 512, margin: 1 })
       .then(qrDataUrl => {
         const link = document.createElement('a');
@@ -234,17 +234,11 @@ const Settings = () => {
   }, [barSettings.whatsapp_relay_url]);
 
   useEffect(() => {
-    const hostedUrl = barSettings.hosted_app_url || window.location.origin;
-    const targetUrl = `${hostedUrl}/#/menu`;
-    
+    const targetUrl = barSettings.hosted_app_url || window.location.origin;
     QRCode.toDataURL(targetUrl, { width: 350, margin: 2 })
-      .then(url => {
-        setTableQrCodeUrl(url);
-      })
-      .catch(err => {
-        console.error('Error generating table QR:', err);
-      });
-  }, [selectedTable, barSettings.hosted_app_url]);
+      .then(url => setTableQrCodeUrl(url))
+      .catch(err => console.error('Error generating customer website QR:', err));
+  }, [barSettings.hosted_app_url]);
 
   const checkRelayStatus = async () => {
     const activeUrl = getActiveRelayUrl();
@@ -807,43 +801,6 @@ const Settings = () => {
         </div>
       </div>
 
-      {/* UPI Payments */}
-      <div className="cfg-card">
-        <div className="cfg-card-hdr">
-          <div className="cfg-card-hdr-left">
-            <div className="cfg-card-icon" style={{ background: '#fdf1ef' }}>
-              <CreditCard size={16} color="#b6412c" />
-            </div>
-            <div>
-              <h2>UPI Payments</h2>
-              <p>Merchant UPI ID for kiosk QR payments</p>
-            </div>
-          </div>
-          <button onClick={() => setIsEditingBarInfo(!isEditingBarInfo)} className="cfg-btn cfg-btn-ghost">
-            <Edit size={14} />
-            {isEditingBarInfo ? 'Cancel' : 'Edit'}
-          </button>
-        </div>
-        <div className="cfg-card-body">
-          <div className="cfg-field" style={{ maxWidth: '440px' }}>
-            <label>UPI VPA (Merchant ID)</label>
-            {isEditingBarInfo ? (
-              <input type="text" className="cfg-input" value={barSettings.upi_vpa || ''} onChange={(e) => setBarSettings({ ...barSettings, upi_vpa: e.target.value })} placeholder="yourname@okaxis" />
-            ) : (
-              <p style={{ margin: 0, fontSize: '0.92rem', fontWeight: '600', color: barSettings.upi_vpa ? '#1e293b' : '#94a3b8', fontStyle: barSettings.upi_vpa ? 'normal' : 'italic' }}>
-                {barSettings.upi_vpa || 'Not configured — UPI QR will not work'}
-              </p>
-            )}
-            <p className="cfg-hint">Customers scan the QR in kiosk mode to pay directly to this ID.</p>
-          </div>
-          {isEditingBarInfo && (
-            <button onClick={saveBarSettings} disabled={loading} className="cfg-btn cfg-btn-primary" style={{ marginTop: '16px' }}>
-              <Save size={14} />
-              {loading ? 'Saving…' : 'Save'}
-            </button>
-          )}
-        </div>
-      </div>
     </>
   );
 
@@ -962,7 +919,7 @@ const Settings = () => {
               <div className="cfg-switch-thumb" />
             </div>
             <span className="cfg-switch-label" style={barSettings.offer_enabled ? { color: '#92400e' } : {}}>
-              {barSettings.offer_enabled ? 'Offer ON — select dates below' : 'Offer OFF'}
+              {barSettings.offer_enabled ? 'Offer ON — select dates below to activate' : 'Offer OFF'}
             </span>
           </label>
 
@@ -1048,7 +1005,9 @@ const Settings = () => {
     </div>
   );
 
-  const renderMenuQrTab = () => (
+  const renderMenuQrTab = () => {
+    const customerUrl = barSettings.hosted_app_url || window.location.origin;
+    return (
     <div className="cfg-card">
       <div className="cfg-card-hdr">
         <div className="cfg-card-hdr-left">
@@ -1056,16 +1015,22 @@ const Settings = () => {
             <QrCode size={16} color="#ca8a04" />
           </div>
           <div>
-            <h2>Menu QR Code</h2>
-            <p>Self-ordering QR for tables and takeaway</p>
+            <h2>Customer Website QR</h2>
+            <p>QR code for your deployed customer ordering website</p>
           </div>
         </div>
       </div>
       <div className="cfg-card-body">
-        <div className="cfg-field" style={{ maxWidth: '480px', marginBottom: '20px' }}>
-          <label>Hosted Customer App URL</label>
-          <input type="url" className="cfg-input" value={barSettings.hosted_app_url || ''} onChange={(e) => handleBarSettingsChange('hosted_app_url', e.target.value)} placeholder={`https://your-store.web.app`} />
-          <p className="cfg-hint">Firebase / custom domain URL. Defaults to current network address if blank.</p>
+        <div className="cfg-field" style={{ maxWidth: '480px', marginBottom: '12px' }}>
+          <label>Customer Website URL</label>
+          <input
+            type="url"
+            className="cfg-input"
+            value={barSettings.hosted_app_url || ''}
+            onChange={(e) => handleBarSettingsChange('hosted_app_url', e.target.value)}
+            placeholder="https://your-store.web.app"
+          />
+          <p className="cfg-hint">Your Firebase Hosting URL. The QR below updates live as you type — save to persist.</p>
         </div>
         <button onClick={saveBarSettings} disabled={loading} className="cfg-btn cfg-btn-primary" style={{ marginBottom: '28px' }}>
           <Save size={14} />
@@ -1077,20 +1042,20 @@ const Settings = () => {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '8px 0' }}>
           <div style={{ background: '#ffffff', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
             {tableQrCodeUrl
-              ? <img src={tableQrCodeUrl} alt="Menu QR" style={{ width: '180px', height: '180px', display: 'block' }} />
-              : <div style={{ width: '180px', height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.82rem' }}>Generating…</div>}
+              ? <img src={tableQrCodeUrl} alt="Customer Website QR" style={{ width: '200px', height: '200px', display: 'block' }} />
+              : <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.82rem' }}>Generating…</div>}
           </div>
 
-          <div>
-            <p style={{ margin: '0 0 4px', fontWeight: '700', fontSize: '0.9rem', color: '#1e293b', textAlign: 'center' }}>Customer Menu Link</p>
-            <code style={{ fontSize: '0.78rem', color: '#b6412c', wordBreak: 'break-all', display: 'block', background: '#fff3f0', padding: '5px 10px', borderRadius: '7px', border: '1px solid #ffe3dd', textAlign: 'center' }}>
-              {`${barSettings.hosted_app_url || window.location.origin}/#/menu`}
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ margin: '0 0 4px', fontWeight: '700', fontSize: '0.9rem', color: '#1e293b' }}>Customer Website Link</p>
+            <code style={{ fontSize: '0.78rem', color: '#b6412c', wordBreak: 'break-all', display: 'block', background: '#fff3f0', padding: '5px 10px', borderRadius: '7px', border: '1px solid #ffe3dd' }}>
+              {customerUrl}
             </code>
           </div>
 
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
-            <a href={`${barSettings.hosted_app_url || window.location.origin}/#/menu`} target="_blank" rel="noopener noreferrer" className="cfg-btn cfg-btn-ghost" style={{ textDecoration: 'none' }}>
-              Open Link
+            <a href={customerUrl} target="_blank" rel="noopener noreferrer" className="cfg-btn cfg-btn-ghost" style={{ textDecoration: 'none' }}>
+              Open Website
             </a>
             <button onClick={handleDownloadQr} className="cfg-btn cfg-btn-ghost">Download PNG</button>
             <button onClick={handlePrintQr} className="cfg-btn cfg-btn-primary" style={{ background: '#1C5C3A', borderColor: '#1C5C3A' }}>Print Poster</button>
@@ -1098,7 +1063,8 @@ const Settings = () => {
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   const renderSecurityTab = () => (
     <div className="cfg-card">

@@ -1,45 +1,50 @@
 /**
  * useBarSettings.js
- * Returns barSettings from local DB, merged with Firestore cloud settings.
- * The Firestore read is essential for the customer website where the local
- * DB is empty — offer toggle, dates, delivery settings all live in Firestore.
+ * Returns barSettings from local DB, merged with Firestore via real-time onSnapshot.
+ * Local DB is loaded once; Firestore updates are streamed so offer/delivery changes
+ * appear in the kiosk immediately without a page refresh.
  */
 import { useState, useEffect } from 'react';
 import { dbService } from '../services/dbService';
 import { getFirebaseDb } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 const useBarSettings = () => {
   const [barSettings, setBarSettings] = useState(null);
 
   useEffect(() => {
-    const load = async () => {
-      // 1. Try local DB (works for POS / Electron)
-      let local = null;
+    let unsubscribe = null;
+    let localSettings = null;
+
+    const init = async () => {
+      // 1. Load local DB once (works for POS / Electron)
       try {
-        local = await dbService.getBarSettings();
+        localSettings = await dbService.getBarSettings();
       } catch {
-        local = null;
+        localSettings = null;
       }
 
-      // 2. Try Firestore (required for customer website where local DB is empty)
-      let cloud = null;
-      try {
-        const db = getFirebaseDb();
-        if (db) {
-          const snap = await getDoc(doc(db, 'settings', 'bar_settings'));
-          if (snap.exists()) cloud = snap.data();
-        }
-      } catch {
-        cloud = null;
+      // 2. Stream Firestore — cloud always overrides local
+      const db = getFirebaseDb();
+      if (db) {
+        unsubscribe = onSnapshot(
+          doc(db, 'settings', 'bar_settings'),
+          (snap) => {
+            const cloud = snap.exists() ? snap.data() : null;
+            setBarSettings(cloud ? { ...localSettings, ...cloud } : localSettings);
+          },
+          () => {
+            // Firestore unavailable — fall back to local only
+            setBarSettings(localSettings);
+          }
+        );
+      } else {
+        setBarSettings(localSettings);
       }
-
-      // Merge: cloud fields override local so the customer website always
-      // gets the owner's latest saved settings (offer toggle, dates, etc.)
-      setBarSettings(cloud ? { ...local, ...cloud } : local);
     };
 
-    load();
+    init();
+    return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
   return { barSettings };
