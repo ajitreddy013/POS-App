@@ -62,6 +62,22 @@ function calculateOfferDiscount(cartItems) {
   };
 }
 
+function getSuccessOrderIdFromLocation() {
+  const hashSearch = window.location.hash.split('?')[1] || '';
+  const hashParams = new URLSearchParams(hashSearch);
+  const hashOrderId =
+    hashParams.get('payment') === 'success' && hashParams.get('orderId')
+      ? hashParams.get('orderId')
+      : null;
+
+  if (hashOrderId) return hashOrderId;
+
+  const searchParams = new URLSearchParams(window.location.search);
+  return searchParams.get('payment') === 'success' && searchParams.get('orderId')
+    ? searchParams.get('orderId')
+    : null;
+}
+
 const CustomerMenu = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
@@ -73,11 +89,7 @@ const CustomerMenu = () => {
   const [orderSuccess, setOrderSuccess] = useState(() => {
     // Read synchronously so the success screen renders on the very first paint,
     // before any useEffect or loadMenu runs — avoids the loading screen flash.
-    const hashSearch = window.location.hash.split('?')[1] || '';
-    const p = new URLSearchParams(hashSearch);
-    return p.get('payment') === 'success' && p.get('orderId')
-      ? p.get('orderId')
-      : null;
+    return getSuccessOrderIdFromLocation();
   });
   const [upiQrStatus, setUpiQrStatus] = useState('');
   const [upiQrLoading, setUpiQrLoading] = useState(false);
@@ -155,11 +167,12 @@ const CustomerMenu = () => {
   }, [loadMenu, orderSuccess]);
 
   useEffect(() => {
-    const paymentParam = searchParams.get('payment');
-    const orderIdParam = searchParams.get('orderId');
-    if (paymentParam === 'success' && orderIdParam) {
+    const orderIdParam = getSuccessOrderIdFromLocation();
+    if (orderIdParam) {
       setOrderSuccess(orderIdParam);
-      setSearchParams({}, { replace: true });
+      if (window.location.hash.includes('payment=success')) {
+        setSearchParams({}, { replace: true });
+      }
     }
   }, [searchParams, setSearchParams]);
 
@@ -509,7 +522,7 @@ const CustomerMenu = () => {
         const relayUrl =
           barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
         // Hash-based URL so HashRouter's useSearchParams can read the params on return
-        const returnUrl = `${window.location.origin}/#/?payment=success&orderId=${orderNumber}`;
+        const returnUrl = `${window.location.origin}/?payment=success&orderId=${orderNumber}`;
         const res = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
