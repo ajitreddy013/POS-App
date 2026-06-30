@@ -675,27 +675,28 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
       const cfOrderId = data.cfOrderId || data.orderId;
 
-      // Listen for page loads inside the in-app browser.
-      // When Cashfree redirects to the return_url, this fires and we check
-      // payment status directly from Cashfree API (not Firestore) — most reliable trigger.
-      if (cfBrowserListenerRef.current) {
-        cfBrowserListenerRef.current.remove();
-        cfBrowserListenerRef.current = null;
-      }
-      cfBrowserListenerRef.current = await Browser.addListener('browserPageLoaded', async () => {
-        if (!qrPaymentPendingRef.current) return;
-        try {
-          const statusRes = await fetch(`${relayUrl}/payment/cashfree/order-status`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cfOrderId }),
-          });
-          const statusData = await statusRes.json();
-          if (statusData.success && statusData.paid && qrPaymentPendingRef.current) {
-            completeCashfreePayment();
-          }
-        } catch (_) { /* polling fallback handles failures */ }
-      });
+      // Non-fatal: try to hook browserPageLoaded so we close the browser the moment
+      // Cashfree redirects to return_url. Falls back to polling if not supported.
+      try {
+        if (cfBrowserListenerRef.current) {
+          cfBrowserListenerRef.current.remove();
+          cfBrowserListenerRef.current = null;
+        }
+        cfBrowserListenerRef.current = await Browser.addListener('browserPageLoaded', async () => {
+          if (!qrPaymentPendingRef.current) return;
+          try {
+            const statusRes = await fetch(`${relayUrl}/payment/cashfree/order-status`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ cfOrderId }),
+            });
+            const statusData = await statusRes.json();
+            if (statusData.success && statusData.paid && qrPaymentPendingRef.current) {
+              completeCashfreePayment();
+            }
+          } catch (_) { /* polling fallback handles failures */ }
+        });
+      } catch (_) { /* browserPageLoaded not supported — polling/Firestore handle detection */ }
 
       await Browser.open({ url: data.paymentLink, presentationStyle: 'fullscreen' });
 
