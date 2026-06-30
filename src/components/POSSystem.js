@@ -25,6 +25,7 @@ import {
 import { getLocalDateTimeString } from '../utils/dateUtils';
 import { isOfferActiveToday, calculateOfferDiscount } from '../utils/offerUtils';
 import { App } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 import { dbService } from '../services/dbService';
 import { whatsappService } from '../services/whatsappService';
 import { APP_CONFIG } from '../config';
@@ -88,7 +89,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const noticeTimeoutRef = useRef(null);
   const qrPollIntervalRef = useRef(null);
   const cfUnsubRef = useRef(null);
-  const cfWindowRef = useRef(null);
+
   const executeSaleWriteRef = useRef(null);
   const [showSearch, setShowSearch] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -673,11 +674,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       if (!data.success) throw new Error(data.error || 'Failed to create Cashfree order.');
 
       const cfOrderId = data.cfOrderId || data.orderId;
-      cfWindowRef.current = window.open(
-        data.paymentLink,
-        'cashfree_payment',
-        'width=800,height=700,toolbar=0,menubar=0,scrollbars=1,resizable=1'
-      );
+      await Browser.open({ url: data.paymentLink, presentationStyle: 'fullscreen' });
 
       qrPaymentPendingRef.current = true;
       setUpiQrPayment({ orderId, amount, qrImageUrl: null, mode: 'cashfree', hostedUrl: data.paymentLink });
@@ -743,13 +740,8 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       cfUnsubRef.current();
       cfUnsubRef.current = null;
     }
-    // Close the Cashfree payment popup from the kiosk side
-    try {
-      if (cfWindowRef.current && !cfWindowRef.current.closed) {
-        cfWindowRef.current.close();
-      }
-    } catch (_) { /* best-effort close */ }
-    cfWindowRef.current = null;
+    // Close the Cashfree in-app browser (Capacitor Browser plugin)
+    Browser.close().catch(() => {});
     setUpiQrStatus('Payment received. Completing order...');
     setTimeout(async () => {
       setUpiQrPayment(null);
@@ -1938,7 +1930,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   <button
                     type="button"
                     style={{ marginTop: '12px', padding: '6px 14px', borderRadius: '8px', border: '1px solid #e6ded3', background: '#f6f3ee', cursor: 'pointer', fontSize: '0.82rem' }}
-                    onClick={() => window.open(upiQrPayment.hostedUrl, '_blank')}
+                    onClick={() => Browser.open({ url: upiQrPayment.hostedUrl, presentationStyle: 'fullscreen' })}
                   >
                     Reopen Payment Page
                   </button>
