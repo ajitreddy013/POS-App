@@ -76,6 +76,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [confirmPhone, setConfirmPhone] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [discount, setDiscount] = useState(0);
@@ -584,6 +585,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       setCart([]);
       setCustomerName('');
       setCustomerPhone('');
+      setConfirmPhone('');
       setPhoneError('');
       setDiscount(0);
       setShowDiscountInput(false);
@@ -622,10 +624,14 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
     const cleanedPhone = customerPhone.replace(/\D/g, '');
     if (!cleanedPhone || cleanedPhone.length !== 10) {
-      setPhoneError('Enter a valid 10-digit phone number to continue.');
+      setPhoneError('Please enter a valid 10-digit WhatsApp number!');
       if (phoneInputRef.current) {
         phoneInputRef.current.focus({ preventScroll: true });
       }
+      return;
+    }
+    if (cleanedPhone !== confirmPhone.replace(/\D/g, '')) {
+      setPhoneError('Mobile numbers do not match. Please re-enter.');
       return;
     }
 
@@ -1554,18 +1560,46 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   const value = e.target.value.replace(/\D/g, '');
                   if (value.length <= 10) {
                     setCustomerPhone(value);
-                    if (phoneError) {
-                      setPhoneError('');
-                    }
+                    if (phoneError) setPhoneError('');
                   }
                 }}
                 className={`form-input cart-phone-input ${phoneError ? 'error' : ''}`}
                 style={{ padding: '8px 12px', fontSize: '13px', width: '100%' }}
                 maxLength="10"
               />
+              {isKiosk && (
+                <>
+                  <input
+                    type="tel"
+                    placeholder="Confirm mobile number"
+                    value={confirmPhone}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '');
+                      if (value.length <= 10) {
+                        setConfirmPhone(value);
+                        if (phoneError) setPhoneError('');
+                      }
+                    }}
+                    className="form-input cart-phone-input"
+                    style={{
+                      padding: '8px 12px',
+                      fontSize: '13px',
+                      width: '100%',
+                      marginTop: '8px',
+                      border: `1.5px solid ${confirmPhone && confirmPhone !== customerPhone ? '#dc2626' : '#e6ded3'}`,
+                    }}
+                    maxLength="10"
+                  />
+                  {confirmPhone && confirmPhone !== customerPhone && (
+                    <p style={{ color: '#b6412c', fontSize: '0.78rem', margin: '4px 0 0', fontWeight: '600' }}>
+                      Numbers do not match
+                    </p>
+                  )}
+                </>
+              )}
               {phoneError && (
                 <div className="cart-phone-error" role="alert">
-                  {phoneError}
+                  ⚠️ {phoneError}
                 </div>
               )}
             </div>
