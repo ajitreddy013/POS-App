@@ -46,7 +46,6 @@ import {
   doc,
   updateDoc,
   getDoc,
-  getDocs,
 } from 'firebase/firestore';
 
 const formatCurrency = (value) => `₹${Number(value || 0).toFixed(2)}`;
@@ -243,21 +242,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
   const loadProducts = async () => {
     try {
-      let productList = await dbService.getProducts();
-      if (productList.length === 0) {
-        // New device — pull products from Firestore
-        const firestoreDb = getFirebaseDb();
-        if (firestoreDb) {
-          const snap = await getDocs(collection(firestoreDb, 'products'));
-          if (!snap.empty) {
-            const fetched = snap.docs.map(d => ({ ...d.data(), id: d.data().id ?? d.id }));
-            for (const p of fetched) {
-              await dbService.addProduct(p);
-            }
-            productList = await dbService.getProducts();
-          }
-        }
-      }
+      const productList = await dbService.getProducts();
       setProducts(productList);
     } catch (error) {
       setProducts([]);
