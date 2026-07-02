@@ -68,34 +68,37 @@ export const dbService = {
     if (isElectron) return await window.electronAPI.getProducts();
     const local = await db.products.toArray();
     if (local.length > 0) return local;
-    // New device — pull from Firestore and seed local DB
+
+    // Local DB is empty — pull from Firestore
+    const firestoreDb = getFirebaseDb();
+    if (!firestoreDb) return [];
+
+    const snap = await getDocs(collection(firestoreDb, 'products'));
+    if (snap.empty) return [];
+
+    const rows = snap.docs.map(d => {
+      const data = d.data();
+      const numId = Number(data.id);
+      return {
+        ...(numId > 0 ? { id: numId } : {}),
+        name: data.name || '',
+        price: Number(data.price) || 0,
+        category: data.category || 'General',
+        image: data.image || '',
+        description: data.description || '',
+        dietary_type: data.dietary_type || 'veg',
+        counter_stock: 0,
+        godown_stock: 0,
+      };
+    });
+
+    // Seed local DB — but return Firestore rows directly even if seeding fails
     try {
-      const firestoreDb = getFirebaseDb();
-      if (firestoreDb) {
-        const snap = await getDocs(collection(firestoreDb, 'products'));
-        if (!snap.empty) {
-          const rows = snap.docs.map(d => {
-            const data = d.data();
-            return {
-              id: Number(data.id) || undefined,
-              name: data.name || '',
-              price: Number(data.price) || 0,
-              category: data.category || 'General',
-              image: data.image || '',
-              description: data.description || '',
-              dietary_type: data.dietary_type || 'veg',
-              counter_stock: Number(data.counter_stock) || 0,
-              godown_stock: Number(data.godown_stock) || 0,
-            };
-          });
-          await db.products.bulkPut(rows);
-          return await db.products.toArray();
-        }
-      }
-    } catch (err) {
-      console.error('Failed to pull products from Firestore:', err);
+      await db.products.bulkPut(rows);
+      return await db.products.toArray();
+    } catch (_) {
+      return rows;
     }
-    return [];
   },
 
   addProduct: async (product) => {
