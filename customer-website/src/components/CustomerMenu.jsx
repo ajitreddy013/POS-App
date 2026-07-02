@@ -1721,7 +1721,7 @@ const CustomerMenu = () => {
                   }}
                 >
                   <span style={{ fontSize: '1rem' }}>📍</span>
-                  Delivery only accepted within 2 km of area.
+                  Delivery only accepted within 2 km area.
                 </div>
                 <h3
                   style={{
