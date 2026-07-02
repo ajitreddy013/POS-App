@@ -1114,6 +1114,16 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               </button>
             </div>
 
+            {/* Offer banner */}
+            {offerActive && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg, #fef9c3 0%, #fef08a 100%)', border: '1.5px solid #fde047', borderRadius: '10px', padding: '8px 12px' }}>
+                <Tag size={14} style={{ color: '#92400e', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.78rem', fontWeight: '700', color: '#92400e', lineHeight: '1.4' }}>
+                  🎉 1+1 Offer Live! Add waffles in pairs — the cheaper one is FREE.
+                </span>
+              </div>
+            )}
+
             {/* Expandable Search Bar */}
             {showSearch && (
               <div
