@@ -1,7 +1,7 @@
 import Dexie from "dexie";
 import { getLocalDateTimeString } from "../utils/dateUtils";
 import { getFirebaseDb } from "../firebase";
-import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, addDoc, getDocs } from "firebase/firestore";
 
 // Check if running inside Electron
 const isElectron = typeof window !== "undefined" && !!window.electronAPI;
@@ -204,7 +204,7 @@ export const dbService = {
       if (firestoreDb) {
         await addDoc(collection(firestoreDb, 'sales'), { ...finalSaleData, localId: id });
       }
-    } catch (_) {}
+    } catch (e) { console.warn('Firestore sale mirror failed:', e); }
 
     return { success: true, id };
   },
@@ -245,7 +245,7 @@ export const dbService = {
           if (!snap.empty) {
             for (const d of snap.docs) {
               const data = d.data();
-              const { localId, ...saleFields } = data;
+              const { localId: _localId, ...saleFields } = data;
               const exists = saleFields.saleNumber
                 ? await db.sales.where('saleNumber').equals(saleFields.saleNumber).first()
                 : null;
@@ -253,7 +253,7 @@ export const dbService = {
             }
           }
         }
-      } catch (_) {}
+      } catch (e) { console.warn('Firestore sales pull failed:', e); }
     }
 
     let q = db.sales;
