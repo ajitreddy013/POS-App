@@ -1569,14 +1569,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 </div>
               )}
             </div>
-            {offerActive && (
-              <div style={{ margin: '0 0 8px 0', background: 'linear-gradient(135deg, #fef9c3 0%, #fef08a 100%)', border: '1.5px solid #fde047', borderRadius: '10px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Tag size={14} style={{ color: '#92400e', flexShrink: 0 }} />
-                <span style={{ fontSize: '0.78rem', fontWeight: '700', color: '#92400e', lineHeight: '1.4' }}>
-                  1+1 Offer Active! Add waffles in pairs — the cheaper one is FREE. Quantities step by 2.
-                </span>
-              </div>
-            )}
             <div className="cart-items">
               {cart.length === 0 ? (
                 <div className="empty-cart" style={{ padding: '40px 0' }}>
@@ -1743,8 +1735,8 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   className="summary-line discount cart-summary-row"
                   style={{ fontSize: '12px', marginBottom: '4px', color: '#92400e', background: '#fef9c3', borderRadius: '6px', padding: '4px 6px' }}
                 >
-                  <span style={{ fontWeight: '700' }}>🎉 1+1 Saving ({offerFreeItems.length} free):</span>
-                  <span style={{ fontWeight: '700' }}>-{formatCurrency(offerDiscount)}</span>
+                  <span style={{ fontWeight: '700', color: '#92400e' }}>🎉 1+1 Saving ({offerFreeItems.length} free)</span>
+                  <span style={{ fontWeight: '700', color: '#92400e' }}>-{formatCurrency(offerDiscount)}</span>
                 </div>
               )}
               {offerActive && isOfferCartOdd && totalCartItems > 0 && (
@@ -1752,7 +1744,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   className="summary-line cart-summary-row"
                   style={{ fontSize: '12px', marginBottom: '4px', color: '#92400e', background: '#fff7ed', border: '1.5px dashed #f97316', borderRadius: '6px', padding: '5px 8px', fontWeight: '700' }}
                 >
-                  <span>➕ Add 1 more → get {offerAddMoreCount} free!</span>
+                  <span>➕ Add 1 more item to get {offerAddMoreCount} item{offerAddMoreCount > 1 ? 's' : ''} free!</span>
                 </div>
               )}
               <div
