@@ -1,5 +1,7 @@
 import Dexie from "dexie";
 import { getLocalDateTimeString } from "../utils/dateUtils";
+import { getFirebaseDb } from "../firebase";
+import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
 
 // Check if running inside Electron
 const isElectron = typeof window !== "undefined" && !!window.electronAPI;
@@ -160,11 +162,17 @@ export const dbService = {
       }
     }
 
-    // Save sale
-    const id = await db.sales.add({
-      ...saleData,
-      saleDate: saleData.saleDate || getLocalDateTimeString()
-    });
+    // Save sale locally
+    const finalSaleData = { ...saleData, saleDate: saleData.saleDate || getLocalDateTimeString() };
+    const id = await db.sales.add(finalSaleData);
+
+    // Mirror to Firestore for cross-device sync (fire-and-forget)
+    try {
+      const firestoreDb = getFirebaseDb();
+      if (firestoreDb) {
+        await addDoc(collection(firestoreDb, 'sales'), { ...finalSaleData, localId: id });
+      }
+    } catch (_) {}
 
     return { success: true, id };
   },
@@ -194,17 +202,38 @@ export const dbService = {
 
   getSales: async (dateRange) => {
     if (isElectron) return await window.electronAPI.getSales(dateRange);
-    let query = db.sales;
+
+    // On a new device, seed local DB from Firestore if empty
+    const localCount = await db.sales.count();
+    if (localCount === 0) {
+      try {
+        const firestoreDb = getFirebaseDb();
+        if (firestoreDb) {
+          const snap = await getDocs(collection(firestoreDb, 'sales'));
+          if (!snap.empty) {
+            for (const d of snap.docs) {
+              const data = d.data();
+              const { localId, ...saleFields } = data;
+              const exists = saleFields.saleNumber
+                ? await db.sales.where('saleNumber').equals(saleFields.saleNumber).first()
+                : null;
+              if (!exists) await db.sales.add(saleFields);
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    let q = db.sales;
     if (dateRange && (dateRange.startDate || dateRange.start) && (dateRange.endDate || dateRange.end)) {
-      // Basic date filtering based on ISO date prefix
       const start = dateRange.startDate || dateRange.start;
       const end = dateRange.endDate || dateRange.end;
-      return await query.filter(s => {
+      return await q.filter(s => {
         const sDate = s.saleDate.substring(0, 10);
         return sDate >= start.substring(0, 10) && sDate <= end.substring(0, 10);
       }).toArray();
     }
-    return await query.toArray();
+    return await q.toArray();
   },
 
   getSalesWithDetails: async (dateRange) => {

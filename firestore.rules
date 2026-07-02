@@ -17,5 +17,10 @@ service cloud.firestore {
     match /settings/{docId} {
       allow read, write: if true;
     }
+
+    // Sales history: POS devices sync sales for cross-device history
+    match /sales/{saleId} {
+      allow read, write: if true;
+    }
   }
 }
