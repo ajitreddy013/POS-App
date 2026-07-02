@@ -41,6 +41,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -108,7 +109,21 @@ const app = express();
 const port = process.env.PORT || 8080;
 const relayVersion = '2026-07-01-wa-order-watcher-v1';
 
-app.use(cors());
+const ALLOWED_ORIGINS = [
+  'https://counterflow-kiosk.web.app',
+  'https://counterflow-kiosk.firebaseapp.com',
+  'capacitor://localhost',  // Android APK (Capacitor)
+  'http://localhost',       // Android APK fallback
+  'http://localhost:3000',  // Local dev
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile APK, Postman, server-to-server)
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+}));
 app.use(express.json());
 
 // Global State
@@ -460,14 +475,26 @@ app.get('/status', (req, res) => {
   });
 });
 
-// View Deployed Logs
+// View Deployed Logs — protected by ADMIN_TOKEN env var
 app.get('/logs', (req, res) => {
+  const adminToken = process.env.ADMIN_TOKEN;
+  if (adminToken && req.query.token !== adminToken) {
+    return res.status(401).send('Unauthorized');
+  }
   res.setHeader('Content-Type', 'text/plain');
   res.send(logEntries.join('\n'));
 });
 
+const sendRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30,             // max 30 messages per minute per IP
+  message: { success: false, error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Send WhatsApp Receipt
-app.post('/send', async (req, res) => {
+app.post('/send', sendRateLimit, async (req, res) => {
   const { to, message } = req.body;
 
   if (connectionStatus !== 'CONNECTED') {
@@ -481,6 +508,13 @@ app.post('/send', async (req, res) => {
     return res.status(400).json({
       success: false,
       error: "Missing fields: 'to' and 'message' are required.",
+    });
+  }
+
+  if (typeof message !== 'string' || message.length > 4000) {
+    return res.status(400).json({
+      success: false,
+      error: 'Message must be a string under 4000 characters.',
     });
   }
 
@@ -972,8 +1006,25 @@ app.post('/payment/cashfree/upi-qr', async (req, res) => {
 
 // Cashfree PG Webhook Endpoint
 app.post('/payment/cashfree/webhook', async (req, res) => {
-  const payload = req.body;
+  // Verify Cashfree webhook signature to reject forged requests
+  const webhookSignature = req.headers['x-webhook-signature'];
+  const webhookTimestamp = req.headers['x-webhook-timestamp'];
+  const cfClientSecret = process.env.CASHFREE_CLIENT_SECRET;
+  if (cfClientSecret && webhookSignature && webhookTimestamp) {
+    const crypto = require('crypto');
+    const rawBody = JSON.stringify(req.body);
+    const signedPayload = `${webhookTimestamp}${rawBody}`;
+    const expectedSig = crypto
+      .createHmac('sha256', cfClientSecret)
+      .update(signedPayload)
+      .digest('base64');
+    if (expectedSig !== webhookSignature) {
+      console.warn('Cashfree webhook signature mismatch — rejected');
+      return res.status(401).json({ status: 'invalid signature' });
+    }
+  }
 
+  const payload = req.body;
   console.log('Cashfree Webhook received event:', payload.type);
 
   if (payload.type === 'PAYMENT_SUCCESS_WEBHOOK') {

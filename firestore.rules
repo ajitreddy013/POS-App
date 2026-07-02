@@ -1,26 +1,32 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Products Menu: Anyone can read; write allowed for syncing
+
+    // Products: Customer website needs to read the menu; POS writes product changes
     match /products/{productId} {
-      allow read: if true;
+      allow read:  if true;
       allow write: if true;
     }
-    
-    // Orders Pipeline: Customers can create/read; admin/servers can update status
+
+    // Orders: Customers create orders; POS reads/updates status; nobody deletes
     match /orders/{orderId} {
-      allow create, read, update: if true;
-      allow delete: if false; // Orders should never be deleted, only cancelled
+      allow create: if true;
+      allow read:   if true;
+      allow update: if true;
+      allow delete: if false;
     }
 
-    // Settings: Public read for customer website; write allowed for POS app syncing
+    // Settings: Customer website reads for offers/delivery; POS writes
     match /settings/{docId} {
-      allow read, write: if true;
+      allow read:  if true;
+      allow write: if true;
     }
 
-    // Sales history: POS devices sync sales for cross-device history
+    // Sales history: POS syncs here for cross-device reports
+    // No public read — your revenue data should not be exposed to the internet
     match /sales/{saleId} {
-      allow read, write: if true;
+      allow write: if true;
+      allow read:  if false;
     }
   }
 }

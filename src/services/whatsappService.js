@@ -42,6 +42,34 @@ export const whatsappService = {
     }
   },
 
+  // Check if a phone number is registered on WhatsApp via the relay
+  checkNumber: async (relayUrl, phone) => {
+    if (!relayUrl) return { success: false, error: 'Relay URL not configured' };
+    try {
+      const cleanUrl = relayUrl.replace(/\/$/, '');
+      const digits = phone.replace(/\D/g, '');
+      const number = digits.length === 10 ? `91${digits}` : digits;
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const response = await fetch(`${cleanUrl}/check?number=${number}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+      const result = await response.json();
+      // Relay may return { exists }, { registered }, or { isWhatsApp }
+      const isRegistered =
+        result.exists ?? result.registered ?? result.isWhatsApp ?? null;
+      return { success: true, registered: isRegistered };
+    } catch (err) {
+      if (err.name === 'AbortError') return { success: false, error: 'timeout' };
+      return { success: false, error: err.message };
+    }
+  },
+
   // Format bill details into a compact text receipt and send it
   sendBill: async (relayUrl, settings, billData) => {
     if (!relayUrl)

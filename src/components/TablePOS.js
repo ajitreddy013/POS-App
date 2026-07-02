@@ -48,6 +48,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const noticeTimeoutRef = useRef(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [whatsappCheck, setWhatsappCheck] = useState(null); // null | 'checking' | 'valid' | 'invalid' | 'unavailable'
   const [paymentQrUrl, setPaymentQrUrl] = useState('');
   const [activeQrId, setActiveQrId] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('creating');
@@ -60,6 +61,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         setCart(tableOrder.items || []);
         setCustomerName(tableOrder.customer_name || '');
         setCustomerPhone(tableOrder.customer_phone || '');
+        setWhatsappCheck(null);
         setDiscount(tableOrder.discount || 0);
         setTax(tableOrder.tax || 0);
       }
@@ -133,6 +135,28 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       noticeTimeoutRef.current = window.setTimeout(() => {
         setNotice(null);
       }, duration);
+    }
+  };
+
+  const handlePhoneBlur = async () => {
+    const digits = customerPhone.trim();
+    if (digits.length !== 10) return;
+    const relayUrl =
+      barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+    if (!relayUrl) return;
+    setWhatsappCheck('checking');
+    const result = await whatsappService.checkNumber(relayUrl, digits);
+    if (!result.success) {
+      setWhatsappCheck('unavailable');
+      return;
+    }
+    if (result.registered === false) {
+      setWhatsappCheck('invalid');
+      showNotice('error', 'This number is not registered on WhatsApp. Receipt will not be delivered.');
+    } else if (result.registered === true) {
+      setWhatsappCheck('valid');
+    } else {
+      setWhatsappCheck('unavailable');
     }
   };
 
@@ -849,21 +873,34 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                 className="form-input"
                 style={{ padding: '8px 12px', fontSize: '13px' }}
               />
-              <input
-                type="tel"
-                placeholder="Phone Number"
-                value={customerPhone}
-                ref={phoneInputRef}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, '');
-                  if (value.length <= 10) {
-                    setCustomerPhone(value);
-                  }
-                }}
-                className="form-input"
-                style={{ padding: '8px 12px', fontSize: '13px' }}
-                maxLength="10"
-              />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  type="tel"
+                  placeholder="Phone Number"
+                  value={customerPhone}
+                  ref={phoneInputRef}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '');
+                    if (value.length <= 10) {
+                      setCustomerPhone(value);
+                      setWhatsappCheck(null);
+                    }
+                  }}
+                  onBlur={handlePhoneBlur}
+                  className="form-input"
+                  style={{ padding: '8px 12px', fontSize: '13px', paddingRight: whatsappCheck ? '28px' : undefined }}
+                  maxLength="10"
+                />
+                {whatsappCheck === 'checking' && (
+                  <span style={{ position: 'absolute', right: '8px', fontSize: '12px', color: '#6c757d' }}>…</span>
+                )}
+                {whatsappCheck === 'valid' && (
+                  <span style={{ position: 'absolute', right: '8px', fontSize: '14px', color: '#16a34a' }} title="Registered on WhatsApp">✓</span>
+                )}
+                {whatsappCheck === 'invalid' && (
+                  <span style={{ position: 'absolute', right: '8px', fontSize: '14px', color: '#dc2626' }} title="Not on WhatsApp">✕</span>
+                )}
+              </div>
             </div>
 
             <div className="cart-section">

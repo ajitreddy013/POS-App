@@ -91,6 +91,9 @@ const Settings = () => {
     }
   };
 
+  const escapeHtml = (str) =>
+    String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
   const handlePrintQr = () => {
     const hostedUrl = barSettings.hosted_app_url || 'https://counterflow-kiosk.web.app/';
     const targetUrl = hostedUrl;
@@ -166,7 +169,7 @@ const Settings = () => {
             </head>
             <body>
               <div class="card">
-                <div class="logo">${barSettings.bar_name || 'MALABAR WAFFLE'}</div>
+                <div class="logo">${escapeHtml(barSettings.bar_name || 'MALABAR WAFFLE')}</div>
                 <div class="tagline">Self-Ordering QR Menu</div>
                 <img class="qr-img" src="${qrDataUrl}" alt="QR Code" />
                 <div class="tag-main">SCAN & ORDER</div>

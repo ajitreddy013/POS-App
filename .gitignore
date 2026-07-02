@@ -98,3 +98,8 @@ secrets.json
 # Compiled APKs
 app-debug.apk
 *.apk
+
+# Android signing — never commit these
+*.jks
+*.keystore
+android/keystore.properties
