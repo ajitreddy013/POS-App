@@ -109,7 +109,9 @@ const CustomerMenu = () => {
   // Checkout Form State
   const [name, setName] = useState('Customer');
   const [phone, setPhone] = useState('');
+  const [confirmPhone, setConfirmPhone] = useState('');
   const [phoneWarning, setPhoneWarning] = useState('');
+  const [whatsappCheck, setWhatsappCheck] = useState(null); // null | 'checking' | 'valid' | 'invalid'
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [submitting, setSubmitting] = useState(false);
   const phoneInputRef = useRef(null);
@@ -404,8 +406,33 @@ const CustomerMenu = () => {
   );
 
   useEffect(() => {
-    if (totalQuantity === 0 && activeTab === 'cart') setActiveTab('menu');
+    if (totalQuantity === 0 && activeTab === 'cart') {
+      setActiveTab('menu');
+      // Replace the cart history entry so back button doesn't re-enter cart
+      window.history.replaceState({ appTab: 'menu' }, '');
+    }
   }, [totalQuantity, activeTab]);
+
+  // Push a history entry when entering cart so browser back returns to menu
+  const pendingSearchAfterBack = useRef(false);
+
+  const goToCart = () => {
+    window.history.pushState({ appTab: 'cart' }, '');
+    setActiveTab('cart');
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveTab('menu');
+      if (pendingSearchAfterBack.current) {
+        pendingSearchAfterBack.current = false;
+        setShowSearch(true);
+        setTimeout(() => searchInputRef.current?.focus({ preventScroll: true }), 80);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Category scroll
   const scrollToCategory = (catName) => {
@@ -422,6 +449,25 @@ const CustomerMenu = () => {
     setPaymentMethod(method);
   };
 
+  const handlePhoneBlur = async () => {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length !== 10) return;
+    const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+    if (!relayUrl) return;
+    setWhatsappCheck('checking');
+    try {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(`${relayUrl.replace(/\/$/, '')}/check?number=91${digits}`, { signal: controller.signal });
+      if (!res.ok) throw new Error('not ok');
+      const data = await res.json();
+      const registered = data.exists ?? data.registered ?? data.isWhatsApp ?? null;
+      setWhatsappCheck(registered === false ? 'invalid' : registered === true ? 'valid' : null);
+    } catch {
+      setWhatsappCheck(null);
+    }
+  };
+
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     if (cartItemsList.length === 0) return;
@@ -432,6 +478,11 @@ const CustomerMenu = () => {
       setPhoneWarning('Please enter a valid 10-digit WhatsApp number!');
       setTimeout(() => setPhoneWarning(''), 3000);
       if (phoneInputRef.current) phoneInputRef.current.focus();
+      return;
+    }
+    if (cleanPhone !== confirmPhone.replace(/\D/g, '')) {
+      setPhoneWarning('Mobile numbers do not match. Please re-enter.');
+      setTimeout(() => setPhoneWarning(''), 4000);
       return;
     }
     setPhoneWarning('');
@@ -640,6 +691,7 @@ const CustomerMenu = () => {
         setCart({});
         setOrderSuccess(orderNumber);
         setActiveTab('menu');
+        window.history.replaceState({ appTab: 'menu' }, '');
       }
     } catch (err) {
       console.error('Order submission failed:', err);
@@ -1361,7 +1413,7 @@ const CustomerMenu = () => {
             {/* Cart Pill */}
             {totalQuantity > 0 && (
               <div
-                onClick={() => setActiveTab('cart')}
+                onClick={goToCart}
                 style={{
                   flex: 1,
                   background:
@@ -1495,7 +1547,7 @@ const CustomerMenu = () => {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <button
-                onClick={() => setActiveTab('menu')}
+                onClick={() => window.history.back()}
                 style={{
                   border: 'none',
                   background: 'transparent',
@@ -1525,12 +1577,8 @@ const CustomerMenu = () => {
             <button
               type="button"
               onClick={() => {
-                setActiveTab('menu');
-                setShowSearch(true);
-                setTimeout(() => {
-                  if (searchInputRef.current)
-                    searchInputRef.current.focus({ preventScroll: true });
-                }, 80);
+                pendingSearchAfterBack.current = true;
+                window.history.back();
               }}
               style={{
                 background: 'transparent',
@@ -1657,6 +1705,24 @@ const CustomerMenu = () => {
                   boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
                 }}
               >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: '#fff8e1',
+                    border: '1.5px solid #ffe082',
+                    borderRadius: '8px',
+                    padding: '8px 10px',
+                    marginBottom: '10px',
+                    fontSize: '0.8rem',
+                    color: '#7a5c00',
+                    fontWeight: '600',
+                  }}
+                >
+                  <span style={{ fontSize: '1rem' }}>📍</span>
+                  Delivery only accepted within 2 km of area.
+                </div>
                 <h3
                   style={{
                     margin: '0 0 10px 0',
@@ -1782,25 +1848,66 @@ const CustomerMenu = () => {
                 WhatsApp Mobile Number
               </h3>
               <div style={{ marginTop: '10px' }}>
-                <input
-                  ref={phoneInputRef}
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  required
-                  placeholder="e.g. 9876543210"
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: '8px',
-                    border: '1.5px solid #e6ded3',
-                    outline: 'none',
-                    fontSize: '0.88rem',
-                    fontFamily: '"Outfit", sans-serif',
-                    color: '#221f1a',
-                    boxSizing: 'border-box',
-                  }}
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    ref={phoneInputRef}
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
+                      setWhatsappCheck(null);
+                    }}
+                    onBlur={handlePhoneBlur}
+                    required
+                    placeholder="e.g. 9876543210"
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      paddingRight: '34px',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${whatsappCheck === 'invalid' ? '#dc2626' : whatsappCheck === 'valid' ? '#16a34a' : '#e6ded3'}`,
+                      outline: 'none',
+                      fontSize: '0.88rem',
+                      fontFamily: '"Outfit", sans-serif',
+                      color: '#221f1a',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  {whatsappCheck === 'checking' && (
+                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#6c757d', fontSize: '12px' }}>…</span>
+                  )}
+                  {whatsappCheck === 'valid' && (
+                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '15px' }} title="Registered on WhatsApp">✓</span>
+                  )}
+                  {whatsappCheck === 'invalid' && (
+                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#dc2626', fontSize: '15px' }} title="Not registered on WhatsApp">✕</span>
+                  )}
+                </div>
+
+                <div style={{ marginTop: '10px' }}>
+                  <input
+                    type="tel"
+                    value={confirmPhone}
+                    onChange={(e) => setConfirmPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    required
+                    placeholder="Confirm mobile number"
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${confirmPhone && confirmPhone !== phone ? '#dc2626' : '#e6ded3'}`,
+                      outline: 'none',
+                      fontSize: '0.88rem',
+                      fontFamily: '"Outfit", sans-serif',
+                      color: '#221f1a',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  {confirmPhone && confirmPhone !== phone && (
+                    <p style={{ color: '#b6412c', fontSize: '0.78rem', margin: '4px 0 0', fontWeight: '600' }}>Numbers do not match</p>
+                  )}
+                </div>
+
                 {phoneWarning && (
                   <div
                     style={{
