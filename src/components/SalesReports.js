@@ -477,353 +477,299 @@ const SalesReports = () => {
     }));
   };
 
+  const activePreset = getActivePreset();
+
   return (
     <div className="rpt-root">
       <style>{`
         .rpt-root {
           min-height: 100vh;
-          padding: 1.5rem 1.5rem 3rem;
-          background: linear-gradient(180deg, #fdfbf9 0%, #fff7f2 40%, #f8fafc 100%);
-          font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
-          color: #1e293b;
-        }
-        .rpt-shell { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.1rem; }
-
-        .rpt-toolbar {
-          background: #ffffff;
-          border: 1px solid #ece4d8;
-          border-radius: 18px;
-          box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
-          padding: 1.1rem 1.25rem;
-          display: flex;
-          flex-wrap: wrap;
-          align-items: flex-end;
-          gap: 1rem;
-        }
-        .rpt-date-fields { display: flex; gap: 0.75rem; flex: 1 1 280px; }
-        .rpt-date-field { display: flex; flex-direction: column; gap: 0.35rem; flex: 1; min-width: 130px; }
-        .rpt-date-label { font-size: 0.7rem; font-weight: 700; color: #94837a; text-transform: uppercase; letter-spacing: 0.07em; }
-        .rpt-date-input {
-          border: 1px solid #e6ded3;
-          border-radius: 12px;
-          padding: 0.6rem 0.7rem;
-          font-size: 0.88rem;
+          background: #f6f3ee;
+          font-family: 'Outfit', -apple-system, sans-serif;
           color: #221f1a;
-          background: #fdfbf7;
-          font-family: inherit;
+          padding-bottom: 80px;
         }
-        .rpt-date-input:focus { outline: none; border-color: #b6412c; background: #fff; }
 
-        .rpt-presets { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-        .rpt-preset-btn {
-          padding: 0.6rem 0.95rem;
-          border-radius: 12px;
-          border: 1px solid #e6ded3;
-          background: #fdfbf7;
-          color: #57504a;
-          font-size: 0.82rem;
-          font-weight: 700;
-          cursor: pointer;
-          transition: all 0.15s ease;
-          white-space: nowrap;
-        }
-        .rpt-preset-btn:hover { border-color: #d8c3b5; }
-        .rpt-preset-btn.active { background: #b6412c; border-color: #b6412c; color: #fff; }
-
-        .rpt-download-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.65rem 1.1rem;
-          border-radius: 12px;
-          border: none;
-          background: linear-gradient(135deg, #b6412c 0%, #d85a42 100%);
-          color: #fff;
-          font-size: 0.85rem;
-          font-weight: 700;
-          cursor: pointer;
-          box-shadow: 0 8px 18px rgba(182, 65, 44, 0.25);
-          white-space: nowrap;
-        }
-        .rpt-download-btn:hover { filter: brightness(1.05); }
-
-        .rpt-summary-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 1rem;
-        }
-        .rpt-summary-card {
+        /* ── Page header ── */
+        .rpt-header {
           background: #ffffff;
-          border: 1px solid #ece4d8;
-          border-radius: 18px;
-          padding: 1.2rem 1.3rem;
-          box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+          border-bottom: 1px solid #e6ded3;
+          padding: 16px 16px 12px;
+          position: sticky;
+          top: 0;
+          z-index: 10;
         }
-        .rpt-summary-top { display: flex; align-items: center; justify-content: space-between; }
-        .rpt-summary-top span {
-          font-size: 0.74rem; font-weight: 800; color: #94837a;
-          text-transform: uppercase; letter-spacing: 0.08em;
-        }
-        .rpt-summary-icon {
-          width: 34px; height: 34px; border-radius: 10px;
-          display: flex; align-items: center; justify-content: center;
-        }
-        .rpt-summary-icon.sales { background: rgba(27, 117, 67, 0.1); color: #1b7543; }
-        .rpt-summary-icon.spend { background: rgba(185, 28, 28, 0.1); color: #b91c1c; }
-        .rpt-summary-icon.net { background: rgba(182, 65, 44, 0.1); color: #b6412c; }
-        .rpt-summary-value { margin-top: 0.7rem; font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em; color: #0f172a; }
-        .rpt-summary-value.positive { color: #1b7543; }
-        .rpt-summary-value.negative { color: #b91c1c; }
-        .rpt-summary-sub { margin-top: 0.3rem; font-size: 0.78rem; color: #94837a; font-weight: 600; }
-
-        .rpt-panel {
-          background: #ffffff;
-          border: 1px solid #ece4d8;
-          border-radius: 18px;
-          box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
-          overflow: hidden;
-        }
-        .rpt-panel-header {
-          width: 100%;
+        .rpt-header-row {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 1.05rem 1.3rem;
-          background: linear-gradient(180deg, #fffaf6 0%, #ffffff 100%);
-          border-bottom: 1px solid #f1ebe1;
-          border: none;
-          cursor: pointer;
-          text-align: left;
+          gap: 10px;
+        }
+        .rpt-title { font-size: 1.15rem; font-weight: 800; color: #221f1a; margin: 0; }
+        .rpt-download-btn {
+          display: inline-flex; align-items: center; gap: 6px;
+          padding: 8px 14px; border-radius: 999px; border: none;
+          background: #b6412c; color: #fff;
+          font-size: 0.8rem; font-weight: 700; cursor: pointer;
           font-family: inherit;
         }
-        .rpt-panel-header h3 { margin: 0; font-size: 1.02rem; font-weight: 800; color: #221f1a; }
-        .rpt-panel-header span.rpt-panel-count { font-size: 0.78rem; color: #94837a; font-weight: 600; }
-        .rpt-panel-header svg.chev { color: #94837a; transition: transform 0.2s ease; }
-        .rpt-panel-header svg.chev.open { transform: rotate(180deg); }
 
-        .rpt-table-wrap { overflow-x: auto; }
-        .rpt-table { width: 100%; border-collapse: collapse; min-width: 640px; }
-        .rpt-table thead th {
-          text-align: left;
-          padding: 0.8rem 1.1rem;
-          font-size: 0.72rem;
-          font-weight: 800;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-          color: #94837a;
-          background: #fdfbf7;
-          border-bottom: 1px solid #f1ebe1;
-          white-space: nowrap;
+        /* ── Quick filter pills ── */
+        .rpt-pills {
+          display: flex; gap: 6px; overflow-x: auto; padding: 12px 16px 0;
+          scrollbar-width: none;
         }
-        .rpt-table tbody td {
-          padding: 0.85rem 1.1rem;
-          font-size: 0.86rem;
-          color: #3a342e;
-          border-bottom: 1px solid #f5f0e9;
-          vertical-align: middle;
+        .rpt-pills::-webkit-scrollbar { display: none; }
+        .rpt-pill {
+          padding: 7px 14px; border-radius: 999px; border: 1.5px solid #e6ded3;
+          background: #fff; color: #57504a;
+          font-size: 0.8rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+          font-family: inherit; flex-shrink: 0;
         }
-        .rpt-table tbody tr:hover { background: #fffaf6; }
-        .rpt-table tbody tr:last-child td { border-bottom: none; }
-        .rpt-empty-state { text-align: center; padding: 3rem 1rem; color: #94837a; font-size: 0.9rem; }
+        .rpt-pill.active { background: #b6412c; border-color: #b6412c; color: #fff; }
 
-        .rpt-pay-chip {
-          text-transform: uppercase;
-          font-weight: 700;
-          letter-spacing: 0.04em;
-          padding: 0.3rem 0.7rem;
-          border-radius: 999px;
-          font-size: 0.7rem;
-          display: inline-block;
+        /* ── Custom date row ── */
+        .rpt-dates {
+          display: flex; gap: 10px; padding: 10px 16px 14px;
+          background: #fff; border-bottom: 1px solid #e6ded3;
         }
-        .rpt-pay-chip.upi { background: rgba(102, 126, 234, 0.12); color: #5a64c4; }
-        .rpt-pay-chip.cash { background: rgba(39, 174, 96, 0.12); color: #1f9c54; }
+        .rpt-date-field { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+        .rpt-date-label { font-size: 0.68rem; font-weight: 700; color: #94837a; text-transform: uppercase; letter-spacing: 0.06em; }
+        .rpt-date-input {
+          border: 1.5px solid #e6ded3; border-radius: 10px;
+          padding: 8px 10px; font-size: 0.84rem; color: #221f1a;
+          background: #fdfbf7; font-family: inherit; width: 100%; box-sizing: border-box;
+        }
+        .rpt-date-input:focus { outline: none; border-color: #b6412c; }
 
+        /* ── Body ── */
+        .rpt-body { padding: 14px 14px 0; display: flex; flex-direction: column; gap: 12px; }
+
+        /* ── Summary cards ── */
+        .rpt-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .rpt-summary-card {
+          background: #fff; border: 1px solid #e6ded3; border-radius: 16px;
+          padding: 14px 14px 12px;
+        }
+        .rpt-summary-label { font-size: 0.7rem; font-weight: 700; color: #94837a; text-transform: uppercase; letter-spacing: 0.06em; }
+        .rpt-summary-value { font-size: 1.45rem; font-weight: 800; margin: 6px 0 2px; letter-spacing: -0.02em; }
+        .rpt-summary-value.green { color: #1b7543; }
+        .rpt-summary-value.red { color: #b91c1c; }
+        .rpt-summary-value.brand { color: #b6412c; }
+        .rpt-summary-value.dark { color: #221f1a; }
+        .rpt-summary-sub { font-size: 0.74rem; color: #94837a; font-weight: 600; }
+        .rpt-net-card {
+          grid-column: 1 / -1;
+          background: linear-gradient(135deg, #b6412c 0%, #d0553c 100%);
+          border: none; color: #fff;
+        }
+        .rpt-net-card .rpt-summary-label { color: rgba(255,255,255,0.75); }
+        .rpt-net-card .rpt-summary-value { color: #fff; }
+        .rpt-net-card .rpt-summary-sub { color: rgba(255,255,255,0.7); }
+
+        /* ── Section panel ── */
+        .rpt-panel {
+          background: #fff; border: 1px solid #e6ded3; border-radius: 16px; overflow: hidden;
+        }
+        .rpt-panel-hdr {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 14px 16px; cursor: pointer; border: none; background: none;
+          width: 100%; text-align: left; font-family: inherit;
+        }
+        .rpt-panel-hdr-left { display: flex; flex-direction: column; gap: 1px; }
+        .rpt-panel-title { font-size: 0.95rem; font-weight: 800; color: #221f1a; }
+        .rpt-panel-count { font-size: 0.74rem; color: #94837a; font-weight: 600; }
+        .rpt-chev { color: #94837a; transition: transform 0.2s; }
+        .rpt-chev.open { transform: rotate(180deg); }
+
+        /* ── Sale cards ── */
+        .rpt-sale-list { display: flex; flex-direction: column; }
+        .rpt-sale-card {
+          padding: 12px 16px;
+          border-top: 1px solid #f1ebe1;
+          display: flex; align-items: center; gap: 12px;
+        }
+        .rpt-sale-card:first-child { border-top: none; }
+        .rpt-sale-icon {
+          width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 1rem;
+        }
+        .rpt-sale-icon.upi { background: rgba(102,126,234,0.1); }
+        .rpt-sale-icon.cash { background: rgba(27,117,67,0.1); }
+        .rpt-sale-main { flex: 1; min-width: 0; }
+        .rpt-sale-name { font-size: 0.88rem; font-weight: 700; color: #221f1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .rpt-sale-meta { font-size: 0.74rem; color: #94837a; margin-top: 2px; }
+        .rpt-sale-right { text-align: right; flex-shrink: 0; }
+        .rpt-sale-amount { font-size: 0.95rem; font-weight: 800; color: #221f1a; }
+        .rpt-sale-items { font-size: 0.72rem; color: #94837a; margin-top: 2px; }
         .rpt-bill-btn {
-          display: inline-flex; align-items: center; justify-content: center;
-          width: 34px; height: 34px; border-radius: 10px;
-          border: 1px solid #e6ded3; background: #fdfbf7; color: #57504a; cursor: pointer;
+          display: flex; align-items: center; justify-content: center;
+          width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+          border: 1.5px solid #e6ded3; background: #fdfbf7; color: #57504a; cursor: pointer;
         }
-        .rpt-bill-btn:hover { background: #f1ebe1; }
 
+        /* ── Pay chip ── */
+        .rpt-pay-chip {
+          font-size: 0.65rem; font-weight: 700; letter-spacing: 0.04em;
+          padding: 2px 8px; border-radius: 999px; text-transform: uppercase; display: inline-block;
+        }
+        .rpt-pay-chip.upi { background: rgba(102,126,234,0.12); color: #5a64c4; }
+        .rpt-pay-chip.cash { background: rgba(27,117,67,0.12); color: #1f9c54; }
+
+        /* ── Spendings cards ── */
+        .rpt-spend-card {
+          padding: 12px 16px; border-top: 1px solid #f1ebe1;
+          display: flex; align-items: center; gap: 12px;
+        }
+        .rpt-spend-card:first-child { border-top: none; }
+        .rpt-spend-icon {
+          width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 1rem; background: rgba(185,28,28,0.08);
+        }
+        .rpt-spend-main { flex: 1; min-width: 0; }
+        .rpt-spend-desc { font-size: 0.88rem; font-weight: 700; color: #221f1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .rpt-spend-meta { font-size: 0.74rem; color: #94837a; margin-top: 2px; }
+        .rpt-spend-amount { font-size: 0.95rem; font-weight: 800; color: #b91c1c; flex-shrink: 0; }
         .rpt-category-tag {
-          background: rgba(182, 65, 44, 0.1); color: #b6412c;
-          font-size: 0.74rem; font-weight: 700; padding: 0.28rem 0.65rem; border-radius: 999px;
+          background: rgba(182,65,44,0.1); color: #b6412c;
+          font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; display: inline-block;
         }
 
-        @media (max-width: 760px) {
-          .rpt-summary-grid { grid-template-columns: 1fr; }
-          .rpt-toolbar { flex-direction: column; align-items: stretch; }
-          .rpt-presets { justify-content: stretch; }
-          .rpt-presets .rpt-preset-btn { flex: 1; text-align: center; }
-        }
+        /* ── Empty state ── */
+        .rpt-empty { text-align: center; padding: 32px 16px; color: #94837a; font-size: 0.88rem; }
+        .rpt-empty-icon { font-size: 2rem; margin-bottom: 8px; }
       `}</style>
 
-      <div className="rpt-shell">
-        {/* Toolbar: date range, presets, download */}
-        <div className="rpt-toolbar">
-          <div className="rpt-date-fields">
-            <div className="rpt-date-field">
-              <span className="rpt-date-label">Start Date</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="rpt-date-input"
-              />
-            </div>
-            <div className="rpt-date-field">
-              <span className="rpt-date-label">End Date</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="rpt-date-input"
-              />
-            </div>
-          </div>
-
-          <div className="rpt-presets">
-            <button type="button" className={`rpt-preset-btn ${getActivePreset() === "yesterday" ? "active" : ""}`} onClick={() => handlePresetSelect("yesterday")}>Yesterday</button>
-            <button type="button" className={`rpt-preset-btn ${getActivePreset() === "today" ? "active" : ""}`} onClick={() => handlePresetSelect("today")}>Today</button>
-            <button type="button" className={`rpt-preset-btn ${getActivePreset() === "thisMonth" ? "active" : ""}`} onClick={() => handlePresetSelect("thisMonth")}>This Month</button>
-            <button type="button" className={`rpt-preset-btn ${getActivePreset() === "lastMonth" ? "active" : ""}`} onClick={() => handlePresetSelect("lastMonth")}>Last Month</button>
-          </div>
-
-          <button onClick={exportSalesReportPDF} className="rpt-download-btn" title="Download Report PDF">
-            <Download size={16} />
-            Download PDF
+      {/* Sticky header */}
+      <div className="rpt-header">
+        <div className="rpt-header-row">
+          <p className="rpt-title">Sales Reports</p>
+          <button onClick={exportSalesReportPDF} className="rpt-download-btn">
+            <Download size={14} /> PDF
           </button>
         </div>
+        {/* Quick presets */}
+        <div className="rpt-pills">
+          {[
+            { key: 'yesterday', label: 'Yesterday' },
+            { key: 'today', label: 'Today' },
+            { key: 'thisMonth', label: 'This Month' },
+            { key: 'lastMonth', label: 'Last Month' },
+          ].map(p => (
+            <button key={p.key} className={`rpt-pill ${activePreset === p.key ? 'active' : ''}`} onClick={() => handlePresetSelect(p.key)}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-        {/* Financial Summary */}
+      {/* Custom date range */}
+      <div className="rpt-dates">
+        <div className="rpt-date-field">
+          <span className="rpt-date-label">From</span>
+          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="rpt-date-input" />
+        </div>
+        <div className="rpt-date-field">
+          <span className="rpt-date-label">To</span>
+          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="rpt-date-input" />
+        </div>
+      </div>
+
+      <div className="rpt-body">
+        {/* Summary cards */}
         <div className="rpt-summary-grid">
           <div className="rpt-summary-card">
-            <div className="rpt-summary-top">
-              <span>Total Sales</span>
-              <div className="rpt-summary-icon sales"><BarChart3 size={16} /></div>
-            </div>
-            <div className="rpt-summary-value">₹{totalRevenue.toFixed(0)}</div>
-            <div className="rpt-summary-sub">{totalTransactions} transactions</div>
+            <div className="rpt-summary-label">Total Sales</div>
+            <div className="rpt-summary-value green">₹{totalRevenue.toFixed(0)}</div>
+            <div className="rpt-summary-sub">{totalTransactions} orders</div>
           </div>
-
           <div className="rpt-summary-card">
-            <div className="rpt-summary-top">
-              <span>Total Spendings</span>
-              <div className="rpt-summary-icon spend"><DollarSign size={16} /></div>
-            </div>
-            <div className="rpt-summary-value">₹{totalSpendings.toFixed(0)}</div>
+            <div className="rpt-summary-label">Spendings</div>
+            <div className="rpt-summary-value red">₹{totalSpendings.toFixed(0)}</div>
             <div className="rpt-summary-sub">{totalSpendingEntries} entries</div>
           </div>
-
-          <div className="rpt-summary-card">
-            <div className="rpt-summary-top">
-              <span>Net Income</span>
-              <div className="rpt-summary-icon net"><BarChart3 size={16} /></div>
-            </div>
-            <div className={`rpt-summary-value ${netIncome >= 0 ? 'positive' : 'negative'}`}>₹{netIncome.toFixed(0)}</div>
-            <div className="rpt-summary-sub">Revenue − Spendings</div>
+          <div className="rpt-summary-card rpt-net-card">
+            <div className="rpt-summary-label">Net Income</div>
+            <div className="rpt-summary-value">₹{netIncome.toFixed(0)}</div>
+            <div className="rpt-summary-sub">Sales − Spendings</div>
           </div>
         </div>
 
-        {/* Sales Reports Table */}
+        {/* Sales list */}
         <div className="rpt-panel">
-          <button type="button" className="rpt-panel-header" onClick={() => toggleSection("sales")}>
-            <div>
-              <h3>Sales Details</h3>
+          <button className="rpt-panel-hdr" onClick={() => toggleSection('sales')}>
+            <div className="rpt-panel-hdr-left">
+              <span className="rpt-panel-title">Sales</span>
               <span className="rpt-panel-count">{totalTransactions} transactions</span>
             </div>
-            <ChevronDown className={`chev ${openSections.sales ? "open" : ""}`} size={20} />
+            <ChevronDown className={`rpt-chev ${openSections.sales ? 'open' : ''}`} size={18} />
           </button>
+
           {openSections.sales && (
-            <div className="rpt-table-wrap">
-              <table className="rpt-table">
-                <thead>
-                  <tr>
-                    <th>Sale Number</th>
-                    <th>Customer</th>
-                    <th>Items</th>
-                    <th>Amount</th>
-                    <th>Payment</th>
-                    <th>Date</th>
-                    <th>Bill</th>
-                  </tr>
-                </thead>
-                {loading ? (
-                  <tbody>
-                    <tr><td colSpan="7"><div className="rpt-empty-state">Loading…</div></td></tr>
-                  </tbody>
-                ) : sales.length === 0 ? (
-                  <tbody>
-                    <tr><td colSpan="7"><div className="rpt-empty-state">No sales found for the selected date</div></td></tr>
-                  </tbody>
-                ) : (
-                  <tbody>
-                    {sales.map((sale) => (
-                      <tr key={sale.id}>
-                        <td>{sale.sale_number}</td>
-                        <td>{sale.customer_name || "Walk-in Customer"}</td>
-                        <td>{sale.item_count}</td>
-                        <td>₹{(sale.total_sale_price || sale.total_amount).toFixed(2)}</td>
-                        <td>
-                          <span className={`rpt-pay-chip ${(sale.payment_method || sale.paymentMethod) === "upi" ? "upi" : "cash"}`}>
-                            {sale.payment_method || sale.paymentMethod || "cash"}
-                          </span>
-                        </td>
-                        <td>{formatDate(sale.sale_date)}</td>
-                        <td>
-                          <button onClick={() => handleViewBill(sale)} className="rpt-bill-btn" aria-label="View Bill">
-                            <Eye size={15} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                )}
-              </table>
+            <div className="rpt-sale-list">
+              {loading ? (
+                <div className="rpt-empty">Loading…</div>
+              ) : sales.length === 0 ? (
+                <div className="rpt-empty">
+                  <div className="rpt-empty-icon">🧾</div>
+                  No sales for this period
+                </div>
+              ) : sales.map(sale => {
+                const method = (sale.payment_method || sale.paymentMethod || 'cash').toLowerCase();
+                const isUpi = method === 'upi';
+                return (
+                  <div key={sale.id} className="rpt-sale-card">
+                    <div className={`rpt-sale-icon ${isUpi ? 'upi' : 'cash'}`}>
+                      {isUpi ? '💳' : '💵'}
+                    </div>
+                    <div className="rpt-sale-main">
+                      <div className="rpt-sale-name">{sale.customer_name || 'Walk-in Customer'}</div>
+                      <div className="rpt-sale-meta">
+                        #{sale.sale_number} · {formatDate(sale.sale_date)}
+                      </div>
+                    </div>
+                    <div className="rpt-sale-right">
+                      <div className="rpt-sale-amount">₹{(sale.total_sale_price || sale.total_amount || 0).toFixed(0)}</div>
+                      <div className="rpt-sale-items">{sale.item_count} items</div>
+                    </div>
+                    <button onClick={() => handleViewBill(sale)} className="rpt-bill-btn" aria-label="View Bill">
+                      <Eye size={14} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Spendings Table */}
+        {/* Spendings list */}
         {spendings.length > 0 && (
           <div className="rpt-panel">
-            <button type="button" className="rpt-panel-header" onClick={() => toggleSection("spendings")}>
-              <div>
-                <h3>Spendings Details</h3>
+            <button className="rpt-panel-hdr" onClick={() => toggleSection('spendings')}>
+              <div className="rpt-panel-hdr-left">
+                <span className="rpt-panel-title">Spendings</span>
                 <span className="rpt-panel-count">{totalSpendingEntries} entries</span>
               </div>
-              <ChevronDown className={`chev ${openSections.spendings ? "open" : ""}`} size={20} />
+              <ChevronDown className={`rpt-chev ${openSections.spendings ? 'open' : ''}`} size={18} />
             </button>
+
             {openSections.spendings && (
-              <div className="rpt-table-wrap">
-                <table className="rpt-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Description</th>
-                      <th>Category</th>
-                      <th>Amount</th>
-                      <th>Payment Method</th>
-                      <th>Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {spendings.map((spending) => (
-                      <tr key={spending.id}>
-                        <td>{formatDate(spending.spending_date)}</td>
-                        <td>{spending.description}</td>
-                        <td><span className="rpt-category-tag">{spending.category}</span></td>
-                        <td>₹{spending.amount.toFixed(2)}</td>
-                        <td>
-                          <span className={`rpt-pay-chip ${spending.payment_method === 'upi' ? 'upi' : 'cash'}`}>
-                            {spending.payment_method.replace("_", " ").toUpperCase()}
-                          </span>
-                        </td>
-                        <td>{spending.notes || "-"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div>
+                {spendings.map(s => (
+                  <div key={s.id} className="rpt-spend-card">
+                    <div className="rpt-spend-icon">💸</div>
+                    <div className="rpt-spend-main">
+                      <div className="rpt-spend-desc">{s.description || '—'}</div>
+                      <div className="rpt-spend-meta">
+                        {formatDate(s.spending_date)}
+                        {s.category ? <> · <span className="rpt-category-tag">{s.category}</span></> : null}
+                      </div>
+                    </div>
+                    <div className="rpt-spend-amount">-₹{Number(s.amount).toFixed(0)}</div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
