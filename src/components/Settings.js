@@ -92,7 +92,7 @@ const Settings = () => {
   };
 
   const handlePrintQr = () => {
-    const hostedUrl = barSettings.hosted_app_url || window.location.origin;
+    const hostedUrl = barSettings.hosted_app_url || 'https://counterflow-kiosk.web.app/';
     const targetUrl = hostedUrl;
     QRCode.toDataURL(targetUrl, { width: 512, margin: 1 })
       .then(qrDataUrl => {
@@ -190,7 +190,7 @@ const Settings = () => {
   };
 
   const handleDownloadQr = () => {
-    const hostedUrl = barSettings.hosted_app_url || window.location.origin;
+    const hostedUrl = barSettings.hosted_app_url || 'https://counterflow-kiosk.web.app/';
     const targetUrl = hostedUrl;
     QRCode.toDataURL(targetUrl, { width: 512, margin: 1 })
       .then(qrDataUrl => {
@@ -234,7 +234,7 @@ const Settings = () => {
   }, [barSettings.whatsapp_relay_url]);
 
   useEffect(() => {
-    const targetUrl = barSettings.hosted_app_url || window.location.origin;
+    const targetUrl = barSettings.hosted_app_url || 'https://counterflow-kiosk.web.app/';
     QRCode.toDataURL(targetUrl, { width: 350, margin: 2 })
       .then(url => setTableQrCodeUrl(url))
       .catch(err => console.error('Error generating customer website QR:', err));
@@ -1006,7 +1006,7 @@ const Settings = () => {
   );
 
   const renderMenuQrTab = () => {
-    const customerUrl = barSettings.hosted_app_url || window.location.origin;
+    const customerUrl = barSettings.hosted_app_url || 'https://counterflow-kiosk.web.app/';
     return (
     <div className="cfg-card">
       <div className="cfg-card-hdr">

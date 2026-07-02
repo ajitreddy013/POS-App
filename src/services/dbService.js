@@ -281,7 +281,7 @@ export const dbService = {
       upi_provider: "cashfree",
       upi_vpa: "",
       admin_password: "123456",
-      hosted_app_url: ""
+      hosted_app_url: "https://counterflow-kiosk.web.app/"
     };
   },
 
