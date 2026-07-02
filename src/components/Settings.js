@@ -1021,24 +1021,6 @@ const Settings = () => {
         </div>
       </div>
       <div className="cfg-card-body">
-        <div className="cfg-field" style={{ maxWidth: '480px', marginBottom: '12px' }}>
-          <label>Customer Website URL</label>
-          <input
-            type="url"
-            className="cfg-input"
-            value={barSettings.hosted_app_url || ''}
-            onChange={(e) => handleBarSettingsChange('hosted_app_url', e.target.value)}
-            placeholder="https://your-store.web.app"
-          />
-          <p className="cfg-hint">Your Firebase Hosting URL. The QR below updates live as you type — save to persist.</p>
-        </div>
-        <button onClick={saveBarSettings} disabled={loading} className="cfg-btn cfg-btn-primary" style={{ marginBottom: '28px' }}>
-          <Save size={14} />
-          {loading ? 'Saving…' : 'Save URL'}
-        </button>
-
-        <hr className="cfg-divider" />
-
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '8px 0' }}>
           <div style={{ background: '#ffffff', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
             {tableQrCodeUrl
