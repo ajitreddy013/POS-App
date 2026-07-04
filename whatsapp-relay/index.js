@@ -55,7 +55,7 @@ const https = require('https');
 
 // Initialize Firebase Admin SDK (v14+ modular API)
 const { initializeApp, cert } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
+const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 const serviceAccountPath = path.join(__dirname, 'service-account.json');
 
 // Use a flag instead of admin.apps.length which is unreliable in firebase-admin v14+
@@ -272,8 +272,15 @@ function formatWhatsAppNumber(phone) {
   return clean;
 }
 
-// Helper to retrieve settings dynamically from Firestore
+// Helper to retrieve settings dynamically from Firestore (cached for 5 minutes)
+let cachedSettings = null;
+let cachedSettingsAt = 0;
+const SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000;
+
 async function getShopSettings() {
+  if (cachedSettings && Date.now() - cachedSettingsAt < SETTINGS_CACHE_TTL_MS) {
+    return cachedSettings;
+  }
   let settings = {
     bar_name: 'Malabar Waffle',
     address: '',
@@ -301,6 +308,8 @@ async function getShopSettings() {
       console.warn('Failed to load shop settings:', err.message);
     }
   }
+  cachedSettings = settings;
+  cachedSettingsAt = Date.now();
   return settings;
 }
 
@@ -1084,6 +1093,7 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
 
                   try {
                     await sock.sendMessage(cleanNumber, { text: messageText });
+                    await doc.ref.update({ whatsappSent: true });
                     console.log(
                       `Sent Cashfree payment confirmation WhatsApp for Order #${orderNumber} to: ${cleanNumber}`
                     );
@@ -1210,6 +1220,22 @@ app.post('/payment/send-confirmation', async (req, res) => {
 
     console.log(`Sending order confirmation WhatsApp to: ${cleanNumber}`);
     await sock.sendMessage(cleanNumber, { text: messageText });
+
+    if (firebaseInitialized && firestoreIntegrationEnabled) {
+      try {
+        const db = getFirestore();
+        const snap = await db.collection('orders')
+          .where('orderNumber', '==', orderNumber)
+          .limit(1)
+          .get();
+        if (!snap.empty) {
+          await snap.docs[0].ref.update({ whatsappSent: true });
+        }
+      } catch (fsErr) {
+        console.warn(`[send-confirmation] Could not mark whatsappSent for #${orderNumber}:`, fsErr.message);
+      }
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error(`Failed to send order confirmation to ${cleanNumber}:`, err);
@@ -1233,7 +1259,10 @@ function startOrderWhatsAppWatcher() {
 
   const scanForPendingReceipts = async () => {
     try {
-      const snapshot = await db.collection('orders').get();
+      const since = Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
+      const snapshot = await db.collection('orders')
+        .where('createdAt', '>=', since)
+        .get();
       snapshot.forEach((doc) => {
         const data = doc.data();
         const docId = doc.id;

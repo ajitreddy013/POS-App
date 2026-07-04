@@ -1227,6 +1227,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                             (item) => item.id === product.id
                           );
                           const qty = cartItem ? cartItem.quantity : 0;
+                          const isOutOfStock = product.out_of_stock === true;
                           return (
                             <div
                               key={product.id}
@@ -1236,6 +1237,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                                 padding: '14px',
                                 borderBottom: '1px dashed #e6ded3',
                                 gap: '15px',
+                                opacity: isOutOfStock ? 0.6 : 1,
                               }}
                             >
                               <div
@@ -1366,6 +1368,19 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                                     />
                                   )}
 
+                                  {/* Out of Stock overlay */}
+                                  {isOutOfStock && (
+                                    <div style={{
+                                      position: 'absolute', inset: 0, borderRadius: '16px',
+                                      background: 'rgba(255,255,255,0.55)',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    }}>
+                                      <span style={{ background: '#dc2626', color: '#fff', fontSize: '0.55rem', fontWeight: '800', padding: '3px 6px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                        Out of Stock
+                                      </span>
+                                    </div>
+                                  )}
+
                                   {/* Overlapping ADD Button */}
                                   <div
                                     className="kiosk-add-btn-container"
@@ -1380,7 +1395,29 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                                       justifyContent: 'center',
                                     }}
                                   >
-                                    {qty > 0 ? (
+                                    {isOutOfStock ? (
+                                      <button
+                                        disabled
+                                        style={{
+                                          background: '#f3f4f6',
+                                          border: '1px solid #d1d5db',
+                                          color: '#9ca3af',
+                                          borderRadius: '8px',
+                                          fontSize: '0.62rem',
+                                          fontWeight: '800',
+                                          height: '28px',
+                                          width: '100%',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          cursor: 'not-allowed',
+                                          textTransform: 'uppercase',
+                                          letterSpacing: '0.04em',
+                                        }}
+                                      >
+                                        Out of Stock
+                                      </button>
+                                    ) : qty > 0 ? (
                                       <div
                                         className="kiosk-qty-controls"
                                         style={{

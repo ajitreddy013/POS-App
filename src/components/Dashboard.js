@@ -4,13 +4,11 @@ import {
   Package,
   Activity,
   Wallet,
-  History,
-  Landmark,
+  TrendingUp,
   Banknote,
 } from 'lucide-react';
 import {
   getLocalDateString,
-  formatDateForDisplay,
   getStartOfDay,
   getEndOfDay,
 } from '../utils/dateUtils';
@@ -23,8 +21,6 @@ const Dashboard = () => {
     totalRevenue: 0,
     todaySpendings: 0,
     netIncome: 0,
-    openingBalance: 0,
-    totalBalance: 0,
     todayCash: 0,
     todayUpi: 0,
     recentSales: [],
@@ -105,19 +101,6 @@ const Dashboard = () => {
       );
       const netIncome = todayRevenue - todaySpendings;
 
-      // Get today's opening balance
-      const todayCounterBalance = await dbService.getCounterBalance(todayDate);
-      const openingBalance = todayCounterBalance
-        ? Number(
-            todayCounterBalance.opening_balance ||
-              todayCounterBalance.openingBalance ||
-              0
-          )
-        : 0;
-
-      // Calculate total balance (net income + opening balance)
-      const totalBalance = netIncome + openingBalance;
-
       // Use today's sales for recent sales and sort them by date descending
       const recentSales = [...todaySales];
       recentSales.sort(
@@ -133,8 +116,6 @@ const Dashboard = () => {
         totalRevenue: Number(todayRevenue || 0),
         todaySpendings: Number(todaySpendings || 0),
         netIncome: Number(netIncome || 0),
-        openingBalance: Number(openingBalance || 0),
-        totalBalance: Number(totalBalance || 0),
         todayCash: Number(todayCash || 0),
         todayUpi: Number(todayUpi || 0),
         recentSales: recentSales.slice(0, 10),
@@ -145,14 +126,9 @@ const Dashboard = () => {
     }
   };
 
-  const formatDate = (dateString) => {
-    return formatDateForDisplay(dateString);
-  };
-
-  const totalAmount =
+  const netProfit =
     dashboardData.todayCash +
-    dashboardData.todayUpi +
-    dashboardData.openingBalance -
+    dashboardData.todayUpi -
     dashboardData.todaySpendings;
 
   return (
@@ -256,15 +232,15 @@ const Dashboard = () => {
 
         <div className="summary-card card-sunset">
           <div className="card-header">
-            <h3>Total Amount</h3>
+            <h3>Net Profit</h3>
             <div className="card-icon">
-              <Landmark size={16} />
+              <TrendingUp size={16} />
             </div>
           </div>
           <div
-            className={`value ${totalAmount >= 0 ? 'positive' : 'negative'}`}
+            className={`value ${netProfit >= 0 ? 'positive' : 'negative'}`}
           >
-            ₹{totalAmount.toFixed(0)}
+            ₹{netProfit.toFixed(0)}
           </div>
         </div>
       </div>

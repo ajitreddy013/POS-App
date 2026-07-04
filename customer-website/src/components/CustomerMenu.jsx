@@ -142,7 +142,7 @@ const CustomerMenu = () => {
       const list = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        if (data.available !== false) list.push(data);
+        if (data.available !== false) list.push({ ...data, out_of_stock: data.out_of_stock || false });
       });
       setProducts(list);
     } catch (err) {
@@ -1132,6 +1132,7 @@ const CustomerMenu = () => {
                 <div>
                   {items.map((product) => {
                     const qty = cart[product.id] || 0;
+                    const isOutOfStock = product.out_of_stock === true;
                     return (
                       <div
                         key={product.id}
@@ -1140,6 +1141,7 @@ const CustomerMenu = () => {
                           padding: '14px',
                           borderBottom: '1px dashed #e6ded3',
                           gap: '15px',
+                          opacity: isOutOfStock ? 0.6 : 1,
                         }}
                       >
                         {/* Left: Name, Price, Veg Badge, Description */}
@@ -1259,6 +1261,19 @@ const CustomerMenu = () => {
                               />
                             )}
 
+                            {/* Out of Stock overlay on image */}
+                            {isOutOfStock && (
+                              <div style={{
+                                position: 'absolute', inset: 0, borderRadius: '16px',
+                                background: 'rgba(255,255,255,0.55)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                <span style={{ background: '#dc2626', color: '#fff', fontSize: '0.6rem', fontWeight: '800', padding: '3px 7px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  Out of Stock
+                                </span>
+                              </div>
+                            )}
+
                             {/* Overlapping ADD / Qty Button */}
                             <div
                               style={{
@@ -1272,7 +1287,7 @@ const CustomerMenu = () => {
                                 justifyContent: 'center',
                               }}
                             >
-                              {qty > 0 ? (
+                              {qty > 0 && !isOutOfStock ? (
                                 <div
                                   style={{
                                     display: 'flex',
@@ -1327,6 +1342,28 @@ const CustomerMenu = () => {
                                     <Plus size={12} />
                                   </button>
                                 </div>
+                              ) : isOutOfStock ? (
+                                <button
+                                  disabled
+                                  style={{
+                                    background: '#f3f4f6',
+                                    border: '1px solid #d1d5db',
+                                    color: '#9ca3af',
+                                    borderRadius: '8px',
+                                    fontSize: '0.65rem',
+                                    fontWeight: '800',
+                                    height: '28px',
+                                    width: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'not-allowed',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.04em',
+                                  }}
+                                >
+                                  Out of Stock
+                                </button>
                               ) : (
                                 <button
                                   onClick={() => addToCart(product.id)}

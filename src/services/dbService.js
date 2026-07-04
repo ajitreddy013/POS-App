@@ -87,6 +87,7 @@ export const dbService = {
         image: data.image || '',
         description: data.description || '',
         dietary_type: data.dietary_type || 'veg',
+        out_of_stock: data.out_of_stock || false,
         counter_stock: 0,
         godown_stock: 0,
       };
@@ -503,7 +504,7 @@ export const dbService = {
   getDailySpendingTotal: async (date) => {
     if (isElectron) return await window.electronAPI.getDailySpendingTotal(date);
     const spendings = await db.spendings.filter(s => s.spending_date === date).toArray();
-    return spendings.reduce((sum, s) => sum + s.amount, 0);
+    return spendings.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
   },
 
   // --- COUNTER BALANCE OPERATIONS ---

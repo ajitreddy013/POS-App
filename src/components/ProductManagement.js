@@ -4,7 +4,7 @@ import PropTypes from 'prop-types';
 import { Package, Plus, Edit, Trash2, Search, CloudLightning } from 'lucide-react';
 import useBarSettings from '../utils/useBarSettings';
 import { getFirebaseDb } from '../firebase';
-import { doc, writeBatch, getDocs, collection } from 'firebase/firestore';
+import { doc, writeBatch, getDocs, collection, updateDoc } from 'firebase/firestore';
 
 const ProductManagement = () => {
   const { barSettings } = useBarSettings();
@@ -58,7 +58,8 @@ const ProductManagement = () => {
           image: p.image || "",
           description: p.description || "",
           dietary_type: p.dietary_type || "veg",
-          available: true
+          available: true,
+          out_of_stock: p.out_of_stock || false,
         });
       });
 
@@ -789,6 +790,22 @@ const ProductManagement = () => {
     }
   };
 
+  const handleToggleOutOfStock = async (product) => {
+    const newValue = !product.out_of_stock;
+    try {
+      await dbService.updateProduct(product.id, { out_of_stock: newValue });
+      const firestoreDb = getFirebaseDb();
+      if (firestoreDb) {
+        await updateDoc(doc(firestoreDb, 'products', String(product.id)), { out_of_stock: newValue });
+      }
+      await loadProducts();
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to toggle out-of-stock:', error);
+      alert('Failed to update product availability');
+    }
+  };
+
   const handleDeleteProduct = async (productId) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
@@ -989,10 +1006,11 @@ const ProductManagement = () => {
                   display: 'flex',
                   flexDirection: 'column',
                   padding: '16px',
-                  background: 'white',
+                  background: product.out_of_stock ? '#fafafa' : 'white',
                   borderRadius: '12px',
-                  border: '1px solid #eaecf0',
+                  border: `1px solid ${product.out_of_stock ? '#fca5a5' : '#eaecf0'}`,
                   boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                  opacity: product.out_of_stock ? 0.75 : 1,
                 }}
               >
                 <div
@@ -1037,18 +1055,25 @@ const ProductManagement = () => {
                         alignItems: 'flex-start',
                       }}
                     >
-                      <strong
-                        style={{
-                          fontSize: '1.05rem',
-                          color: '#111827',
-                          margin: '0 0 4px 0',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}
-                      >
-                        {product.name}
-                      </strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                        <strong
+                          style={{
+                            fontSize: '1.05rem',
+                            color: '#111827',
+                            margin: 0,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {product.name}
+                        </strong>
+                        {product.out_of_stock && (
+                          <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: '0.65rem', fontWeight: '700', padding: '2px 6px', borderRadius: '999px', textTransform: 'uppercase', flexShrink: 0 }}>
+                            Out of Stock
+                          </span>
+                        )}
+                      </div>
                       <span
                         style={{
                           fontSize: '1.05rem',
@@ -1170,8 +1195,8 @@ const ProductManagement = () => {
                     <Edit size={14} /> Edit
                   </button>
                   <button
-                    className="product-management-card-action danger"
-                    onClick={() => handleDeleteProduct(product.id)}
+                    onClick={() => handleToggleOutOfStock(product)}
+                    title={product.out_of_stock ? 'Mark as Available' : 'Mark as Out of Stock'}
                     style={{
                       flex: 1,
                       padding: '8px',
@@ -1179,16 +1204,34 @@ const ProductManagement = () => {
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '6px',
+                      background: product.out_of_stock ? '#dcfce7' : '#fff7ed',
+                      border: `1px solid ${product.out_of_stock ? '#86efac' : '#fdba74'}`,
+                      borderRadius: '6px',
+                      color: product.out_of_stock ? '#15803d' : '#c2410c',
+                      fontSize: '0.8rem',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {product.out_of_stock ? '✓ In Stock' : '✕ Out of Stock'}
+                  </button>
+                  <button
+                    className="product-management-card-action danger"
+                    onClick={() => handleDeleteProduct(product.id)}
+                    style={{
+                      padding: '8px 10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       background: '#fef2f2',
                       border: '1px solid #fecaca',
                       borderRadius: '6px',
                       color: '#dc2626',
-                      fontSize: '0.85rem',
-                      fontWeight: '500',
                       cursor: 'pointer',
                     }}
                   >
-                    <Trash2 size={14} /> Delete
+                    <Trash2 size={14} />
                   </button>
                 </div>
               </div>
