@@ -1900,7 +1900,7 @@ const CustomerMenu = () => {
                     }}
                     onBlur={handlePhoneBlur}
                     required
-                    placeholder="e.g. 9876543210"
+                    placeholder="Enter WhatsApp number"
                     style={{
                       width: '100%',
                       padding: '10px 12px',

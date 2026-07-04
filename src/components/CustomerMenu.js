@@ -1118,7 +1118,7 @@ const CustomerMenu = () => {
                     color: '#4A5568',
                   }}
                 >
-                  WhatsApp Mobile Number
+                  Enter WhatsApp number
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
@@ -1131,7 +1131,7 @@ const CustomerMenu = () => {
                     }}
                     onBlur={handlePhoneBlur}
                     required
-                    placeholder="10-digit number for receipts"
+                    placeholder="Enter WhatsApp number"
                     style={{
                       width: '100%',
                       padding: '12px 16px',
@@ -1175,7 +1175,7 @@ const CustomerMenu = () => {
                     setPhoneError('');
                   }}
                   required
-                  placeholder="Re-enter mobile number"
+                  placeholder="Confirm mobile number"
                   style={{
                     width: '100%',
                     padding: '12px 16px',

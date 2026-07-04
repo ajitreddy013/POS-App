@@ -1636,7 +1636,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 type="tel"
                 placeholder={
                   isKiosk
-                    ? 'Enter 10-digit Phone Number (Mandatory)'
+                    ? 'Enter WhatsApp number'
                     : 'Phone Number'
                 }
                 value={customerPhone}
