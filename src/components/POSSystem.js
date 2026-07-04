@@ -96,6 +96,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const [upiQrPayment, setUpiQrPayment] = useState(null);
   const [upiQrStatus, setUpiQrStatus] = useState('');
+  const [cashConfirm, setCashConfirm] = useState(null); // kiosk cash confirmation modal
 
   // Online Orders State
   const [onlineOrders, setOnlineOrders] = useState([]);
@@ -564,6 +565,16 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       return;
     }
 
+    // Kiosk cash: show confirmation before recording the sale
+    if (isKiosk && selectedMethod === 'cash') {
+      setCashConfirm({
+        amount: calculateTotal(),
+        name: customerName.trim(),
+        items: cart,
+      });
+      return;
+    }
+
     executeSaleWrite(selectedMethod);
   };
 
@@ -634,11 +645,17 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         const orderData = {
           orderNumber: String(orderId),
           amount,
+          totalAmount: amount,
           customerName: customerName.trim() || 'Kiosk Customer',
           paymentStatus: 'pending',
           paymentMethod: 'upi',
           createdAt: new Date(),
-          items: cart.map((item) => ({ name: item.name, quantity: item.quantity, unitPrice: item.price })),
+          items: cart.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            totalPrice: item.price * item.quantity,
+          })),
         };
         const docRef = await addDoc(collection(db, 'orders'), orderData);
         cfUnsubRef.current = onSnapshot(docRef, (snap) => {
@@ -1868,6 +1885,56 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         </div>
       )}
 
+      {/* Kiosk Cash Confirmation Modal */}
+      {cashConfirm && (
+        <div className="upi-qr-overlay" role="dialog" aria-modal="true" aria-label="Confirm cash payment">
+          <div className="upi-qr-sheet" style={{ maxWidth: '360px' }}>
+            <div className="upi-qr-header">
+              <div className="upi-qr-title-wrap">
+                <span className="upi-qr-icon">💵</span>
+                <div>
+                  <h3>Confirm Cash Payment</h3>
+                  <p>{cashConfirm.name}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="upi-qr-body">
+              <div className="upi-qr-amount-card">
+                <span>Amount to Collect</span>
+                <strong>{formatCurrency(cashConfirm.amount)}</strong>
+              </div>
+              <div style={{ marginTop: '12px', fontSize: '0.85rem', color: '#6b7280', lineHeight: '1.6' }}>
+                {cashConfirm.items.map((item) => (
+                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>{item.name} × {item.quantity}</span>
+                    <span>{formatCurrency(item.price * item.quantity)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="upi-qr-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ background: '#166534', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 18px', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem', flex: 1 }}
+                onClick={() => { setCashConfirm(null); executeSaleWrite('cash'); }}
+              >
+                Cash Received ✓
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setCashConfirm(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Online Orders Live Modal */}
       {showOnlineOrdersModal && (
         <div
@@ -2074,7 +2141,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                                   x{item.quantity}
                                 </span>
                               </span>
-                              <strong>{formatCurrency(item.totalPrice)}</strong>
+                              <strong>{formatCurrency(item.totalPrice || (item.unitPrice * item.quantity) || 0)}</strong>
                             </div>
                           ))}
                         </div>
@@ -2099,7 +2166,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                           <strong
                             style={{ fontSize: '1.1rem', color: '#1C5C3A' }}
                           >
-                            {formatCurrency(order.totalAmount)}
+                            {formatCurrency(order.totalAmount || order.amount || 0)}
                           </strong>
                           <span
                             style={{

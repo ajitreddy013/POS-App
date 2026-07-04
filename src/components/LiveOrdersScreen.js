@@ -776,7 +776,7 @@ const LiveOrdersScreen = () => {
                         </span>
                       </div>
                       <strong style={{ fontSize: '0.95rem', color: '#221f1a' }}>
-                        {formatCurrency(item.totalPrice)}
+                        {formatCurrency(item.totalPrice || (item.unitPrice * item.quantity) || 0)}
                       </strong>
                     </div>
                   ))}
@@ -802,8 +802,8 @@ const LiveOrdersScreen = () => {
                       <span>
                         {formatCurrency(
                           selectedOrder.subtotal ||
-                            selectedOrder.totalAmount -
-                              selectedOrder.deliveryFee
+                            (selectedOrder.totalAmount || selectedOrder.amount || 0) -
+                              (selectedOrder.deliveryFee || 0)
                         )}
                       </span>
                     </div>

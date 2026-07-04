@@ -114,16 +114,30 @@ function AppContent() {
     }
   }, []);
 
-  // Request notification permission and register for FCM push notifications when admin unlocks
+  // Register for FCM push notifications on app start — no admin-unlock gate so the
+  // kiosk tablet also receives order notifications in the drawer even when closed.
   useEffect(() => {
-    if (!isAdminUnlocked) return;
-    if (Capacitor.isNativePlatform()) {
-      LocalNotifications.requestPermissions().catch(() => {});
-      registerForPushNotifications();
-    } else if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
+    if (!Capacitor.isNativePlatform()) {
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+      return;
     }
-  }, [isAdminUnlocked]);
+    // Create the channel before the first notification arrives so Android uses
+    // the correct importance level (5 = IMPORTANCE_HIGH → heads-up banners).
+    LocalNotifications.createChannel({
+      id: 'order_alerts',
+      name: 'Order Alerts',
+      description: 'Incoming order notifications',
+      importance: 5,
+      sound: 'default',
+      vibration: true,
+      visibility: 1,
+    }).catch(() => {});
+
+    LocalNotifications.requestPermissions().catch(() => {});
+    registerForPushNotifications();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const registerForPushNotifications = async () => {
     try {

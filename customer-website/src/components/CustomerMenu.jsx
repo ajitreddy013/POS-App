@@ -171,9 +171,8 @@ const CustomerMenu = () => {
     const orderIdParam = getSuccessOrderIdFromLocation();
     if (orderIdParam) {
       setOrderSuccess(orderIdParam);
-      if (window.location.hash.includes('payment=success')) {
-        setSearchParams({}, { replace: true });
-      }
+      // Clear payment params from URL so a page refresh doesn't re-show the success screen
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, [searchParams, setSearchParams]);
 
@@ -238,6 +237,13 @@ const CustomerMenu = () => {
     }
     setPullDistance(0);
   }, [pullDistance, refreshing]);
+
+  // React's onTouchMove is passive by default — e.preventDefault() is silently ignored there.
+  // Attach manually with { passive: false } so we can block native scroll during pull.
+  useEffect(() => {
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    return () => document.removeEventListener('touchmove', handleTouchMove);
+  }, [handleTouchMove]);
 
   // Veg/Non-veg detection
   const isVeg = (product) => {
@@ -704,7 +710,10 @@ const CustomerMenu = () => {
         </div>
         <button
           className="success-button-anim"
-          onClick={() => setOrderSuccess(null)}
+          onClick={() => {
+            setOrderSuccess(null);
+            window.history.replaceState({}, '', window.location.pathname);
+          }}
           style={{
             background: '#ffffff',
             color: '#b6412c',
@@ -770,7 +779,6 @@ const CustomerMenu = () => {
         position: 'relative',
       }}
       onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
       {activeTab === 'menu' ? (
