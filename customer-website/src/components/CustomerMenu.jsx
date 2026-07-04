@@ -134,6 +134,7 @@ const CustomerMenu = () => {
       setLoading(false);
       return;
     }
+    setLoading(true);
     try {
       const querySnapshot = await getDocs(collection(db, 'products'));
       const list = [];
