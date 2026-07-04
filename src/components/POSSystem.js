@@ -577,9 +577,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         saleNumber: await generateSaleNumber(),
         saleType: 'parcel',
         tableNumber: null,
-        customerName: isKiosk
-          ? 'Kiosk Customer'
-          : customerName || 'Walk-in Customer',
+        customerName: customerName.trim() || (isKiosk ? 'Kiosk Customer' : 'Walk-in Customer'),
         customerPhone,
         items: cart.map((item) => ({
           productId: item.id,
@@ -651,6 +649,11 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       return;
     }
 
+    if (!customerName.trim()) {
+      setPhoneError('Please enter the customer name!');
+      return;
+    }
+
     const cleanedPhone = customerPhone.replace(/\D/g, '');
     if (!cleanedPhone || cleanedPhone.length !== 10) {
       setPhoneError('Please enter a valid 10-digit WhatsApp number!');
@@ -659,7 +662,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       }
       return;
     }
-    if (cleanedPhone !== confirmPhone.replace(/\D/g, '')) {
+    if (isKiosk && cleanedPhone !== confirmPhone.replace(/\D/g, '')) {
       setPhoneError('Mobile numbers do not match. Please re-enter.');
       return;
     }
@@ -698,7 +701,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           amount,
           orderId,
           phone: customerPhone || '9999999999',
-          name: 'Kiosk Customer',
+          name: customerName.trim() || 'Kiosk Customer',
           isKiosk: true,
         }),
       });
@@ -751,6 +754,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         const orderData = {
           orderNumber: String(orderId),
           amount,
+          customerName: customerName.trim() || 'Kiosk Customer',
           customerPhone: customerPhone || '',
           paymentStatus: 'pending',
           paymentMethod: 'upi',
@@ -1610,8 +1614,21 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
             </div>
 
             <div
+              className="form-row"
+              style={{ marginTop: '16px', marginBottom: '8px' }}
+            >
+              <input
+                type="text"
+                placeholder="Customer Name"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                className="form-input cart-phone-input"
+                style={{ padding: '8px 12px', fontSize: '13px', width: '100%' }}
+              />
+            </div>
+            <div
               className="form-row cart-phone-row"
-              style={{ marginTop: '16px', marginBottom: '16px' }}
+              style={{ marginTop: '0', marginBottom: '16px' }}
             >
               <input
                 type="tel"

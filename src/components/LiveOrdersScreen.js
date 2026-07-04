@@ -218,7 +218,7 @@ const LiveOrdersScreen = () => {
                         }}
                       >
                         <strong style={{ fontSize: '1rem', color: '#221f1a' }}>
-                          Order #{order.orderNumber}
+                          {order.customerName || 'Customer'} #{order.orderNumber}
                         </strong>
                         <div
                           style={{
@@ -520,7 +520,7 @@ const LiveOrdersScreen = () => {
                       color: '#221f1a',
                     }}
                   >
-                    Order #{selectedOrder.orderNumber}
+                    {selectedOrder.customerName || 'Customer'} #{selectedOrder.orderNumber}
                   </h3>
                   <span style={{ fontSize: '0.8rem', color: '#7f766a' }}>
                     Placed:{' '}

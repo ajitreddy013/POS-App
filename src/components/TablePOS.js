@@ -489,6 +489,17 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       return;
     }
 
+    if (!customerName.trim()) {
+      alert('Please enter customer name!');
+      return;
+    }
+    const cleanedPhone = customerPhone.trim();
+    if (!cleanedPhone || cleanedPhone.length !== 10 || !/^\d{10}$/.test(cleanedPhone)) {
+      alert('Please enter a valid 10-digit phone number!');
+      if (phoneInputRef.current) phoneInputRef.current.focus({ preventScroll: true });
+      return;
+    }
+
     // Check if payment method is UPI and direct VPA configured
     const isUpiEnabled = barSettings && !!barSettings.upi_vpa;
     if (paymentMethod === 'upi' && isUpiEnabled) {

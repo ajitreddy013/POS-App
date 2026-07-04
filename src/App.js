@@ -37,8 +37,13 @@
 import React, { useState, useEffect } from "react";
 import { HashRouter as Router, Routes, Route, Link, useLocation, Navigate, useNavigate } from "react-router-dom";
 import { getFirebaseDb } from "./firebase";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { playIncomingOrderChime } from "./utils/feedbackUtils";
+import { LocalNotifications } from '@capacitor/local-notifications';
+import { PushNotifications } from '@capacitor/push-notifications';
+import { Device } from '@capacitor/device';
+import { Capacitor } from '@capacitor/core';
+import { doc, setDoc } from 'firebase/firestore';
 
 // Icon imports for navigation menu
 import {
@@ -109,15 +114,60 @@ function AppContent() {
     }
   }, []);
 
-  // Request notification permission when admin unlocks
+  // Request notification permission and register for FCM push notifications when admin unlocks
   useEffect(() => {
-    if (isAdminUnlocked && 'Notification' in window && Notification.permission === 'default') {
+    if (!isAdminUnlocked) return;
+    if (Capacitor.isNativePlatform()) {
+      LocalNotifications.requestPermissions().catch(() => {});
+      registerForPushNotifications();
+    } else if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
   }, [isAdminUnlocked]);
 
+  const registerForPushNotifications = async () => {
+    try {
+      const permResult = await PushNotifications.requestPermissions();
+      if (permResult.receive !== 'granted') return;
+
+      await PushNotifications.register();
+
+      PushNotifications.addListener('registration', async (token) => {
+        try {
+          const db = getFirebaseDb();
+          if (!db) return;
+          const info = await Device.getId();
+          const deviceId = info.identifier;
+          await setDoc(doc(db, 'admin_devices', deviceId), {
+            fcmToken: token.value,
+            updatedAt: serverTimestamp(),
+          });
+          console.log('[FCM] Token registered for device:', deviceId);
+        } catch (err) {
+          console.error('[FCM] Failed to store token:', err);
+        }
+      });
+
+      // Show in-app banner when push arrives while app is open
+      PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        playIncomingOrderChime();
+        const isDelivery = notification.data?.isDelivery === 'true' || notification.data?.isDelivery === true;
+        setGlobalNotice({
+          type: isDelivery ? 'warning' : 'info',
+          message: notification.title || (isDelivery ? '🛵 New Delivery Order!' : '📦 New Order Received!'),
+        });
+        setTimeout(() => setGlobalNotice(null), 6000);
+      });
+
+      PushNotifications.addListener('registrationError', (err) => {
+        console.error('[FCM] Registration error:', err);
+      });
+    } catch (err) {
+      console.error('[FCM] Push notification setup failed:', err);
+    }
+  };
+
   const showSystemNotification = async (orderData) => {
-    if (!('Notification' in window) || Notification.permission !== 'granted') return;
     const isDelivery = orderData.orderType === 'delivery';
     const isPaid = orderData.paymentStatus === 'paid';
     const title = isDelivery
@@ -128,21 +178,41 @@ function AppContent() {
       : isDelivery
         ? 'Payment: Cash on Delivery'
         : 'Payment: Cash at Counter';
-    try {
-      if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.ready;
-        reg.showNotification(title, {
-          body,
-          tag: orderData.orderNumber,
-          renotify: true,
-          icon: '/favicon.ico',
-          badge: '/favicon.ico',
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await LocalNotifications.schedule({
+          notifications: [{
+            id: Math.floor(Date.now() / 1000) % 2147483647,
+            title,
+            body,
+            importance: 5,
+            smallIcon: 'ic_stat_notification',
+            autoCancel: true,
+            extra: { orderNumber: orderData.orderNumber, isDelivery },
+          }],
         });
-      } else {
-        new Notification(title, { body });
+      } catch (err) {
+        console.error('Local notification failed:', err);
       }
-    } catch (err) {
-      try { new Notification(title, { body }); } catch (e) { /* best-effort */ }
+    } else {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      try {
+        if ('serviceWorker' in navigator) {
+          const reg = await navigator.serviceWorker.ready;
+          reg.showNotification(title, {
+            body,
+            tag: orderData.orderNumber,
+            renotify: true,
+            icon: '/favicon.ico',
+            badge: '/favicon.ico',
+          });
+        } else {
+          new Notification(title, { body });
+        }
+      } catch (err) {
+        try { new Notification(title, { body }); } catch (e) { /* best-effort */ }
+      }
     }
   };
 
@@ -160,6 +230,7 @@ function AppContent() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let hasNewOrder = false;
       let newOrderNumber = '';
+      let newOrderIsDelivery = false;
 
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
@@ -171,6 +242,7 @@ function AppContent() {
           if (diffMs < 120000) {
             hasNewOrder = true;
             newOrderNumber = orderData.orderNumber;
+            newOrderIsDelivery = orderData.orderType === 'delivery';
             showSystemNotification(orderData);
           }
         }
@@ -179,8 +251,10 @@ function AppContent() {
       if (hasNewOrder && newOrderNumber) {
         playIncomingOrderChime();
         setGlobalNotice({
-          type: 'info',
-          message: `New Order Received! #${newOrderNumber}`
+          type: newOrderIsDelivery ? 'warning' : 'info',
+          message: newOrderIsDelivery
+            ? `🛵 Delivery Order! #${newOrderNumber}`
+            : `📦 New Order Received! #${newOrderNumber}`,
         });
 
         // Trigger custom event to notify current screen of new order if needed

@@ -6,7 +6,7 @@ import autoTable from "jspdf-autotable";
 import { Capacitor } from "@capacitor/core";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { FileOpener } from "@capawesome-team/capacitor-file-opener";
-import { BarChart3, Mail, DollarSign, FileText, X, Download, Eye, ChevronDown } from "lucide-react";
+import { FileText, X, Download, Eye, ChevronDown } from "lucide-react";
 import { 
   getLocalDateString,
   formatDateForDisplay,
@@ -20,9 +20,7 @@ import useBarSettings from "../utils/useBarSettings";
 const SalesReports = () => {
   const { barSettings } = useBarSettings();
   const [sales, setSales] = useState([]);
-  const [spendings, setSpendings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [emailLoading, setEmailLoading] = useState(false);
   const [startDate, setStartDate] = useState(getLocalDateString());
   const [endDate, setEndDate] = useState(getLocalDateString());
 
@@ -80,7 +78,6 @@ const SalesReports = () => {
   const [billGenerating, setBillGenerating] = useState(false);
   const [openSections, setOpenSections] = useState({
     sales: true,
-    spendings: false,
   });
 
   const normalizeSales = (salesList) => {
@@ -139,20 +136,9 @@ const SalesReports = () => {
     });
   };
 
-  const normalizeSpendings = (spendingsList) => {
-    if (!spendingsList) return [];
-    return spendingsList.map(s => ({
-      ...s,
-      spending_date: s.spending_date || s.spendingDate || "",
-      payment_method: s.payment_method || s.paymentMethod || "cash",
-      amount: s.amount !== undefined ? Number(s.amount) : 0
-    }));
-  };
-
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      
       const salesData = await dbService.getSalesWithDetails({
         start: getStartOfDay(startDate),
         end: getEndOfDay(endDate),
@@ -161,13 +147,6 @@ const SalesReports = () => {
         salesData.sort((a, b) => new Date(b.saleDate || b.sale_date) - new Date(a.saleDate || a.sale_date));
       }
       setSales(normalizeSales(salesData));
-
-      const spendingsData = await dbService.getSpendings({
-        start: getStartOfDay(startDate),
-        end: getEndOfDay(endDate),
-      });
-      setSpendings(normalizeSpendings(spendingsData));
-
     } catch (error) {
       // Failed to load reports data
     } finally {
@@ -260,12 +239,11 @@ const SalesReports = () => {
 
       // ── Summary boxes ──
       const boxGap = 5;
-      const boxWidth = (contentWidth - boxGap * 2) / 3;
+      const boxWidth = (contentWidth - boxGap) / 2;
       const boxHeight = 20;
       const summaryItems = [
         { label: "TOTAL SALES", value: `Rs ${totalRevenue.toFixed(2)}`, color: [27, 117, 67] },
-        { label: "TOTAL SPENDINGS", value: `Rs ${totalSpendings.toFixed(2)}`, color: [185, 28, 28] },
-        { label: "NET INCOME", value: `Rs ${netIncome.toFixed(2)}`, color: netIncome >= 0 ? [27, 117, 67] : [185, 28, 28] },
+        { label: "TOTAL TRANSACTIONS", value: `${totalTransactions}`, color: [182, 65, 44] },
       ];
 
       summaryItems.forEach((item, i) => {
@@ -320,44 +298,6 @@ const SalesReports = () => {
         didDrawPage: drawFooter,
       });
 
-      let finalY = doc.lastAutoTable.finalY + 12;
-
-      // ── Spendings table ──
-      if (spendings.length > 0) {
-        if (finalY > pageHeight - 60) {
-          doc.addPage();
-          finalY = 20;
-        }
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(12);
-        doc.setTextColor(...BRAND);
-        doc.text("SPENDINGS", margin, finalY);
-        finalY += 6;
-
-        const spendColumn = ["Date", "Description", "Category", "Payment", "Amount"];
-        const spendRows = spendings.map((s) => [
-          formatDateForDisplay(s.spending_date),
-          s.description || "-",
-          s.category || "-",
-          (s.payment_method || "").replace("_", " ").toUpperCase(),
-          `Rs ${Number(s.amount).toFixed(2)}`,
-        ]);
-
-        autoTable(doc, {
-          head: [spendColumn],
-          body: spendRows,
-          startY: finalY,
-          margin: { left: margin, right: margin, bottom: 16 },
-          styles: { fontSize: 9, cellPadding: 3, textColor: [51, 65, 85], lineColor: [241, 245, 249], lineWidth: 0.15 },
-          headStyles: { fillColor: [71, 85, 105], textColor: 255, fontStyle: "bold", fontSize: 9 },
-          alternateRowStyles: { fillColor: [253, 251, 247] },
-          columnStyles: { 4: { halign: "right" } },
-          foot: [["", "", "", "Total Spendings", `Rs ${totalSpendings.toFixed(2)}`]],
-          footStyles: { fillColor: [248, 250, 252], textColor: [15, 23, 42], fontStyle: "bold", fontSize: 9.5, lineWidth: 0.15, lineColor: [226, 232, 240] },
-          didDrawPage: drawFooter,
-        });
-      }
-
       const fileName = `Sales-Report-${startDate}-to-${endDate}.pdf`;
 
       if (Capacitor.isNativePlatform()) {
@@ -383,13 +323,9 @@ const SalesReports = () => {
 
   // Calculate totals
   const totalRevenue = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
-  const totalSpendings = spendings.reduce(
-    (sum, spending) => sum + spending.amount,
-    0
-  );
-  const netIncome = totalRevenue - totalSpendings;
+  const cashRevenue = sales.filter(s => (s.payment_method || s.paymentMethod || '').toLowerCase() === 'cash').reduce((sum, s) => sum + s.total_amount, 0);
+  const upiRevenue = sales.filter(s => (s.payment_method || s.paymentMethod || '').toLowerCase() === 'upi').reduce((sum, s) => sum + s.total_amount, 0);
   const totalTransactions = sales.length;
-  const totalSpendingEntries = spendings.length;
 
   // Handle viewing individual bill
   const handleViewBill = async (sale) => {
@@ -546,26 +482,17 @@ const SalesReports = () => {
         .rpt-body { padding: 14px 14px 0; display: flex; flex-direction: column; gap: 12px; }
 
         /* ── Summary cards ── */
-        .rpt-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .rpt-summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
         .rpt-summary-card {
-          background: #fff; border: 1px solid #e6ded3; border-radius: 16px;
-          padding: 14px 14px 12px;
+          background: #fff; border: 1px solid #e6ded3; border-radius: 14px;
+          padding: 12px 10px 10px;
         }
-        .rpt-summary-label { font-size: 0.7rem; font-weight: 700; color: #94837a; text-transform: uppercase; letter-spacing: 0.06em; }
-        .rpt-summary-value { font-size: 1.45rem; font-weight: 800; margin: 6px 0 2px; letter-spacing: -0.02em; }
+        .rpt-summary-label { font-size: 0.64rem; font-weight: 700; color: #94837a; text-transform: uppercase; letter-spacing: 0.06em; }
+        .rpt-summary-value { font-size: 1.15rem; font-weight: 800; margin: 5px 0 2px; letter-spacing: -0.02em; }
         .rpt-summary-value.green { color: #1b7543; }
-        .rpt-summary-value.red { color: #b91c1c; }
-        .rpt-summary-value.brand { color: #b6412c; }
+        .rpt-summary-value.blue { color: #5a64c4; }
         .rpt-summary-value.dark { color: #221f1a; }
-        .rpt-summary-sub { font-size: 0.74rem; color: #94837a; font-weight: 600; }
-        .rpt-net-card {
-          grid-column: 1 / -1;
-          background: linear-gradient(135deg, #b6412c 0%, #d0553c 100%);
-          border: none; color: #fff;
-        }
-        .rpt-net-card .rpt-summary-label { color: rgba(255,255,255,0.75); }
-        .rpt-net-card .rpt-summary-value { color: #fff; }
-        .rpt-net-card .rpt-summary-sub { color: rgba(255,255,255,0.7); }
+        .rpt-summary-sub { font-size: 0.68rem; color: #94837a; font-weight: 600; }
 
         /* ── Section panel ── */
         .rpt-panel {
@@ -617,26 +544,6 @@ const SalesReports = () => {
         .rpt-pay-chip.upi { background: rgba(102,126,234,0.12); color: #5a64c4; }
         .rpt-pay-chip.cash { background: rgba(27,117,67,0.12); color: #1f9c54; }
 
-        /* ── Spendings cards ── */
-        .rpt-spend-card {
-          padding: 12px 16px; border-top: 1px solid #f1ebe1;
-          display: flex; align-items: center; gap: 12px;
-        }
-        .rpt-spend-card:first-child { border-top: none; }
-        .rpt-spend-icon {
-          width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 1rem; background: rgba(185,28,28,0.08);
-        }
-        .rpt-spend-main { flex: 1; min-width: 0; }
-        .rpt-spend-desc { font-size: 0.88rem; font-weight: 700; color: #221f1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .rpt-spend-meta { font-size: 0.74rem; color: #94837a; margin-top: 2px; }
-        .rpt-spend-amount { font-size: 0.95rem; font-weight: 800; color: #b91c1c; flex-shrink: 0; }
-        .rpt-category-tag {
-          background: rgba(182,65,44,0.1); color: #b6412c;
-          font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; display: inline-block;
-        }
-
         /* ── Empty state ── */
         .rpt-empty { text-align: center; padding: 32px 16px; color: #94837a; font-size: 0.88rem; }
         .rpt-empty-icon { font-size: 2rem; margin-bottom: 8px; }
@@ -681,19 +588,19 @@ const SalesReports = () => {
         {/* Summary cards */}
         <div className="rpt-summary-grid">
           <div className="rpt-summary-card">
-            <div className="rpt-summary-label">Total Sales</div>
-            <div className="rpt-summary-value green">₹{totalRevenue.toFixed(0)}</div>
-            <div className="rpt-summary-sub">{totalTransactions} orders</div>
+            <div className="rpt-summary-label">Cash</div>
+            <div className="rpt-summary-value green">₹{cashRevenue.toFixed(0)}</div>
+            <div className="rpt-summary-sub">{sales.filter(s => (s.payment_method || s.paymentMethod || '').toLowerCase() === 'cash').length} orders</div>
           </div>
           <div className="rpt-summary-card">
-            <div className="rpt-summary-label">Spendings</div>
-            <div className="rpt-summary-value red">₹{totalSpendings.toFixed(0)}</div>
-            <div className="rpt-summary-sub">{totalSpendingEntries} entries</div>
+            <div className="rpt-summary-label">UPI</div>
+            <div className="rpt-summary-value blue">₹{upiRevenue.toFixed(0)}</div>
+            <div className="rpt-summary-sub">{sales.filter(s => (s.payment_method || s.paymentMethod || '').toLowerCase() === 'upi').length} orders</div>
           </div>
-          <div className="rpt-summary-card rpt-net-card">
-            <div className="rpt-summary-label">Net Income</div>
-            <div className="rpt-summary-value">₹{netIncome.toFixed(0)}</div>
-            <div className="rpt-summary-sub">Sales − Spendings</div>
+          <div className="rpt-summary-card">
+            <div className="rpt-summary-label">Total</div>
+            <div className="rpt-summary-value dark">₹{totalRevenue.toFixed(0)}</div>
+            <div className="rpt-summary-sub">{totalTransactions} orders</div>
           </div>
         </div>
 
@@ -744,36 +651,6 @@ const SalesReports = () => {
           )}
         </div>
 
-        {/* Spendings list */}
-        {spendings.length > 0 && (
-          <div className="rpt-panel">
-            <button className="rpt-panel-hdr" onClick={() => toggleSection('spendings')}>
-              <div className="rpt-panel-hdr-left">
-                <span className="rpt-panel-title">Spendings</span>
-                <span className="rpt-panel-count">{totalSpendingEntries} entries</span>
-              </div>
-              <ChevronDown className={`rpt-chev ${openSections.spendings ? 'open' : ''}`} size={18} />
-            </button>
-
-            {openSections.spendings && (
-              <div>
-                {spendings.map(s => (
-                  <div key={s.id} className="rpt-spend-card">
-                    <div className="rpt-spend-icon">💸</div>
-                    <div className="rpt-spend-main">
-                      <div className="rpt-spend-desc">{s.description || '—'}</div>
-                      <div className="rpt-spend-meta">
-                        {formatDate(s.spending_date)}
-                        {s.category ? <> · <span className="rpt-category-tag">{s.category}</span></> : null}
-                      </div>
-                    </div>
-                    <div className="rpt-spend-amount">-₹{Number(s.amount).toFixed(0)}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Bill Preview Modal */}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "701647095399",
+    "project_id": "counterflow-kiosk",
+    "storage_bucket": "counterflow-kiosk.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:701647095399:android:135026e67327c5f65436c2",
+        "android_client_info": {
+          "package_name": "com.ajitreddy.counterflowpos"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCupN7fKomdJSE4Vl1KecVFiv0dXLBvDP0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

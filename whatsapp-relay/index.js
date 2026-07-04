@@ -56,6 +56,7 @@ const https = require('https');
 // Initialize Firebase Admin SDK (v14+ modular API)
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore, Timestamp } = require('firebase-admin/firestore');
+const { getMessaging } = require('firebase-admin/messaging');
 const serviceAccountPath = path.join(__dirname, 'service-account.json');
 
 // Use a flag instead of admin.apps.length which is unreliable in firebase-admin v14+
@@ -1247,6 +1248,82 @@ app.post('/payment/send-confirmation', async (req, res) => {
 
 // ─── Local WhatsApp Order Notifier ───────────────────────────────────────────
 // Watches Firestore for orders that need a WhatsApp receipt and sends them from
+// Send FCM push notification to all registered admin devices
+async function sendFCMToAdmins(orderData) {
+  if (!firebaseInitialized || !firestoreIntegrationEnabled) return;
+  try {
+    const db = getFirestore();
+    const tokensSnap = await db.collection('admin_devices').get();
+    const tokens = [];
+    tokensSnap.forEach((d) => {
+      const t = d.data().fcmToken;
+      if (t) tokens.push(t);
+    });
+    if (tokens.length === 0) {
+      console.log('[FCM] No admin device tokens — skipping FCM.');
+      return;
+    }
+
+    const isDelivery = orderData.orderType === 'delivery';
+    const isPaid = orderData.paymentStatus === 'paid';
+    const title = isDelivery
+      ? `🛵 Delivery Order #${orderData.orderNumber}`
+      : `📦 New Order #${orderData.orderNumber}`;
+    const body = isPaid
+      ? 'Payment: Paid Online'
+      : isDelivery
+        ? 'Payment: Cash on Delivery'
+        : 'Payment: Cash at Counter';
+
+    const response = await getMessaging().sendEachForMulticast({
+      notification: { title, body },
+      data: {
+        orderNumber: String(orderData.orderNumber || ''),
+        isDelivery: String(isDelivery),
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: 'order_alerts',
+          priority: 'max',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+          visibility: 'PUBLIC',
+        },
+      },
+      tokens,
+    });
+
+    // Remove stale tokens from Firestore
+    const staleTokens = [];
+    response.responses.forEach((resp, idx) => {
+      if (!resp.success) {
+        const code = resp.error?.code;
+        if (
+          code === 'messaging/registration-token-not-registered' ||
+          code === 'messaging/invalid-registration-token'
+        ) {
+          staleTokens.push(tokens[idx]);
+        }
+      }
+    });
+    if (staleTokens.length > 0) {
+      const allDocs = await db.collection('admin_devices').get();
+      allDocs.forEach((d) => {
+        if (staleTokens.includes(d.data().fcmToken)) {
+          d.ref.delete().catch(() => {});
+        }
+      });
+    }
+
+    console.log(
+      `[FCM] Order notification sent: ${response.successCount}/${tokens.length} devices`
+    );
+  } catch (err) {
+    console.error('[FCM] Failed to send notification:', err.message);
+  }
+}
+
 // this relay (which has WhatsApp connected). Covers both UPI paid orders (set
 // by the Cashfree webhook on Render) and COD orders placed via the customer site.
 function startOrderWhatsAppWatcher() {
@@ -1258,6 +1335,7 @@ function startOrderWhatsAppWatcher() {
   }
   const db = getFirestore();
   const processedIds = new Set(); // in-memory guard against double-sends
+  const fcmProcessedIds = new Set(); // separate guard for FCM
 
   const scanForPendingReceipts = async () => {
     try {
@@ -1268,6 +1346,23 @@ function startOrderWhatsAppWatcher() {
       snapshot.forEach((doc) => {
         const data = doc.data();
         const docId = doc.id;
+
+        // FCM: notify admin for any new pending_acceptance order (cash or paid UPI)
+        const needsFCM =
+          !data.fcmSent &&
+          !fcmProcessedIds.has(docId) &&
+          (data.orderStatus === 'pending_acceptance') &&
+          (data.paymentMethod !== 'upi' || data.paymentStatus === 'paid');
+
+        if (needsFCM) {
+          fcmProcessedIds.add(docId);
+          (async () => {
+            try {
+              await doc.ref.update({ fcmSent: true });
+            } catch (_) { /* non-fatal */ }
+            await sendFCMToAdmins(data);
+          })();
+        }
 
         if (data.whatsappSent || processedIds.has(docId)) return;
 
