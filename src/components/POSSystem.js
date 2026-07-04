@@ -328,24 +328,28 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       const db = getFirebaseDb();
       if (!db) return;
 
-      // Assign sequential order number at completion (only completed orders get one)
+      // Assign sequential order number at completion if not already sequential
       const isWebOrder = order.source === 'web' || (!order.source && order.orderNumber?.startsWith('W-'));
       const prefix = isWebOrder ? 'W' : 'A';
-      const counterField = isWebOrder ? 'completedWebOrders' : 'completedAppOrders';
+      
+      const hasSequentialNumber = /^[WA]-\d+$/.test(order.orderNumber);
+      let sequentialNumber = order.orderNumber;
 
-      let sequentialNumber;
-      try {
-        const counterRef = doc(db, 'settings', 'order_counters');
-        await runTransaction(db, async (transaction) => {
-          const counterDoc = await transaction.get(counterRef);
-          const currentCount = counterDoc.exists() ? (counterDoc.data()[counterField] || 0) : 0;
-          const newCount = currentCount + 1;
-          transaction.set(counterRef, { [counterField]: newCount }, { merge: true });
-          sequentialNumber = `${prefix}-${newCount}`;
-        });
-      } catch (err) {
-        console.error('Failed to generate sequential order number:', err);
-        sequentialNumber = `${prefix}-${Date.now().toString().slice(-4)}`;
+      if (!hasSequentialNumber) {
+        const counterField = isWebOrder ? 'completedWebOrders' : 'completedAppOrders';
+        try {
+          const counterRef = doc(db, 'settings', 'order_counters');
+          await runTransaction(db, async (transaction) => {
+            const counterDoc = await transaction.get(counterRef);
+            const currentCount = counterDoc.exists() ? (counterDoc.data()[counterField] || 0) : 0;
+            const newCount = currentCount + 1;
+            transaction.set(counterRef, { [counterField]: newCount }, { merge: true });
+            sequentialNumber = `${prefix}-${newCount}`;
+          });
+        } catch (err) {
+          console.error('Failed to generate sequential order number:', err);
+          sequentialNumber = `${prefix}-${Date.now().toString().slice(-4)}`;
+        }
       }
 
       // Update Dexie sale to use the sequential number
@@ -567,8 +571,28 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const calculateTotal = () => cartTotal;
 
   const generateSaleNumber = async () => {
-    const allSales = (await dbService.getSales()) || [];
-    return `A-${allSales.length + 1}`;
+    const db = getFirebaseDb();
+    if (!db) {
+      const allSales = (await dbService.getSales()) || [];
+      return `A-${allSales.length + 1}`;
+    }
+    const settingsRef = doc(db, 'settings', 'bar_settings');
+    let orderNum = `A-${Date.now().toString().slice(-5)}`;
+    try {
+      await runTransaction(db, async (transaction) => {
+        const settingsSnap = await transaction.get(settingsRef);
+        let currentCount = 0;
+        if (settingsSnap.exists()) {
+          currentCount = settingsSnap.data().completedAppOrders || 0;
+        }
+        currentCount += 1;
+        transaction.update(settingsRef, { completedAppOrders: currentCount });
+        orderNum = `A-${currentCount}`;
+      });
+    } catch (err) {
+      console.error('Failed to generate sequential kiosk order number:', err);
+    }
+    return orderNum;
   };
 
   const executeSaleWrite = async (selectedMethod) => {

@@ -12,6 +12,8 @@ import {
   getDocs,
   addDoc,
   serverTimestamp,
+  doc,
+  runTransaction,
 } from 'firebase/firestore';
 import { APP_CONFIG } from '../config';
 import {
@@ -329,7 +331,22 @@ const CustomerMenu = () => {
     setPhoneError('');
 
     setSubmitting(true);
-    const orderNumber = `W-${Date.now().toString().slice(-5)}`;
+    let orderNumber = `W-${Date.now().toString().slice(-5)}`;
+    try {
+      const settingsRef = doc(db, 'settings', 'order_counters');
+      await runTransaction(db, async (transaction) => {
+        const settingsSnap = await transaction.get(settingsRef);
+        let currentCount = 0;
+        if (settingsSnap.exists()) {
+          currentCount = settingsSnap.data().completedWebOrders || 0;
+        }
+        currentCount += 1;
+        transaction.set(settingsRef, { completedWebOrders: currentCount }, { merge: true });
+        orderNumber = `W-${currentCount}`;
+      });
+    } catch (err) {
+      console.error('Failed to generate sequential web order number:', err);
+    }
 
     try {
       let payStatus = 'pending';

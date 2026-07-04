@@ -14,6 +14,7 @@ import {
   serverTimestamp,
   onSnapshot,
   doc,
+  runTransaction,
 } from 'firebase/firestore';
 import { APP_CONFIG } from '../config';
 import {
@@ -504,9 +505,22 @@ const CustomerMenu = () => {
     setAddressWarning('');
     setSubmitting(true);
 
-    // Ticket ref is a short unique ID for kitchen display; the final sequential
-    // order number (W-N) is assigned only when the order is marked as completed.
-    const orderNumber = `W-${Date.now().toString().slice(-5)}`;
+    let orderNumber = `W-${Date.now().toString().slice(-5)}`;
+    try {
+      const settingsRef = doc(db, 'settings', 'order_counters');
+      await runTransaction(db, async (transaction) => {
+        const settingsSnap = await transaction.get(settingsRef);
+        let currentCount = 0;
+        if (settingsSnap.exists()) {
+          currentCount = settingsSnap.data().completedWebOrders || 0;
+        }
+        currentCount += 1;
+        transaction.set(settingsRef, { completedWebOrders: currentCount }, { merge: true });
+        orderNumber = `W-${currentCount}`;
+      });
+    } catch (err) {
+      console.error('Failed to generate sequential web order number:', err);
+    }
 
     try {
       if (paymentMethod === 'upi') {
