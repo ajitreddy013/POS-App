@@ -360,7 +360,13 @@ function AppContent() {
             const isCash = order.paymentMethod === 'cash';
             const isPaidUPI = order.paymentMethod === 'upi' && order.paymentStatus === 'paid';
             if (isCash || isPaidUPI) {
-              const orderDateObj = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
+              let orderDateObj = new Date();
+              if (order.createdAt) {
+                const parsed = order.createdAt.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
+                if (parsed && !isNaN(parsed.getTime())) {
+                  orderDateObj = parsed;
+                }
+              }
               const saleDate = formatDateTimeToString(orderDateObj);
 
               const saleData = {

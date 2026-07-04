@@ -283,6 +283,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       await updateDoc(orderRef, {
         orderStatus: 'completed',
         orderNumber: sequentialNumber,
+        paymentStatus: 'paid',
       });
 
       showNotice(
