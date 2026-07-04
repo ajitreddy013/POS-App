@@ -26,6 +26,7 @@ import { getLocalDateTimeString } from '../utils/dateUtils';
 import { isOfferActiveToday, calculateOfferDiscount } from '../utils/offerUtils';
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
+import { Keyboard } from '@capacitor/keyboard';
 import { dbService } from '../services/dbService';
 import { APP_CONFIG } from '../config';
 import malabarLogo from '../assets/malabar-waffle-logo.png';
@@ -82,6 +83,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const [notice, setNotice] = useState(null);
   const [activeTab, setActiveTab] = useState('menu'); // 'menu' or 'cart' for mobile view
   const searchInputRef = useRef(null);
+  const nameInputRef = useRef(null);
   const noticeTimeoutRef = useRef(null);
   const qrPollIntervalRef = useRef(null);
   const cfUnsubRef = useRef(null);
@@ -136,23 +138,16 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       q,
       (querySnapshot) => {
         const ordersList = [];
-        let pendingCount = 0;
 
         querySnapshot.forEach((doc) => {
           const data = doc.data();
           const order = { id: doc.id, ...data };
           ordersList.push(order);
-          if (data.orderStatus === 'pending_acceptance') {
-            pendingCount++;
-          }
         });
 
-        // Play chime ONLY if the number of pending orders increased
+        // Play chime ONLY if the number of orders increased
         setOnlineOrders((prev) => {
-          const prevPendingCount = prev.filter(
-            (o) => o.orderStatus === 'pending_acceptance'
-          ).length;
-          if (pendingCount > prevPendingCount) {
+          if (ordersList.length > prev.length) {
             playIncomingOrderChime();
           }
           return ordersList;
@@ -219,53 +214,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       setProducts(productList);
     } catch (error) {
       setProducts([]);
-    }
-  };
-
-  const handleAcceptOnlineOrder = async (order) => {
-    try {
-      const db = getFirebaseDb();
-      if (!db) return;
-
-      // 1. Save to local Dexie database to record sale and deduct stock
-      const saleData = {
-        saleNumber: order.orderNumber,
-        saleType: 'parcel',
-        tableNumber: order.tableNumber || null,
-        customerName: order.customerName || 'Online Customer',
-        items: order.items.map((item) => ({
-          productId: Number(item.productId),
-          name: item.name,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice,
-        })),
-        subtotal: order.totalAmount,
-        taxAmount: 0,
-        discountAmount: 0,
-        totalAmount: order.totalAmount,
-        paymentMethod: order.paymentMethod,
-        saleDate: getLocalDateTimeString(),
-        barSettings,
-      };
-
-      await dbService.createSale(saleData);
-
-      // 2. Update status in Firestore
-      const orderRef = doc(db, 'orders', order.id);
-      await updateDoc(orderRef, {
-        orderStatus: 'preparing',
-      });
-
-      // Reload local products to update stock level visual in UI
-      await loadProducts();
-      showNotice(
-        'success',
-        `Accepted Order #${order.orderNumber}. Sent to kitchen.`
-      );
-    } catch (err) {
-      console.error('Failed to accept online order:', err);
-      alert(`Error accepting order: ${err.message || err}`);
     }
   };
 
@@ -596,7 +544,12 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     }
 
     if (!customerName.trim()) {
-      showNotice('error', 'Please enter the customer name!', 4000);
+      setActiveTab('cart');
+      setTimeout(() => {
+        nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        nameInputRef.current?.focus();
+        Keyboard.show().catch(() => {});
+      }, 100);
       return;
     }
 
@@ -919,12 +872,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 <button
                   onClick={() => setShowOnlineOrdersModal(true)}
                   style={{
-                    background:
-                      onlineOrders.filter(
-                        (o) => o.orderStatus === 'pending_acceptance'
-                      ).length > 0
-                        ? '#ea580c'
-                        : '#1C5C3A',
+                    background: onlineOrders.length > 0 ? '#ea580c' : '#1C5C3A',
                     color: 'white',
                     padding: '6px 12px',
                     borderRadius: '999px',
@@ -944,12 +892,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   <span
                     style={{
                       background: 'white',
-                      color:
-                        onlineOrders.filter(
-                          (o) => o.orderStatus === 'pending_acceptance'
-                        ).length > 0
-                          ? '#ea580c'
-                          : '#1C5C3A',
+                      color: onlineOrders.length > 0 ? '#ea580c' : '#1C5C3A',
                       borderRadius: '50%',
                       width: '16px',
                       height: '16px',
@@ -1467,6 +1410,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               style={{ marginTop: '16px', marginBottom: '8px' }}
             >
               <input
+                ref={nameInputRef}
                 type="text"
                 placeholder="Customer Name"
                 value={customerName}
@@ -2063,19 +2007,11 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                               borderRadius: '12px',
                               fontSize: '0.75rem',
                               fontWeight: '600',
-                              background:
-                                order.orderStatus === 'pending_acceptance'
-                                  ? '#ffedd5'
-                                  : '#dcfce7',
-                              color:
-                                order.orderStatus === 'pending_acceptance'
-                                  ? '#ea580c'
-                                  : '#15803d',
+                              background: '#dcfce7',
+                              color: '#15803d',
                             }}
                           >
-                            {order.orderStatus === 'pending_acceptance'
-                              ? 'Pending Approval'
-                              : 'Preparing'}
+                            Preparing
                           </span>
                         </div>
                         <span
@@ -2185,53 +2121,34 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                         </div>
 
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          {order.orderStatus === 'pending_acceptance' ? (
-                            <>
-                              <button
-                                onClick={() => handleCancelOnlineOrder(order)}
-                                className="btn btn-sm btn-danger"
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  padding: '6px 12px',
-                                  fontSize: '0.8rem',
-                                }}
-                              >
-                                <X size={14} /> Reject
-                              </button>
-                              <button
-                                onClick={() => handleAcceptOnlineOrder(order)}
-                                className="btn btn-sm btn-primary"
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  padding: '6px 16px',
-                                  fontSize: '0.8rem',
-                                  background: '#1C5C3A',
-                                }}
-                              >
-                                <Check size={14} /> Accept
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              onClick={() => handleCompleteOnlineOrder(order)}
-                              className="btn btn-sm btn-primary"
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '6px 16px',
-                                fontSize: '0.8rem',
-                                background: '#EAB308',
-                                color: '#1e293b',
-                              }}
-                            >
-                              <Check size={14} /> Complete Order
-                            </button>
-                          )}
+                          <button
+                            onClick={() => handleCancelOnlineOrder(order)}
+                            className="btn btn-sm btn-danger"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '6px 12px',
+                              fontSize: '0.8rem',
+                            }}
+                          >
+                            <X size={14} /> Cancel
+                          </button>
+                          <button
+                            onClick={() => handleCompleteOnlineOrder(order)}
+                            className="btn btn-sm btn-primary"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '6px 16px',
+                              fontSize: '0.8rem',
+                              background: '#EAB308',
+                              color: '#1e293b',
+                            }}
+                          >
+                            <Check size={14} /> Complete Order
+                          </button>
                         </div>
                       </div>
                     </div>

@@ -6,6 +6,7 @@ import React, {
   useCallback,
 } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Keyboard } from '@capacitor/keyboard';
 import { getFirebaseDb } from '../firebase';
 import {
   collection,
@@ -42,6 +43,7 @@ const CustomerMenu = () => {
 
   // Checkout Form State
   const [name, setName] = useState('');
+  const nameInputRef = useRef(null);
   const [paymentMethod, setPaymentMethod] = useState('upi'); // 'upi' or 'cash'
   const [submitting, setSubmitting] = useState(false);
 
@@ -282,7 +284,9 @@ const CustomerMenu = () => {
     e.preventDefault();
     if (cartItemsList.length === 0) return;
     if (!name.trim()) {
-      alert('Please enter your name.');
+      nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      nameInputRef.current?.focus();
+      Keyboard.show().catch(() => {});
       return;
     }
 
@@ -335,7 +339,7 @@ const CustomerMenu = () => {
         discountAmount: offerResult.discountAmount,
         paymentMethod,
         paymentStatus: payStatus,
-        orderStatus: 'pending_acceptance',
+        orderStatus: 'preparing',
         createdAt: serverTimestamp(),
       };
 
@@ -1049,6 +1053,7 @@ const CustomerMenu = () => {
                   Your Name
                 </label>
                 <input
+                  ref={nameInputRef}
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}

@@ -109,6 +109,8 @@ const CustomerMenu = () => {
 
   // Checkout Form State
   const [name, setName] = useState('');
+  const [nameError, setNameError] = useState(false);
+  const nameInputRef = useRef(null);
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [submitting, setSubmitting] = useState(false);
 
@@ -411,7 +413,9 @@ const CustomerMenu = () => {
     if (isOfferCartOdd) return;
 
     if (!name.trim()) {
-      alert('Please enter your name.');
+      setNameError(true);
+      nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      nameInputRef.current?.focus();
       return;
     }
 
@@ -566,7 +570,7 @@ const CustomerMenu = () => {
           ...(orderType === 'delivery' && { deliveryAddress }),
           paymentMethod,
           paymentStatus: 'pending',
-          orderStatus: 'pending_acceptance',
+          orderStatus: 'preparing',
           createdAt: serverTimestamp(),
         };
         await addDoc(collection(db, 'orders'), orderData);
@@ -1772,16 +1776,17 @@ const CustomerMenu = () => {
               </h3>
               <div style={{ marginBottom: '10px' }}>
                 <input
+                  ref={nameInputRef}
                   type="text"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => { setName(e.target.value); if (e.target.value.trim()) setNameError(false); }}
                   required
                   placeholder="Your name *"
                   style={{
                     width: '100%',
                     padding: '10px 12px',
                     borderRadius: '8px',
-                    border: '1.5px solid #e6ded3',
+                    border: `1.5px solid ${nameError ? '#dc2626' : '#e6ded3'}`,
                     outline: 'none',
                     fontSize: '0.88rem',
                     fontFamily: '"Outfit", sans-serif',
@@ -1789,6 +1794,11 @@ const CustomerMenu = () => {
                     boxSizing: 'border-box',
                   }}
                 />
+                {nameError && (
+                  <p style={{ color: '#b6412c', fontSize: '0.78rem', margin: '4px 0 0', fontWeight: '600' }}>
+                    Please enter your name
+                  </p>
+                )}
               </div>
             </div>
 

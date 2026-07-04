@@ -224,7 +224,7 @@ function AppContent() {
 
     const q = query(
       collection(db, 'orders'),
-      where('orderStatus', '==', 'pending_acceptance')
+      where('orderStatus', '==', 'preparing')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {

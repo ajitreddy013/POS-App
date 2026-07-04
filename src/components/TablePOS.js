@@ -6,6 +6,7 @@ import React, {
   useMemo,
 } from 'react';
 import PropTypes from 'prop-types';
+import { Keyboard } from '@capacitor/keyboard';
 import {
   Search,
   Plus,
@@ -39,6 +40,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const [barSettings, setBarSettings] = useState(null);
   const [autoSaving, setAutoSaving] = useState(false);
   const searchInputRef = useRef(null);
+  const nameInputRef = useRef(null);
   const [notice, setNotice] = useState(null);
   const [activeTab, setActiveTab] = useState('menu'); // 'menu' or 'cart' for mobile view
   const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -415,7 +417,12 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     }
 
     if (!customerName.trim()) {
-      alert('Please enter customer name!');
+      setActiveTab('cart');
+      setTimeout(() => {
+        nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        nameInputRef.current?.focus();
+        Keyboard.show().catch(() => {});
+      }, 100);
       return;
     }
     // Check if payment method is UPI and direct VPA configured
@@ -795,6 +802,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
               style={{ marginTop: '16px', marginBottom: '16px' }}
             >
               <input
+                ref={nameInputRef}
                 type="text"
                 placeholder="Customer Name"
                 value={customerName}

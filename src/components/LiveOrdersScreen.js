@@ -432,7 +432,7 @@ const LiveOrdersScreen = () => {
                               color: isDelivery ? '#7e22ce' : '#b6412c',
                             }}
                           >
-                            {formatCurrency(order.totalAmount)}
+                            {formatCurrency(order.totalAmount || order.amount || 0)}
                           </span>
                         </div>
                       </div>
@@ -649,22 +649,6 @@ const LiveOrdersScreen = () => {
                     </strong>
                   </div>
                   <div>
-                    Phone:{' '}
-                    <strong style={{ color: '#221f1a' }}>
-                      {selectedOrder.customerPhone || 'N/A'}
-                    </strong>
-                  </div>
-                  {selectedOrder.orderType !== 'delivery' && (
-                    <div>
-                      Table:{' '}
-                      <strong style={{ color: '#221f1a' }}>
-                        {selectedOrder.tableNumber === 'Parcel'
-                          ? 'Parcel / Takeaway'
-                          : selectedOrder.tableNumber}
-                      </strong>
-                    </div>
-                  )}
-                  <div>
                     Payment:{' '}
                     <strong
                       style={{ color: '#221f1a', textTransform: 'uppercase' }}
@@ -873,7 +857,7 @@ const LiveOrdersScreen = () => {
                       color: '#b6412c',
                     }}
                   >
-                    {formatCurrency(selectedOrder.totalAmount)}
+                    {formatCurrency(selectedOrder.totalAmount || selectedOrder.amount || 0)}
                   </span>
                 </div>
               </div>
