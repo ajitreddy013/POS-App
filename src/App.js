@@ -265,6 +265,9 @@ function AppContent() {
             } catch (err) {
               console.error(`Failed to delete cancelled order #${order.orderNumber}:`, err);
             }
+          } else if (order.orderStatus === 'completed') {
+            // Completed orders: sequential order number was assigned and Dexie updated
+            // by handleCompleteOnlineOrder. Skip here to avoid stock double-deduction.
           } else {
             const isCash = order.paymentMethod === 'cash';
             const isPaidUPI = order.paymentMethod === 'upi' && order.paymentStatus === 'paid';

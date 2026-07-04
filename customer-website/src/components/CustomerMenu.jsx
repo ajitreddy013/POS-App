@@ -12,8 +12,6 @@ import {
   getDocs,
   addDoc,
   serverTimestamp,
-  query,
-  where,
   onSnapshot,
   doc,
 } from 'firebase/firestore';
@@ -502,23 +500,9 @@ const CustomerMenu = () => {
     setAddressWarning('');
     setSubmitting(true);
 
-    // Generate sequential order number starting with W-
-    let orderNumber = `W-${Date.now().toString().slice(-6)}`;
-    try {
-      const q = query(
-        collection(db, 'orders'),
-        where('orderNumber', '>=', 'W-'),
-        where('orderNumber', '<=', 'W-\uf8ff')
-      );
-      const querySnapshot = await getDocs(q);
-      const webCount = querySnapshot.size;
-      orderNumber = `W-${webCount + 1}`;
-    } catch (err) {
-      console.error(
-        'Failed to generate sequential W- order number, falling back:',
-        err
-      );
-    }
+    // Ticket ref is a short unique ID for kitchen display; the final sequential
+    // order number (W-N) is assigned only when the order is marked as completed.
+    const orderNumber = `T-${Date.now().toString().slice(-5)}`;
 
     try {
       if (paymentMethod === 'upi') {
@@ -547,6 +531,7 @@ const CustomerMenu = () => {
         // 1. Save order to Firestore (pending)
         const orderData = {
           orderNumber,
+          source: 'web',
           customerName: name,
           customerPhone: phone,
           tableNumber,
@@ -601,10 +586,7 @@ const CustomerMenu = () => {
             const cashfree = window.Cashfree({
               mode: data.environment || 'sandbox',
             });
-            sessionStorage.setItem(
-              'customerWebsitePendingWhatsAppConfirmation',
-              JSON.stringify(confirmationPayload)
-            );
+            // WhatsApp is sent by the Cashfree webhook on the relay — do NOT save here
             await cashfree.checkout({
               paymentSessionId: data.paymentSessionId,
               redirectTarget: '_self',
@@ -629,10 +611,7 @@ const CustomerMenu = () => {
             throw new Error(
               'No payment link received from server. Please try again.'
             );
-          sessionStorage.setItem(
-            'customerWebsitePendingWhatsAppConfirmation',
-            JSON.stringify(confirmationPayload)
-          );
+          // WhatsApp is sent by the Cashfree webhook on the relay — do NOT save here
           window.location.href = data.paymentLink;
         }
       } else {
@@ -658,6 +637,7 @@ const CustomerMenu = () => {
         };
         const orderData = {
           orderNumber,
+          source: 'web',
           customerName: name,
           customerPhone: phone,
           tableNumber,

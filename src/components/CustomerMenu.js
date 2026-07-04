@@ -12,8 +12,6 @@ import {
   getDocs,
   addDoc,
   serverTimestamp,
-  query,
-  where,
 } from 'firebase/firestore';
 import { APP_CONFIG } from '../config';
 import {
@@ -331,18 +329,9 @@ const CustomerMenu = () => {
     setPhoneError('');
 
     setSubmitting(true);
-    let orderNumber = `A-${Date.now().toString().slice(-6)}`;
-    try {
-      const q = query(
-        collection(db, 'orders'),
-        where('orderNumber', '>=', 'A-'),
-        where('orderNumber', '<=', 'A-')
-      );
-      const snap = await getDocs(q);
-      orderNumber = `A-${snap.size + 1}`;
-    } catch (err) {
-      console.error('Failed to generate sequential A- order number, falling back:', err);
-    }
+    // Ticket ref is a short unique ID for kitchen display; the final sequential
+    // order number (A-N) is assigned only when the order is marked as completed.
+    const orderNumber = `T-${Date.now().toString().slice(-5)}`;
 
     try {
       let payStatus = 'pending';
@@ -356,6 +345,7 @@ const CustomerMenu = () => {
       // Save order to Firestore
       const orderData = {
         orderNumber,
+        source: 'app',
         customerName: name,
         customerPhone: phone,
         tableNumber,

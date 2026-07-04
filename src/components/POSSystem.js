@@ -46,6 +46,7 @@ import {
   doc,
   updateDoc,
   getDoc,
+  runTransaction,
 } from 'firebase/firestore';
 
 const formatCurrency = (value) => `₹${Number(value || 0).toFixed(2)}`;
@@ -327,10 +328,38 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       const db = getFirebaseDb();
       if (!db) return;
 
-      // 1. Update status in Firestore to completed
+      // Assign sequential order number at completion (only completed orders get one)
+      const isWebOrder = order.source === 'web' || (!order.source && order.orderNumber?.startsWith('W-'));
+      const prefix = isWebOrder ? 'W' : 'A';
+      const counterField = isWebOrder ? 'completedWebOrders' : 'completedAppOrders';
+
+      let sequentialNumber;
+      try {
+        const counterRef = doc(db, 'settings', 'order_counters');
+        await runTransaction(db, async (transaction) => {
+          const counterDoc = await transaction.get(counterRef);
+          const currentCount = counterDoc.exists() ? (counterDoc.data()[counterField] || 0) : 0;
+          const newCount = currentCount + 1;
+          transaction.set(counterRef, { [counterField]: newCount }, { merge: true });
+          sequentialNumber = `${prefix}-${newCount}`;
+        });
+      } catch (err) {
+        console.error('Failed to generate sequential order number:', err);
+        sequentialNumber = `${prefix}-${Date.now().toString().slice(-4)}`;
+      }
+
+      // Update Dexie sale to use the sequential number
+      try {
+        await dbService.updateSaleNumber(order.orderNumber, sequentialNumber);
+      } catch (err) {
+        console.warn('Failed to update Dexie sale number:', err);
+      }
+
+      // 1. Update status in Firestore to completed, with the sequential order number
       const orderRef = doc(db, 'orders', order.id);
       await updateDoc(orderRef, {
         orderStatus: 'completed',
+        orderNumber: sequentialNumber,
       });
 
       // 2. Silently trigger WhatsApp receipt delivery via Render server
@@ -339,7 +368,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           const relayUrl =
             barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
           const saleDataForReceipt = {
-            saleNumber: order.orderNumber,
+            saleNumber: sequentialNumber,
             saleType: 'parcel',
             tableNumber: order.tableNumber || null,
             customerName: order.customerName,
@@ -364,7 +393,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
       showNotice(
         'success',
-        `Completed Order #${order.orderNumber}. Receipt sent to customer.`
+        `Completed Order #${sequentialNumber}. Receipt sent to customer.`
       );
     } catch (err) {
       console.error('Failed to complete online order:', err);

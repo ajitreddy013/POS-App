@@ -1068,9 +1068,12 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
           } else {
             snapshot.forEach(async (doc) => {
               const orderData = doc.data();
+              // Set whatsappSent: true atomically with paymentStatus so the
+              // order watcher never sees a paid+unnotified window
               await doc.ref.update({
                 paymentStatus: 'paid',
                 orderStatus: 'pending_acceptance',
+                whatsappSent: true,
               });
               console.log(
                 `Updated Firestore Order ID: ${doc.id} paymentStatus to "paid", orderStatus to "pending_acceptance"`
@@ -1093,7 +1096,6 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
 
                   try {
                     await sock.sendMessage(cleanNumber, { text: messageText });
-                    await doc.ref.update({ whatsappSent: true });
                     console.log(
                       `Sent Cashfree payment confirmation WhatsApp for Order #${orderNumber} to: ${cleanNumber}`
                     );

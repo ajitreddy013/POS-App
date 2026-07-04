@@ -1,42 +1,17 @@
 import { dbService } from "../services/dbService";
 import React, { useState, useEffect, useCallback } from "react";
+import { Plus, X, DollarSign, ChevronDown } from "lucide-react";
 import {
-  DollarSign,
-  Plus,
-  Edit,
-  Trash2,
-  Calendar,
-  Search,
-  X,
-  Receipt,
-  CreditCard,
-  Tag,
-  FileText,
-  IndianRupee,
-} from "lucide-react";
+  getLocalDateString,
+  formatDateForDisplay,
+  formatDateToYMD,
+  getPreviousDay,
+} from "../utils/dateUtils";
 
 const PRESET_CATEGORIES = [
-  "Raw Materials",
-  "Rent",
-  "Utilities",
-  "Salaries",
-  "Maintenance",
-  "Transport",
-  "Marketing",
-  "Equipment",
-  "Others",
+  "Raw Materials", "Rent", "Utilities", "Salaries",
+  "Maintenance", "Transport", "Marketing", "Equipment", "Others",
 ];
-
-function getLocalDateString() {
-  const today = new Date();
-  return (
-    today.getFullYear() +
-    "-" +
-    String(today.getMonth() + 1).padStart(2, "0") +
-    "-" +
-    String(today.getDate()).padStart(2, "0")
-  );
-}
 
 const EMPTY_FORM = {
   description: "",
@@ -49,61 +24,64 @@ const EMPTY_FORM = {
 
 const Spendings = () => {
   const [spendings, setSpendings] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingSpending, setEditingSpending] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
   const [categories, setCategories] = useState(PRESET_CATEGORIES);
-  const [customCategory, setCustomCategory] = useState("");
-  const [dateRange, setDateRange] = useState({
-    startDate: getLocalDateString(),
-    endDate: getLocalDateString(),
-  });
+  const [startDate, setStartDate] = useState(getLocalDateString());
+  const [endDate, setEndDate] = useState(getLocalDateString());
+  const [openSection, setOpenSection] = useState(true);
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const loadSpendings = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await dbService.getSpendings(dateRange);
-      setSpendings(data);
-    } catch (err) {
-      console.error("Failed to load spendings:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [dateRange]);
+  const getActivePreset = () => {
+    const today = getLocalDateString();
+    const yst = getPreviousDay(today);
+    const now = new Date();
+    const firstThisMonth = formatDateToYMD(new Date(now.getFullYear(), now.getMonth(), 1));
+    if (startDate === today && endDate === today) return "today";
+    if (startDate === yst && endDate === yst) return "yesterday";
+    if (startDate === firstThisMonth && endDate === today) return "thisMonth";
+    return "custom";
+  };
 
-  useEffect(() => {
-    loadSpendings();
-  }, [loadSpendings]);
-
-  useEffect(() => {
-    loadCategories();
-  }, []);
-
-  const loadCategories = async () => {
-    try {
-      const data = await dbService.getSpendingCategories();
-      if (data && data.length > 0) {
-        const merged = Array.from(new Set([...PRESET_CATEGORIES, ...data]));
-        setCategories(merged);
-      }
-    } catch (err) {
-      console.error("Failed to load categories:", err);
+  const handlePreset = (preset) => {
+    const today = getLocalDateString();
+    const now = new Date();
+    if (preset === "today") { setStartDate(today); setEndDate(today); }
+    else if (preset === "yesterday") {
+      const yst = getPreviousDay(today);
+      setStartDate(yst); setEndDate(yst);
+    } else if (preset === "thisMonth") {
+      setStartDate(formatDateToYMD(new Date(now.getFullYear(), now.getMonth(), 1)));
+      setEndDate(today);
     }
   };
 
-  // Map form state → DB record (fixes camelCase → snake_case + type coercion)
-  const buildDbRecord = (form) => ({
-    description: form.description.trim(),
-    amount: Number(form.amount),
-    category: form.category.trim(),
-    spending_date: form.spendingDate,
-    payment_method: form.paymentMethod,
-    notes: form.notes.trim(),
+  const loadSpendings = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await dbService.getSpendings({ startDate, endDate });
+      setSpendings(data || []);
+    } catch (_e) { /* silent */ } finally { setLoading(false); }
+  }, [startDate, endDate]);
+
+  useEffect(() => { loadSpendings(); }, [loadSpendings]);
+
+  useEffect(() => {
+    dbService.getSpendingCategories().then((data) => {
+      if (data?.length) setCategories(Array.from(new Set([...PRESET_CATEGORIES, ...data])));
+    }).catch(() => {});
+  }, []);
+
+  const buildRecord = (f) => ({
+    description: f.description.trim(),
+    amount: Number(f.amount),
+    category: f.category.trim(),
+    spending_date: f.spendingDate,
+    payment_method: f.paymentMethod,
+    notes: f.notes.trim(),
   });
 
   const handleSubmit = async (e) => {
@@ -111,49 +89,38 @@ const Spendings = () => {
     setError("");
     if (!formData.description.trim()) return setError("Description is required.");
     if (!formData.amount || Number(formData.amount) <= 0) return setError("Enter a valid amount.");
-    if (!formData.category.trim()) return setError("Category is required.");
-
+    if (!formData.category.trim()) return setError("Select a category.");
     setSubmitting(true);
     try {
-      const record = buildDbRecord(formData);
       if (editingSpending) {
-        await dbService.updateSpending(editingSpending.id, record);
+        await dbService.updateSpending(editingSpending.id, buildRecord(formData));
       } else {
-        await dbService.addSpending(record);
+        await dbService.addSpending(buildRecord(formData));
       }
       resetForm();
       loadSpendings();
-      loadCategories();
-    } catch (err) {
-      console.error("Failed to save spending:", err);
+    } catch (_e) {
       setError("Failed to save. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
+    } finally { setSubmitting(false); }
   };
 
-  const handleEdit = (spending) => {
-    setEditingSpending(spending);
+  const handleEdit = (s) => {
+    setEditingSpending(s);
     setFormData({
-      description: spending.description || "",
-      amount: spending.amount != null ? String(spending.amount) : "",
-      category: spending.category || "",
-      spendingDate: (spending.spending_date || "").split(" ")[0] || getLocalDateString(),
-      paymentMethod: spending.payment_method || "cash",
-      notes: spending.notes || "",
+      description: s.description || "",
+      amount: s.amount != null ? String(s.amount) : "",
+      category: s.category || "",
+      spendingDate: (s.spending_date || "").split(" ")[0] || getLocalDateString(),
+      paymentMethod: s.payment_method || "cash",
+      notes: s.notes || "",
     });
     setError("");
     setShowForm(true);
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this spending?")) {
-      try {
-        await dbService.deleteSpending(id);
-        loadSpendings();
-      } catch (err) {
-        console.error("Failed to delete spending:", err);
-      }
+    if (window.confirm("Delete this spending?")) {
+      try { await dbService.deleteSpending(id); loadSpendings(); } catch (_e) { /* silent */ }
     }
   };
 
@@ -162,700 +129,496 @@ const Spendings = () => {
     setEditingSpending(null);
     setShowForm(false);
     setError("");
-    setCustomCategory("");
   };
 
-  const handleCategoryChip = (cat) => {
-    setFormData((prev) => ({ ...prev, category: cat }));
-    setCustomCategory("");
-  };
+  const totalSpending = spendings.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const activePreset = getActivePreset();
 
-  const filteredSpendings = spendings.filter((spending) => {
-    const desc = (spending.description || "").toLowerCase();
-    const cat = (spending.category || "").toLowerCase();
-    const matchesSearch =
-      desc.includes(searchTerm.toLowerCase()) ||
-      cat.includes(searchTerm.toLowerCase());
-    const matchesCategory =
-      !selectedCategory || spending.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  const totalSpending = filteredSpendings.reduce(
-    (sum, s) => sum + (Number(s.amount) || 0),
-    0
-  );
-
-  const formatDate = (dateString) => {
-    if (!dateString) return "-";
-    const [datePart] = (dateString || "").split(" ");
-    const parts = datePart.split("-");
-    if (parts.length !== 3) return dateString;
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  };
-
-  const paymentLabel = (method) => {
-    const map = {
-      cash: "Cash",
-      card: "Card",
-      upi: "UPI",
-      bank_transfer: "Bank Transfer",
-    };
-    return map[method] || method;
-  };
+  const payLabel = (m) => ({ cash: "Cash", upi: "UPI", card: "Card", bank_transfer: "Bank" }[m] || m);
 
   return (
     <div className="spd-root">
       <style>{`
         .spd-root {
           min-height: 100vh;
-          padding: 1.5rem 1.25rem 3rem;
-          background: linear-gradient(180deg, #fdfbf9 0%, #fff7f2 40%, #f8fafc 100%);
-          font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
-          color: #1e293b;
+          background: #f6f3ee;
+          font-family: 'Outfit', -apple-system, sans-serif;
+          color: #221f1a;
+          padding-bottom: 80px;
         }
-        .spd-shell { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.1rem; }
 
-        /* ── Toolbar ── */
-        .spd-toolbar {
-          background: #ffffff;
-          border: 1px solid #ece4d8;
-          border-radius: 18px;
-          box-shadow: 0 4px 18px rgba(15,23,42,0.05);
-          padding: 1rem 1.2rem;
-          display: flex;
-          flex-wrap: wrap;
-          align-items: flex-end;
-          gap: 0.8rem;
+        /* ── Sticky header ── */
+        .spd-hdr {
+          background: #fff;
+          border-bottom: 1px solid #e6ded3;
+          padding: 14px 16px 0;
+          position: sticky; top: 0; z-index: 10;
         }
-        .spd-toolbar-title {
-          font-size: 1.15rem;
-          font-weight: 800;
-          color: #0f172a;
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          margin-right: auto;
+        .spd-hdr-row {
+          display: flex; align-items: center;
+          justify-content: space-between; gap: 10px;
+          padding-bottom: 12px;
         }
-        .spd-toolbar-title svg { color: #b6412c; }
-        .spd-field { display: flex; flex-direction: column; gap: 0.3rem; }
-        .spd-field-label {
-          font-size: 0.68rem; font-weight: 700; color: #94837a;
-          text-transform: uppercase; letter-spacing: 0.07em;
-        }
-        .spd-input, .spd-select {
-          border: 1px solid #e6ded3; border-radius: 10px;
-          padding: 0.55rem 0.75rem; font-size: 0.875rem;
-          color: #221f1a; background: #fdfbf7; font-family: inherit;
-          min-width: 130px;
-        }
-        .spd-input:focus, .spd-select:focus {
-          outline: none; border-color: #b6412c; background: #fff;
-          box-shadow: 0 0 0 3px rgba(182,65,44,0.1);
-        }
-        .spd-search-wrap { position: relative; display: flex; align-items: center; }
-        .spd-search-wrap svg { position: absolute; left: 10px; color: #b3a89c; pointer-events: none; }
-        .spd-search-wrap .spd-input { padding-left: 34px; min-width: 200px; }
-
+        .spd-hdr-title { font-size: 1.1rem; font-weight: 800; color: #221f1a; margin: 0; }
         .spd-add-btn {
-          display: inline-flex; align-items: center; gap: 0.45rem;
-          padding: 0.6rem 1.1rem; border-radius: 11px; border: none;
-          background: linear-gradient(135deg, #b6412c 0%, #d85a42 100%);
-          color: #fff; font-size: 0.875rem; font-weight: 700;
-          cursor: pointer; box-shadow: 0 6px 16px rgba(182,65,44,0.3);
-          white-space: nowrap; transition: filter 0.15s;
-          align-self: flex-end;
+          display: inline-flex; align-items: center; gap: 5px;
+          padding: 8px 14px; border-radius: 999px; border: none;
+          background: #b6412c; color: #fff;
+          font-size: 0.8rem; font-weight: 700; cursor: pointer;
+          font-family: inherit; white-space: nowrap;
         }
-        .spd-add-btn:hover { filter: brightness(1.08); }
+
+        /* ── Pills ── */
+        .spd-pills {
+          display: flex; gap: 6px; overflow-x: auto; padding-bottom: 12px;
+          scrollbar-width: none;
+        }
+        .spd-pills::-webkit-scrollbar { display: none; }
+        .spd-pill {
+          padding: 7px 14px; border-radius: 999px;
+          border: 1.5px solid #e6ded3; background: #fff; color: #57504a;
+          font-size: 0.8rem; font-weight: 700; cursor: pointer;
+          white-space: nowrap; font-family: inherit; flex-shrink: 0;
+        }
+        .spd-pill.active { background: #b6412c; border-color: #b6412c; color: #fff; }
+
+        /* ── Date row ── */
+        .spd-dates {
+          display: flex; gap: 10px; padding: 10px 16px 14px;
+          background: #fff; border-bottom: 1px solid #e6ded3;
+        }
+        .spd-date-field { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+        .spd-date-label {
+          font-size: 0.68rem; font-weight: 700; color: #94837a;
+          text-transform: uppercase; letter-spacing: 0.06em;
+        }
+        .spd-date-input {
+          border: 1.5px solid #e6ded3; border-radius: 10px;
+          padding: 8px 10px; font-size: 0.84rem; color: #221f1a;
+          background: #fdfbf7; font-family: inherit;
+          width: 100%; box-sizing: border-box;
+        }
+        .spd-date-input:focus { outline: none; border-color: #b6412c; }
+
+        /* ── Body ── */
+        .spd-body { padding: 14px 14px 0; display: flex; flex-direction: column; gap: 12px; }
 
         /* ── Summary cards ── */
-        .spd-summary-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 0.9rem;
+        .spd-sum-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .spd-sum-card {
+          background: #fff; border: 1px solid #e6ded3; border-radius: 16px;
+          padding: 14px 14px 12px;
         }
-        .spd-summary-card {
-          background: #ffffff; border: 1px solid #ece4d8;
-          border-radius: 16px; padding: 1.1rem 1.2rem;
-          box-shadow: 0 4px 18px rgba(15,23,42,0.04);
-          display: flex; align-items: center; gap: 0.9rem;
-        }
-        .spd-summary-icon {
-          width: 44px; height: 44px; border-radius: 12px;
-          display: flex; align-items: center; justify-content: center;
-          flex-shrink: 0;
-        }
-        .spd-summary-icon.spend { background: rgba(182,65,44,0.1); color: #b6412c; }
-        .spd-summary-icon.count { background: rgba(15,23,42,0.06); color: #334155; }
-        .spd-summary-icon.avg   { background: rgba(39,174,96,0.1); color: #16a34a; }
-        .spd-summary-label { font-size: 0.7rem; font-weight: 800; color: #94837a; text-transform: uppercase; letter-spacing: 0.08em; }
-        .spd-summary-value { margin-top: 0.25rem; font-size: 1.45rem; font-weight: 800; letter-spacing: -0.02em; color: #0f172a; }
-
-        /* ── Table panel ── */
-        .spd-panel {
-          background: #ffffff; border: 1px solid #ece4d8;
-          border-radius: 18px; box-shadow: 0 4px 18px rgba(15,23,42,0.04);
-          overflow: hidden;
-        }
-        .spd-panel-header {
-          padding: 0.9rem 1.2rem;
-          border-bottom: 1px solid #f1ebe1;
-          font-size: 0.78rem; font-weight: 800;
-          color: #57504a; text-transform: uppercase; letter-spacing: 0.06em;
-          display: flex; align-items: center; justify-content: space-between;
-        }
-        .spd-table-wrap { overflow-x: auto; }
-        .spd-table { width: 100%; border-collapse: collapse; min-width: 680px; }
-        .spd-table thead th {
-          text-align: left; padding: 0.75rem 1rem;
-          font-size: 0.7rem; font-weight: 800;
+        .spd-sum-label {
+          font-size: 0.7rem; font-weight: 700; color: #94837a;
           text-transform: uppercase; letter-spacing: 0.06em;
-          color: #94837a; background: #fdfbf7;
-          border-bottom: 1px solid #f1ebe1; white-space: nowrap;
         }
-        .spd-table tbody td {
-          padding: 0.8rem 1rem; font-size: 0.855rem;
-          color: #3a342e; border-bottom: 1px solid #f5f0e9;
-          vertical-align: middle;
+        .spd-sum-value { font-size: 1.4rem; font-weight: 800; margin: 6px 0 2px; letter-spacing: -0.02em; }
+        .spd-sum-value.red   { color: #b91c1c; }
+        .spd-sum-value.dark  { color: #221f1a; }
+        .spd-sum-sub { font-size: 0.74rem; color: #94837a; font-weight: 600; }
+        .spd-sum-full {
+          grid-column: 1 / -1;
+          background: linear-gradient(135deg, #b6412c 0%, #d0553c 100%);
+          border: none;
         }
-        .spd-table tbody tr:hover { background: #fffaf6; }
-        .spd-table tbody tr:last-child td { border-bottom: none; }
-        .spd-table td.amount { font-weight: 700; color: #b91c1c; }
+        .spd-sum-full .spd-sum-label { color: rgba(255,255,255,0.75); }
+        .spd-sum-full .spd-sum-value { color: #fff; }
+        .spd-sum-full .spd-sum-sub   { color: rgba(255,255,255,0.7); }
 
-        .spd-category-tag {
-          background: rgba(182,65,44,0.09); color: #b6412c;
-          font-size: 0.72rem; font-weight: 700;
-          padding: 0.25rem 0.6rem; border-radius: 999px;
+        /* ── Panel ── */
+        .spd-panel {
+          background: #fff; border: 1px solid #e6ded3; border-radius: 16px; overflow: hidden;
         }
-        .spd-pay-chip {
-          font-weight: 700; letter-spacing: 0.03em;
-          padding: 0.25rem 0.65rem; border-radius: 999px;
-          font-size: 0.7rem; display: inline-block;
+        .spd-panel-hdr {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 14px 16px; cursor: pointer; border: none; background: none;
+          width: 100%; text-align: left; font-family: inherit;
         }
-        .spd-pay-chip.cash  { background: rgba(39,174,96,0.1); color: #1f9c54; }
-        .spd-pay-chip.upi   { background: rgba(102,126,234,0.1); color: #5a64c4; }
-        .spd-pay-chip.card  { background: rgba(168,85,247,0.1); color: #9333ea; }
-        .spd-pay-chip.bank_transfer { background: rgba(245,158,11,0.1); color: #b45309; }
+        .spd-panel-hdr-left { display: flex; flex-direction: column; gap: 1px; }
+        .spd-panel-title { font-size: 0.95rem; font-weight: 800; color: #221f1a; }
+        .spd-panel-count { font-size: 0.74rem; color: #94837a; font-weight: 600; }
+        .spd-chev { color: #94837a; transition: transform 0.2s; }
+        .spd-chev.open { transform: rotate(180deg); }
 
-        .spd-action-buttons { display: flex; gap: 0.35rem; }
+        /* ── Spending cards ── */
+        .spd-card {
+          padding: 12px 16px; border-top: 1px solid #f1ebe1;
+          display: flex; align-items: center; gap: 12px;
+        }
+        .spd-card:first-child { border-top: none; }
+        .spd-card-icon {
+          width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 1rem; background: rgba(185,28,28,0.08);
+        }
+        .spd-card-main { flex: 1; min-width: 0; }
+        .spd-card-desc {
+          font-size: 0.88rem; font-weight: 700; color: #221f1a;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .spd-card-meta { font-size: 0.74rem; color: #94837a; margin-top: 2px; }
+        .spd-card-right { text-align: right; flex-shrink: 0; }
+        .spd-card-amount { font-size: 0.95rem; font-weight: 800; color: #b91c1c; }
+        .spd-card-pay { font-size: 0.7rem; color: #94837a; margin-top: 2px; }
+        .spd-cat-tag {
+          background: rgba(182,65,44,0.1); color: #b6412c;
+          font-size: 0.66rem; font-weight: 700;
+          padding: 2px 7px; border-radius: 999px; display: inline-block;
+        }
+        .spd-card-actions { display: flex; gap: 4px; flex-shrink: 0; }
         .spd-icon-btn {
-          display: inline-flex; align-items: center; justify-content: center;
-          width: 30px; height: 30px; border-radius: 8px;
-          border: 1px solid #e6ded3; background: #fdfbf7; color: #57504a; cursor: pointer;
-          transition: background 0.12s;
+          display: flex; align-items: center; justify-content: center;
+          width: 28px; height: 28px; border-radius: 8px;
+          border: 1px solid #e6ded3; background: #fdfbf7;
+          color: #57504a; cursor: pointer; font-size: 0.75rem;
         }
         .spd-icon-btn:hover { background: #f1ebe1; }
-        .spd-icon-btn.danger { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
-        .spd-icon-btn.danger:hover { background: #fee2e2; }
+        .spd-icon-btn.del { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+        .spd-icon-btn.del:hover { background: #fee2e2; }
 
-        .spd-empty-state { text-align: center; padding: 3rem 1rem; color: #94837a; }
-        .spd-empty-state svg { color: #d9cdbf; margin-bottom: 0.8rem; }
-        .spd-empty-state h3 { margin: 0 0 0.3rem; font-size: 1rem; color: #57504a; }
-        .spd-empty-state p  { margin: 0; font-size: 0.85rem; }
+        .spd-empty { text-align: center; padding: 32px 16px; color: #94837a; font-size: 0.88rem; }
+        .spd-empty-icon { font-size: 2rem; margin-bottom: 8px; }
 
-        /* ── Modal / Form ── */
+        /* ── Modal ── */
         .spd-overlay {
-          position: fixed; inset: 0;
-          background: rgba(15,23,42,0.5);
-          display: flex; align-items: center; justify-content: center;
-          z-index: 1000; padding: 1rem;
-          animation: spd-fade-in 0.15s ease;
+          position: fixed; inset: 0; background: rgba(15,23,42,0.5);
+          display: flex; align-items: flex-end; justify-content: center;
+          z-index: 1000;
         }
-        @keyframes spd-fade-in { from { opacity: 0; } to { opacity: 1; } }
-
-        .spd-drawer {
-          background: #fff; border-radius: 22px;
-          width: 100%; max-width: 520px;
-          max-height: 92vh; overflow: hidden;
-          display: flex; flex-direction: column;
-          box-shadow: 0 32px 80px rgba(15,23,42,0.28);
-          animation: spd-slide-up 0.2s ease;
-        }
-        @keyframes spd-slide-up {
-          from { transform: translateY(20px); opacity: 0; }
-          to   { transform: translateY(0);    opacity: 1; }
+        @media (min-height: 600px) {
+          .spd-overlay { align-items: center; padding: 1rem; }
         }
 
-        .spd-drawer-header {
-          padding: 1.1rem 1.3rem 1rem;
+        .spd-modal {
+          background: #fff; width: 100%; max-width: 440px;
+          border-radius: 20px 20px 0 0;
+          max-height: 90vh; display: flex; flex-direction: column;
+          box-shadow: 0 -8px 40px rgba(15,23,42,0.22);
+          animation: spd-up 0.2s ease;
+          overflow: hidden;
+        }
+        @media (min-height: 600px) {
+          .spd-modal { border-radius: 20px; box-shadow: 0 24px 60px rgba(15,23,42,0.28); animation: spd-in 0.18s ease; }
+        }
+        @keyframes spd-up  { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+        @keyframes spd-in  { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+        .spd-modal-hdr {
+          padding: 14px 16px 12px;
           background: linear-gradient(135deg, #b6412c 0%, #d85a42 100%);
-          display: flex; align-items: center; gap: 0.7rem;
+          display: flex; align-items: center; gap: 8px; flex-shrink: 0;
         }
-        .spd-drawer-header h2 {
-          margin: 0; flex: 1;
-          font-size: 1.05rem; font-weight: 800; color: #fff;
-          display: flex; align-items: center; gap: 0.5rem;
+        .spd-modal-hdr h2 {
+          margin: 0; flex: 1; font-size: 0.95rem; font-weight: 800; color: #fff;
+          display: flex; align-items: center; gap: 6px;
         }
-        .spd-close-btn {
-          width: 32px; height: 32px; border-radius: 9px;
-          background: rgba(255,255,255,0.2); border: none;
-          color: #fff; cursor: pointer; display: flex;
-          align-items: center; justify-content: center;
-          transition: background 0.12s;
+        .spd-modal-close {
+          width: 28px; height: 28px; border-radius: 8px;
+          background: rgba(255,255,255,0.2); border: none; color: #fff;
+          cursor: pointer; display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
         }
-        .spd-close-btn:hover { background: rgba(255,255,255,0.35); }
+        .spd-modal-close:hover { background: rgba(255,255,255,0.35); }
 
-        .spd-drawer-body {
-          flex: 1; overflow-y: auto; padding: 1.3rem;
-          display: flex; flex-direction: column; gap: 1.2rem;
-        }
+        /* form scroll fix */
+        .spd-modal form { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
 
-        .spd-section-label {
-          font-size: 0.68rem; font-weight: 800; color: #b6412c;
-          text-transform: uppercase; letter-spacing: 0.08em;
-          margin-bottom: 0.7rem; display: flex; align-items: center; gap: 0.4rem;
+        .spd-modal-body {
+          flex: 1; overflow-y: auto; padding: 14px 16px;
+          display: flex; flex-direction: column; gap: 10px;
         }
 
-        .spd-fgroup { display: flex; flex-direction: column; gap: 0.35rem; }
-        .spd-fgroup label {
-          font-size: 0.78rem; font-weight: 700; color: #57504a;
-        }
-        .spd-fgroup label .req { color: #b6412c; }
-        .spd-fgroup input,
-        .spd-fgroup select,
-        .spd-fgroup textarea {
-          border: 1px solid #e6ded3; border-radius: 11px;
-          padding: 0.65rem 0.85rem; font-size: 0.9rem;
+        .spd-fg { display: flex; flex-direction: column; gap: 4px; }
+        .spd-fg label { font-size: 0.72rem; font-weight: 700; color: #57504a; }
+        .spd-fg .req { color: #b6412c; }
+        .spd-fg input,
+        .spd-fg select,
+        .spd-fg textarea {
+          border: 1.5px solid #e6ded3; border-radius: 10px;
+          padding: 9px 11px; font-size: 0.875rem;
           color: #221f1a; background: #fdfbf7; font-family: inherit;
-          transition: border-color 0.15s, box-shadow 0.15s;
         }
-        .spd-fgroup input:focus,
-        .spd-fgroup select:focus,
-        .spd-fgroup textarea:focus {
+        .spd-fg input:focus,
+        .spd-fg select:focus,
+        .spd-fg textarea:focus {
           outline: none; border-color: #b6412c; background: #fff;
-          box-shadow: 0 0 0 3px rgba(182,65,44,0.1);
+          box-shadow: 0 0 0 3px rgba(182,65,44,0.08);
         }
-        .spd-fgroup textarea { resize: vertical; min-height: 72px; }
+        .spd-fg textarea { resize: none; }
 
-        .spd-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+        .spd-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+        /* Amount ₹ prefix */
+        .spd-amt { position: relative; }
+        .spd-amt-sign {
+          position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+          font-size: 0.85rem; font-weight: 700; color: #94837a; pointer-events: none;
+        }
+        .spd-amt input { padding-left: 22px; }
 
         /* Category chips */
-        .spd-cat-chips {
-          display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.5rem;
-        }
-        .spd-cat-chip {
-          padding: 0.3rem 0.7rem; border-radius: 999px;
+        .spd-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+        .spd-chip {
+          padding: 4px 10px; border-radius: 999px;
           border: 1.5px solid #e6ded3; background: #fdfbf7;
-          font-size: 0.75rem; font-weight: 600; color: #57504a;
-          cursor: pointer; transition: all 0.12s;
+          font-size: 0.72rem; font-weight: 600; color: #57504a;
+          cursor: pointer; font-family: inherit; line-height: 1.4;
         }
-        .spd-cat-chip:hover { border-color: #b6412c; color: #b6412c; background: #fff5f3; }
-        .spd-cat-chip.active { border-color: #b6412c; background: #b6412c; color: #fff; }
+        .spd-chip:hover { border-color: #b6412c; color: #b6412c; }
+        .spd-chip.on { border-color: #b6412c; background: #b6412c; color: #fff; }
 
-        /* Payment method radio-style buttons */
-        .spd-pay-options { display: grid; grid-template-columns: repeat(4,1fr); gap: 0.5rem; }
-        .spd-pay-option input { display: none; }
-        .spd-pay-option label {
-          display: block; text-align: center; padding: 0.5rem 0.4rem;
-          border: 1.5px solid #e6ded3; border-radius: 10px;
-          background: #fdfbf7; font-size: 0.75rem; font-weight: 700;
-          color: #57504a; cursor: pointer; transition: all 0.12s;
+        /* Payment pills */
+        .spd-pm { display: flex; gap: 6px; }
+        .spd-pm-opt { flex: 1; }
+        .spd-pm-opt input { display: none; }
+        .spd-pm-opt label {
+          display: block; text-align: center; padding: 7px 4px;
+          border: 1.5px solid #e6ded3; border-radius: 9px;
+          background: #fdfbf7; font-size: 0.72rem; font-weight: 700;
+          color: #57504a; cursor: pointer; font-family: inherit;
         }
-        .spd-pay-option input:checked + label {
-          border-color: #b6412c; background: #b6412c; color: #fff;
-        }
-        .spd-pay-option label:hover { border-color: #b6412c; color: #b6412c; }
-        .spd-pay-option input:checked + label:hover { color: #fff; }
-        .spd-pay-option .pay-icon { display: block; font-size: 1rem; margin-bottom: 2px; }
+        .spd-pm-opt input:checked + label { border-color: #b6412c; background: #b6412c; color: #fff; }
+        .spd-pm-opt label:hover { border-color: #b6412c; color: #b6412c; }
+        .spd-pm-opt input:checked + label:hover { color: #fff; }
 
-        /* Error */
-        .spd-error {
+        .spd-err {
           background: #fef2f2; border: 1px solid #fecaca;
-          border-radius: 10px; padding: 0.65rem 0.9rem;
-          font-size: 0.83rem; color: #b91c1c; font-weight: 600;
+          border-radius: 8px; padding: 8px 12px;
+          font-size: 0.8rem; color: #b91c1c; font-weight: 600;
         }
 
-        /* Amount input with rupee prefix */
-        .spd-amount-wrap { position: relative; display: flex; align-items: center; }
-        .spd-amount-wrap svg { position: absolute; left: 11px; color: #94837a; pointer-events: none; }
-        .spd-amount-wrap input { padding-left: 34px; }
-
-        .spd-drawer-footer {
-          padding: 1rem 1.3rem;
-          border-top: 1px solid #f1ebe1;
-          background: #fdfbf7;
-          display: flex; justify-content: flex-end; gap: 0.7rem;
+        .spd-modal-foot {
+          padding: 10px 16px 14px;
+          border-top: 1px solid #f1ebe1; background: #fdfbf7;
+          display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0;
         }
         .spd-btn-cancel {
-          padding: 0.65rem 1.2rem; border-radius: 11px;
+          padding: 9px 16px; border-radius: 10px;
           border: 1px solid #e6ded3; background: #fff;
-          color: #57504a; font-weight: 700; font-size: 0.875rem;
+          color: #57504a; font-weight: 700; font-size: 0.83rem;
           cursor: pointer; font-family: inherit;
         }
         .spd-btn-cancel:hover { background: #f7f3ed; }
-        .spd-btn-submit {
-          padding: 0.65rem 1.4rem; border-radius: 11px; border: none;
+        .spd-btn-save {
+          padding: 9px 18px; border-radius: 10px; border: none;
           background: linear-gradient(135deg, #b6412c 0%, #d85a42 100%);
-          color: #fff; font-weight: 700; font-size: 0.875rem;
+          color: #fff; font-weight: 700; font-size: 0.83rem;
           cursor: pointer; font-family: inherit;
-          box-shadow: 0 6px 16px rgba(182,65,44,0.28);
-          transition: filter 0.15s;
-          opacity: 1;
+          box-shadow: 0 4px 12px rgba(182,65,44,0.25);
         }
-        .spd-btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
-        .spd-btn-submit:not(:disabled):hover { filter: brightness(1.08); }
-
-        /* ── Responsive ── */
-        @media (max-width: 700px) {
-          .spd-summary-grid { grid-template-columns: 1fr 1fr; }
-          .spd-toolbar { flex-direction: column; align-items: stretch; }
-          .spd-toolbar-title { margin-right: 0; }
-          .spd-row { grid-template-columns: 1fr; }
-          .spd-pay-options { grid-template-columns: repeat(2,1fr); }
-          .spd-summary-grid .spd-summary-card:last-child { grid-column: 1/-1; }
-        }
+        .spd-btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
       `}</style>
 
-      <div className="spd-shell">
-
-        {/* ── Toolbar ── */}
-        <div className="spd-toolbar">
-          <div className="spd-toolbar-title">
-            <Receipt size={20} />
-            Spendings
-          </div>
-
-          <div className="spd-field">
-            <span className="spd-field-label">From</span>
-            <input
-              type="date"
-              className="spd-input"
-              value={dateRange.startDate}
-              onChange={(e) =>
-                setDateRange((prev) => ({ ...prev, startDate: e.target.value }))
-              }
-            />
-          </div>
-          <div className="spd-field">
-            <span className="spd-field-label">To</span>
-            <input
-              type="date"
-              className="spd-input"
-              value={dateRange.endDate}
-              onChange={(e) =>
-                setDateRange((prev) => ({ ...prev, endDate: e.target.value }))
-              }
-            />
-          </div>
-          <div className="spd-field">
-            <span className="spd-field-label">Category</span>
-            <select
-              className="spd-select"
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-            >
-              <option value="">All</option>
-              {categories.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-          <div className="spd-field">
-            <span className="spd-field-label">Search</span>
-            <div className="spd-search-wrap">
-              <Search size={15} />
-              <input
-                type="text"
-                className="spd-input"
-                placeholder="Search…"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <button onClick={() => { setError(""); setShowForm(true); }} className="spd-add-btn">
-            <Plus size={16} /> Add Spending
+      {/* ── Sticky header ── */}
+      <div className="spd-hdr">
+        <div className="spd-hdr-row">
+          <p className="spd-hdr-title">Spendings</p>
+          <button className="spd-add-btn" onClick={() => { setError(""); setShowForm(true); }}>
+            <Plus size={14} /> Add
           </button>
         </div>
+        <div className="spd-pills">
+          {[
+            { key: "today",     label: "Today" },
+            { key: "yesterday", label: "Yesterday" },
+            { key: "thisMonth", label: "This Month" },
+          ].map((p) => (
+            <button
+              key={p.key}
+              className={`spd-pill${activePreset === p.key ? " active" : ""}`}
+              onClick={() => handlePreset(p.key)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
+      {/* ── Date range ── */}
+      <div className="spd-dates">
+        <div className="spd-date-field">
+          <span className="spd-date-label">From</span>
+          <input type="date" className="spd-date-input" value={startDate}
+            onChange={(e) => setStartDate(e.target.value)} />
+        </div>
+        <div className="spd-date-field">
+          <span className="spd-date-label">To</span>
+          <input type="date" className="spd-date-input" value={endDate}
+            onChange={(e) => setEndDate(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="spd-body">
         {/* ── Summary ── */}
-        <div className="spd-summary-grid">
-          <div className="spd-summary-card">
-            <div className="spd-summary-icon spend"><IndianRupee size={21} /></div>
-            <div>
-              <div className="spd-summary-label">Total Spent</div>
-              <div className="spd-summary-value">₹{totalSpending.toFixed(2)}</div>
-            </div>
+        <div className="spd-sum-grid">
+          <div className="spd-sum-card">
+            <div className="spd-sum-label">Total Spent</div>
+            <div className="spd-sum-value red">₹{totalSpending.toFixed(0)}</div>
+            <div className="spd-sum-sub">{spendings.length} entries</div>
           </div>
-          <div className="spd-summary-card">
-            <div className="spd-summary-icon count"><Calendar size={21} /></div>
-            <div>
-              <div className="spd-summary-label">Entries</div>
-              <div className="spd-summary-value">{filteredSpendings.length}</div>
+          <div className="spd-sum-card">
+            <div className="spd-sum-label">Average</div>
+            <div className="spd-sum-value dark">
+              ₹{spendings.length > 0 ? (totalSpending / spendings.length).toFixed(0) : "0"}
             </div>
-          </div>
-          <div className="spd-summary-card">
-            <div className="spd-summary-icon avg"><DollarSign size={21} /></div>
-            <div>
-              <div className="spd-summary-label">Average</div>
-              <div className="spd-summary-value">
-                ₹{filteredSpendings.length > 0
-                  ? (totalSpending / filteredSpendings.length).toFixed(2)
-                  : "0.00"}
-              </div>
-            </div>
+            <div className="spd-sum-sub">per entry</div>
           </div>
         </div>
 
-        {/* ── Form Modal ── */}
-        {showForm && (
-          <div
-            className="spd-overlay"
-            onClick={resetForm}
-          >
-            <div
-              className="spd-drawer"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="spd-drawer-header">
-                <h2>
-                  <DollarSign size={18} />
-                  {editingSpending ? "Edit Spending" : "New Spending"}
-                </h2>
-                <button className="spd-close-btn" onClick={resetForm}>
-                  <X size={17} />
-                </button>
+        {/* ── Spending list panel ── */}
+        <div className="spd-panel">
+          <button className="spd-panel-hdr" onClick={() => setOpenSection((v) => !v)}>
+            <div className="spd-panel-hdr-left">
+              <span className="spd-panel-title">Entries</span>
+              <span className="spd-panel-count">{spendings.length} records</span>
+            </div>
+            <ChevronDown className={`spd-chev${openSection ? " open" : ""}`} size={18} />
+          </button>
+
+          {openSection && (
+            loading ? (
+              <div className="spd-empty">Loading…</div>
+            ) : spendings.length === 0 ? (
+              <div className="spd-empty">
+                <div className="spd-empty-icon">💸</div>
+                No spendings for this period
               </div>
-
-              <form onSubmit={handleSubmit} noValidate>
-                <div className="spd-drawer-body">
-                  {error && <div className="spd-error">{error}</div>}
-
-                  {/* ── Details section ── */}
-                  <div>
-                    <div className="spd-section-label">
-                      <FileText size={12} /> Expense Details
+            ) : (
+              spendings.map((s) => (
+                <div key={s.id} className="spd-card">
+                  <div className="spd-card-icon">💸</div>
+                  <div className="spd-card-main">
+                    <div className="spd-card-desc">{s.description || "—"}</div>
+                    <div className="spd-card-meta">
+                      {formatDateForDisplay(s.spending_date)}
+                      {s.category
+                        ? <> · <span className="spd-cat-tag">{s.category}</span></>
+                        : null}
                     </div>
-                    <div className="spd-fgroup" style={{ marginBottom: "0.85rem" }}>
-                      <label>Description <span className="req">*</span></label>
+                  </div>
+                  <div className="spd-card-right">
+                    <div className="spd-card-amount">-₹{Number(s.amount).toFixed(0)}</div>
+                    <div className="spd-card-pay">{payLabel(s.payment_method)}</div>
+                  </div>
+                  <div className="spd-card-actions">
+                    <button className="spd-icon-btn" onClick={() => handleEdit(s)} title="Edit">✏️</button>
+                    <button className="spd-icon-btn del" onClick={() => handleDelete(s.id)} title="Delete">🗑</button>
+                  </div>
+                </div>
+              ))
+            )
+          )}
+        </div>
+      </div>
+
+      {/* ── Add / Edit form modal ── */}
+      {showForm && (
+        <div className="spd-overlay" onClick={resetForm}>
+          <div className="spd-modal" onClick={(e) => e.stopPropagation()}>
+
+            <div className="spd-modal-hdr">
+              <h2><DollarSign size={15} />{editingSpending ? "Edit Spending" : "New Spending"}</h2>
+              <button className="spd-modal-close" onClick={resetForm}><X size={14} /></button>
+            </div>
+
+            <form onSubmit={handleSubmit} noValidate>
+              <div className="spd-modal-body">
+                {error && <div className="spd-err">{error}</div>}
+
+                <div className="spd-fg">
+                  <label>Description <span className="req">*</span></label>
+                  <input
+                    type="text"
+                    value={formData.description}
+                    onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
+                    placeholder="What was this expense for?"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="spd-row2">
+                  <div className="spd-fg">
+                    <label>Amount <span className="req">*</span></label>
+                    <div className="spd-amt">
+                      <span className="spd-amt-sign">₹</span>
                       <input
-                        type="text"
-                        value={formData.description}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, description: e.target.value }))
-                        }
-                        placeholder="What was this expense for?"
-                        autoFocus
+                        type="number" step="0.01" min="0.01"
+                        value={formData.amount}
+                        onChange={(e) => setFormData((p) => ({ ...p, amount: e.target.value }))}
+                        placeholder="0.00"
                       />
                     </div>
-
-                    <div className="spd-row">
-                      <div className="spd-fgroup">
-                        <label>Amount (₹) <span className="req">*</span></label>
-                        <div className="spd-amount-wrap">
-                          <IndianRupee size={15} />
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            value={formData.amount}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, amount: e.target.value }))
-                            }
-                            placeholder="0.00"
-                          />
-                        </div>
-                      </div>
-                      <div className="spd-fgroup">
-                        <label>Date <span className="req">*</span></label>
-                        <input
-                          type="date"
-                          value={formData.spendingDate}
-                          onChange={(e) =>
-                            setFormData((prev) => ({ ...prev, spendingDate: e.target.value }))
-                          }
-                        />
-                      </div>
-                    </div>
                   </div>
-
-                  {/* ── Category section ── */}
-                  <div>
-                    <div className="spd-section-label">
-                      <Tag size={12} /> Category <span className="req" style={{ fontSize: "0.65rem" }}>*</span>
-                    </div>
-                    <div className="spd-cat-chips">
-                      {categories.map((cat) => (
-                        <button
-                          key={cat}
-                          type="button"
-                          className={`spd-cat-chip${formData.category === cat ? " active" : ""}`}
-                          onClick={() => handleCategoryChip(cat)}
-                        >
-                          {cat}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="spd-fgroup" style={{ marginTop: "0.7rem" }}>
-                      <label style={{ fontSize: "0.72rem", color: "#94837a" }}>
-                        Or type a custom category
-                      </label>
-                      <input
-                        type="text"
-                        value={customCategory}
-                        onChange={(e) => {
-                          setCustomCategory(e.target.value);
-                          setFormData((prev) => ({ ...prev, category: e.target.value }));
-                        }}
-                        placeholder="Enter custom category…"
-                      />
-                    </div>
-                    {formData.category && (
-                      <div style={{
-                        marginTop: "0.4rem", fontSize: "0.76rem", color: "#57504a",
-                        display: "flex", alignItems: "center", gap: "0.3rem"
-                      }}>
-                        <Tag size={12} style={{ color: "#b6412c" }} />
-                        Selected: <strong>{formData.category}</strong>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ── Payment section ── */}
-                  <div>
-                    <div className="spd-section-label">
-                      <CreditCard size={12} /> Payment Method
-                    </div>
-                    <div className="spd-pay-options">
-                      {[
-                        { value: "cash", label: "Cash", icon: "💵" },
-                        { value: "upi",  label: "UPI",  icon: "📱" },
-                        { value: "card", label: "Card", icon: "💳" },
-                        { value: "bank_transfer", label: "Bank", icon: "🏦" },
-                      ].map((opt) => (
-                        <div className="spd-pay-option" key={opt.value}>
-                          <input
-                            type="radio"
-                            id={`pm-${opt.value}`}
-                            name="paymentMethod"
-                            value={opt.value}
-                            checked={formData.paymentMethod === opt.value}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, paymentMethod: e.target.value }))
-                            }
-                          />
-                          <label htmlFor={`pm-${opt.value}`}>
-                            <span className="pay-icon">{opt.icon}</span>
-                            {opt.label}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* ── Notes ── */}
-                  <div className="spd-fgroup">
-                    <label>Notes <span style={{ color: "#94837a", fontSize: "0.72rem" }}>(optional)</span></label>
-                    <textarea
-                      value={formData.notes}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, notes: e.target.value }))
-                      }
-                      placeholder="Any additional details…"
-                      rows={2}
+                  <div className="spd-fg">
+                    <label>Date <span className="req">*</span></label>
+                    <input
+                      type="date"
+                      value={formData.spendingDate}
+                      onChange={(e) => setFormData((p) => ({ ...p, spendingDate: e.target.value }))}
                     />
                   </div>
                 </div>
 
-                <div className="spd-drawer-footer">
-                  <button type="button" className="spd-btn-cancel" onClick={resetForm}>
-                    Cancel
-                  </button>
-                  <button type="submit" className="spd-btn-submit" disabled={submitting}>
-                    {submitting
-                      ? "Saving…"
-                      : editingSpending
-                      ? "Update Spending"
-                      : "Add Spending"}
-                  </button>
+                <div className="spd-fg">
+                  <label>Category <span className="req">*</span></label>
+                  <div className="spd-chips">
+                    {categories.map((cat) => (
+                      <button
+                        key={cat} type="button"
+                        className={`spd-chip${formData.category === cat ? " on" : ""}`}
+                        onClick={() => setFormData((p) => ({ ...p, category: cat }))}
+                      >{cat}</button>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    value={formData.category}
+                    onChange={(e) => setFormData((p) => ({ ...p, category: e.target.value }))}
+                    placeholder="Or type custom category…"
+                    style={{ marginTop: "6px" }}
+                  />
                 </div>
-              </form>
-            </div>
-          </div>
-        )}
 
-        {/* ── Spendings table ── */}
-        <div className="spd-panel">
-          <div className="spd-panel-header">
-            <span>Spending Records</span>
-            <span style={{ color: "#b6412c" }}>{filteredSpendings.length} entries</span>
-          </div>
-          {loading ? (
-            <div className="spd-empty-state">Loading…</div>
-          ) : (
-            <div className="spd-table-wrap">
-              <table className="spd-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Description</th>
-                    <th>Category</th>
-                    <th>Amount</th>
-                    <th>Payment</th>
-                    <th>Notes</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSpendings.map((spending) => (
-                    <tr key={spending.id}>
-                      <td style={{ whiteSpace: "nowrap" }}>
-                        {formatDate(spending.spending_date)}
-                      </td>
-                      <td>{spending.description}</td>
-                      <td>
-                        <span className="spd-category-tag">{spending.category}</span>
-                      </td>
-                      <td className="amount">
-                        ₹{Number(spending.amount).toFixed(2)}
-                      </td>
-                      <td>
-                        <span className={`spd-pay-chip ${spending.payment_method}`}>
-                          {paymentLabel(spending.payment_method)}
-                        </span>
-                      </td>
-                      <td style={{ color: "#94837a", fontSize: "0.82rem" }}>
-                        {spending.notes || "—"}
-                      </td>
-                      <td>
-                        <div className="spd-action-buttons">
-                          <button
-                            onClick={() => handleEdit(spending)}
-                            className="spd-icon-btn"
-                            title="Edit"
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(spending.id)}
-                            className="spd-icon-btn danger"
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {filteredSpendings.length === 0 && (
-                <div className="spd-empty-state">
-                  <Receipt size={38} />
-                  <h3>No spendings found</h3>
-                  <p>
-                    {searchTerm || selectedCategory
-                      ? "Try adjusting your filters."
-                      : "Click \"Add Spending\" to record your first expense."}
-                  </p>
+                <div className="spd-fg">
+                  <label>Payment Method</label>
+                  <div className="spd-pm">
+                    {[
+                      { v: "cash", l: "Cash" },
+                      { v: "upi",  l: "UPI" },
+                      { v: "card", l: "Card" },
+                      { v: "bank_transfer", l: "Bank" },
+                    ].map((o) => (
+                      <div className="spd-pm-opt" key={o.v}>
+                        <input type="radio" id={`pm-${o.v}`} name="pm" value={o.v}
+                          checked={formData.paymentMethod === o.v}
+                          onChange={() => setFormData((p) => ({ ...p, paymentMethod: o.v }))} />
+                        <label htmlFor={`pm-${o.v}`}>{o.l}</label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
+
+                <div className="spd-fg">
+                  <label>Notes <span style={{ color: "#94837a", fontWeight: 500 }}>(optional)</span></label>
+                  <textarea rows={2}
+                    value={formData.notes}
+                    onChange={(e) => setFormData((p) => ({ ...p, notes: e.target.value }))}
+                    placeholder="Any additional details…"
+                  />
+                </div>
+              </div>
+
+              <div className="spd-modal-foot">
+                <button type="button" className="spd-btn-cancel" onClick={resetForm}>Cancel</button>
+                <button type="submit" className="spd-btn-save" disabled={submitting}>
+                  {submitting ? "Saving…" : editingSpending ? "Update" : "Add Spending"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

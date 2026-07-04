@@ -604,7 +604,8 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
-  background-color: var(--mw-cream);
+  /* Match topbar so the safe-area gap above the header is invisible */
+  background-color: #fffdf8;
 }
 
 /* Sidebar styles - Malabar Waffle Theme */

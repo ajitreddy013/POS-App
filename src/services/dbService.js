@@ -1,7 +1,7 @@
 import Dexie from "dexie";
 import { getLocalDateTimeString } from "../utils/dateUtils";
 import { getFirebaseDb } from "../firebase";
-import { collection, addDoc, getDocs } from "firebase/firestore";
+import { collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, updateDoc } from "firebase/firestore";
 
 // Check if running inside Electron
 const isElectron = typeof window !== "undefined" && !!window.electronAPI;
@@ -208,6 +208,27 @@ export const dbService = {
     } catch (e) { console.warn('Firestore sale mirror failed:', e); }
 
     return { success: true, id };
+  },
+
+  updateSaleNumber: async (oldSaleNumber, newSaleNumber) => {
+    if (isElectron || !db) return { success: false };
+    try {
+      const sale = await db.sales.where("saleNumber").equals(oldSaleNumber).first();
+      if (sale) {
+        await db.sales.update(sale.id, { saleNumber: newSaleNumber });
+        try {
+          const firestoreDb = getFirebaseDb();
+          if (firestoreDb) {
+            const snap = await getDocs(query(collection(firestoreDb, 'sales'), where('saleNumber', '==', oldSaleNumber)));
+            snap.forEach(async (d) => { await updateDoc(d.ref, { saleNumber: newSaleNumber }); });
+          }
+        } catch (e) { console.warn('Firestore sale number update failed:', e); }
+        return { success: true };
+      }
+    } catch (err) {
+      console.error("Failed to update sale number:", oldSaleNumber, err);
+    }
+    return { success: false };
   },
 
   deleteSaleByNumber: async (saleNumber) => {
@@ -468,30 +489,91 @@ export const dbService = {
   addSpending: async (spending) => {
     if (isElectron) return await window.electronAPI.addSpending(spending);
     const id = await db.spendings.add(spending);
+    // Mirror to Firestore (fire-and-forget)
+    try {
+      const firestoreDb = getFirebaseDb();
+      if (firestoreDb) {
+        await setDoc(doc(firestoreDb, 'spendings', String(id)), { ...spending, localId: id });
+      }
+    } catch (e) { console.warn('Firestore spending add failed:', e); }
     return { success: true, id };
   },
 
   updateSpending: async (id, spending) => {
     if (isElectron) return await window.electronAPI.updateSpending(id, spending);
     await db.spendings.update(Number(id), spending);
+    // Mirror to Firestore (fire-and-forget)
+    try {
+      const firestoreDb = getFirebaseDb();
+      if (firestoreDb) {
+        await setDoc(doc(firestoreDb, 'spendings', String(id)), { ...spending, localId: id });
+      }
+    } catch (e) { console.warn('Firestore spending update failed:', e); }
     return { success: true };
   },
 
   deleteSpending: async (id) => {
     if (isElectron) return await window.electronAPI.deleteSpending(id);
     await db.spendings.delete(Number(id));
+    // Mirror deletion to Firestore (fire-and-forget)
+    try {
+      const firestoreDb = getFirebaseDb();
+      if (firestoreDb) {
+        await deleteDoc(doc(firestoreDb, 'spendings', String(id)));
+      }
+    } catch (e) { console.warn('Firestore spending delete failed:', e); }
     return { success: true };
   },
 
   getSpendings: async (dateRange) => {
     if (isElectron) return await window.electronAPI.getSpendings(dateRange);
-    let query = db.spendings;
-    if (dateRange && dateRange.startDate && dateRange.endDate) {
-      const start = dateRange.startDate;
-      const end = dateRange.endDate;
-      return await query.filter(s => s.spending_date >= start && s.spending_date <= end).toArray();
+    const localAll = await db.spendings.toArray();
+
+    // On a new device with empty local DB, seed from Firestore
+    if (localAll.length === 0) {
+      const firestoreDb = getFirebaseDb();
+      if (firestoreDb) {
+        try {
+          const snap = await getDocs(collection(firestoreDb, 'spendings'));
+          if (!snap.empty) {
+            const rows = snap.docs.map(d => {
+              const data = d.data();
+              const numId = Number(data.localId || d.id);
+              return {
+                ...(numId > 0 ? { id: numId } : {}),
+                description: data.description || '',
+                amount: Number(data.amount) || 0,
+                category: data.category || 'Others',
+                spending_date: data.spending_date || '',
+                payment_method: data.payment_method || 'cash',
+                notes: data.notes || '',
+              };
+            });
+            try {
+              await db.spendings.bulkPut(rows);
+            } catch (_e) { /* non-fatal */ }
+            const seeded = await db.spendings.toArray();
+            if (seeded.length > 0) {
+              if (dateRange && dateRange.startDate && dateRange.endDate) {
+                return seeded.filter(s => s.spending_date >= dateRange.startDate && s.spending_date <= dateRange.endDate);
+              }
+              return seeded;
+            }
+            // bulkPut failed — return Firestore rows directly
+            if (dateRange && dateRange.startDate && dateRange.endDate) {
+              return rows.filter(s => s.spending_date >= dateRange.startDate && s.spending_date <= dateRange.endDate);
+            }
+            return rows;
+          }
+        } catch (e) { console.warn('Firestore spendings seed failed:', e); }
+      }
     }
-    return await query.toArray();
+
+    if (dateRange && dateRange.startDate && dateRange.endDate) {
+      const { startDate: start, endDate: end } = dateRange;
+      return localAll.filter(s => s.spending_date >= start && s.spending_date <= end);
+    }
+    return localAll;
   },
 
   getSpendingCategories: async () => {

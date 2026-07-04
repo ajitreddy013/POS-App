@@ -172,7 +172,7 @@ const LiveOrdersScreen = () => {
               {orders.map((order) => {
                 const isSelected = selectedOrder?.id === order.id;
                 const isDelivery = order.orderType === 'delivery';
-                const isWeb = order.orderNumber.startsWith('W-');
+                const isWeb = order.source === 'web' || (!order.source && order.orderNumber?.startsWith('W-'));
                 const isCompleted = order.orderStatus === 'completed';
                 const isTicked = tickedOrders.has(order.id);
 
