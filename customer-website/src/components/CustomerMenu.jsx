@@ -110,6 +110,8 @@ const CustomerMenu = () => {
   // Checkout Form State
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState(false);
   const nameInputRef = useRef(null);
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [submitting, setSubmitting] = useState(false);
@@ -427,6 +429,11 @@ const CustomerMenu = () => {
     }
 
     if (orderType === 'delivery') {
+      const cleanPhone = phone.replace(/\D/g, '');
+      if (cleanPhone.length !== 10) {
+        setPhoneError(true);
+        return;
+      }
       if (!deliveryAddress.address.trim() || !deliveryAddress.pincode.trim()) {
         setAddressWarning('Please fill in your street address and pincode.');
         setTimeout(() => setAddressWarning(''), 4000);
@@ -457,6 +464,7 @@ const CustomerMenu = () => {
           ticketId: orderNumber,
           source: 'web',
           customerName: name,
+          customerPhone: phone || '9999999999',
           tableNumber,
           items: cartItemsList.map((item) => ({
             productId: String(item.id),
@@ -488,7 +496,7 @@ const CustomerMenu = () => {
           body: JSON.stringify({
             amount: finalTotal,
             orderId: orderNumber,
-            phone: '9999999999',
+            phone: phone || '9999999999',
             name,
             returnUrl,
           }),
@@ -561,6 +569,7 @@ const CustomerMenu = () => {
           ticketId: orderNumber,
           source: 'web',
           customerName: name,
+          customerPhone: phone || '9999999999',
           tableNumber,
           items: cartItemsList.map((item) => ({
             productId: String(item.id),
@@ -1806,6 +1815,36 @@ const CustomerMenu = () => {
                 {nameError && (
                   <p style={{ color: '#b6412c', fontSize: '0.78rem', margin: '4px 0 0', fontWeight: '600' }}>
                     Please enter your name
+                  </p>
+                )}
+              </div>
+              <div style={{ marginBottom: '10px' }}>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={phone}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    setPhone(val);
+                    if (val.length === 10) setPhoneError(false);
+                  }}
+                  required={orderType === 'delivery'}
+                  placeholder={orderType === 'delivery' ? "Phone/WhatsApp Number * (10 digits)" : "Phone/WhatsApp Number (optional)"}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: `1.5px solid ${phoneError ? '#dc2626' : '#e6ded3'}`,
+                    outline: 'none',
+                    fontSize: '0.88rem',
+                    fontFamily: '"Outfit", sans-serif',
+                    color: '#221f1a',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                {phoneError && (
+                  <p style={{ color: '#b6412c', fontSize: '0.78rem', margin: '4px 0 0', fontWeight: '600' }}>
+                    Please enter a valid 10-digit phone number
                   </p>
                 )}
               </div>
