@@ -329,9 +329,7 @@ const CustomerMenu = () => {
     setPhoneError('');
 
     setSubmitting(true);
-    // Ticket ref is a short unique ID for kitchen display; the final sequential
-    // order number (A-N) is assigned only when the order is marked as completed.
-    const orderNumber = `T-${Date.now().toString().slice(-5)}`;
+    const orderNumber = `W-${Date.now().toString().slice(-5)}`;
 
     try {
       let payStatus = 'pending';

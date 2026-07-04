@@ -105,7 +105,7 @@ const CustomerMenu = () => {
   const PULL_THRESHOLD = 80;
 
   // Checkout Form State
-  const [name, setName] = useState('Customer');
+  const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [confirmPhone, setConfirmPhone] = useState('');
   const [phoneWarning, setPhoneWarning] = useState('');
@@ -210,17 +210,15 @@ const CustomerMenu = () => {
     [refreshing]
   );
 
-  const handleTouchEnd = useCallback(async () => {
+  const handleTouchEnd = useCallback(() => {
     if (!isPulling.current) return;
     isPulling.current = false;
     if (pullDistance >= PULL_THRESHOLD && !refreshing) {
-      setRefreshing(true);
-      setPullDistance(PULL_THRESHOLD);
-      await loadMenu();
-      setRefreshing(false);
+      window.location.reload();
+      return;
     }
     setPullDistance(0);
-  }, [pullDistance, refreshing, loadMenu]);
+  }, [pullDistance, refreshing]);
 
   // Veg/Non-veg detection
   const isVeg = (product) => {
@@ -471,6 +469,12 @@ const CustomerMenu = () => {
     if (cartItemsList.length === 0) return;
     if (isOfferCartOdd) return;
 
+    if (!name.trim()) {
+      setPhoneWarning('Please enter your name!');
+      setTimeout(() => setPhoneWarning(''), 3000);
+      return;
+    }
+
     const cleanPhone = phone.replace(/\D/g, '');
     if (!phone.trim() || cleanPhone.length < 10) {
       setPhoneWarning('Please enter a valid 10-digit WhatsApp number!');
@@ -502,7 +506,7 @@ const CustomerMenu = () => {
 
     // Ticket ref is a short unique ID for kitchen display; the final sequential
     // order number (W-N) is assigned only when the order is marked as completed.
-    const orderNumber = `T-${Date.now().toString().slice(-5)}`;
+    const orderNumber = `W-${Date.now().toString().slice(-5)}`;
 
     try {
       if (paymentMethod === 'upi') {
@@ -1862,8 +1866,28 @@ const CustomerMenu = () => {
                   paddingBottom: '0',
                 }}
               >
-                WhatsApp Mobile Number
+                Your Details
               </h3>
+              <div style={{ marginBottom: '10px' }}>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  placeholder="Your name *"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #e6ded3',
+                    outline: 'none',
+                    fontSize: '0.88rem',
+                    fontFamily: '"Outfit", sans-serif',
+                    color: '#221f1a',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
               <div style={{ marginTop: '10px' }}>
                 <div style={{ position: 'relative' }}>
                   <input

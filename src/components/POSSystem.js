@@ -362,8 +362,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         orderNumber: sequentialNumber,
       });
 
-      // 2. Silently trigger WhatsApp receipt delivery via Render server
-      if (order.customerPhone) {
+      // 2. Silently trigger WhatsApp receipt delivery — skip if the payment webhook
+      //    already sent one (UPI orders have whatsappSent: true set by the relay webhook)
+      if (order.customerPhone && !order.whatsappSent) {
         try {
           const relayUrl =
             barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
@@ -393,7 +394,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
       showNotice(
         'success',
-        `Completed Order #${sequentialNumber}. Receipt sent to customer.`
+        `Completed Order #${sequentialNumber}.`
       );
     } catch (err) {
       console.error('Failed to complete online order:', err);
@@ -598,8 +599,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       // Save sale to database
       await dbService.createSale(saleData);
 
-      // Auto-send WhatsApp receipt silently if customer phone is available
-      if (customerPhone && customerPhone.trim() !== '') {
+      // Auto-send WhatsApp receipt silently for cash orders only.
+      // Skip UPI — the Cashfree webhook on the relay already sends the receipt.
+      if (customerPhone && customerPhone.trim() !== '' && (selectedMethod || paymentMethod) !== 'upi') {
         try {
           const relayUrl = APP_CONFIG.whatsappRelayUrl;
           await whatsappService.sendBill(relayUrl, barSettings || {}, saleData);
