@@ -109,13 +109,8 @@ const CustomerMenu = () => {
 
   // Checkout Form State
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [confirmPhone, setConfirmPhone] = useState('');
-  const [phoneWarning, setPhoneWarning] = useState('');
-  const [whatsappCheck, setWhatsappCheck] = useState(null); // null | 'checking' | 'valid' | 'invalid'
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [submitting, setSubmitting] = useState(false);
-  const phoneInputRef = useRef(null);
 
   const [tableNumber, setTableNumber] = useState('Website');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -128,7 +123,6 @@ const CustomerMenu = () => {
     landmark: '',
   });
   const [addressWarning, setAddressWarning] = useState('');
-  const upiConfirmationSentRef = useRef(false);
 
   const db = useMemo(() => getFirebaseDb(), []);
   const { barSettings } = useBarSettings();
@@ -285,6 +279,9 @@ const CustomerMenu = () => {
       if (!map[cat]) map[cat] = [];
       map[cat].push(p);
     });
+    Object.values(map).forEach((items) =>
+      items.sort((a, b) => Number(a.price) - Number(b.price))
+    );
     return map;
   }, [filteredProducts]);
 
@@ -327,65 +324,6 @@ const CustomerMenu = () => {
     if (!isOfferCartOdd) return 0;
     return (totalQuantity + 1) / 2;
   }, [isOfferCartOdd, totalQuantity]);
-
-  const sendWhatsAppConfirmation = useCallback(
-    async (confirmationPayload) => {
-      const relayUrl =
-        barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-      const response = await fetch(`${relayUrl}/payment/send-confirmation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(confirmationPayload),
-      });
-
-      const responseBody = await response.json().catch(() => ({}));
-      if (!response.ok || responseBody.success === false) {
-        throw new Error(
-          responseBody.error || 'Failed to send WhatsApp confirmation.'
-        );
-      }
-
-      return responseBody;
-    },
-    [barSettings]
-  );
-
-  useEffect(() => {
-    if (!orderSuccess || !barSettings) return;
-
-    const storageKey = 'customerWebsitePendingWhatsAppConfirmation';
-    const storedConfirmation = sessionStorage.getItem(storageKey);
-    if (!storedConfirmation || upiConfirmationSentRef.current) return;
-
-    let confirmationPayload;
-    try {
-      confirmationPayload = JSON.parse(storedConfirmation);
-    } catch (parseError) {
-      console.error(
-        'Invalid pending WhatsApp confirmation payload:',
-        parseError
-      );
-      sessionStorage.removeItem(storageKey);
-      return;
-    }
-
-    if (
-      !confirmationPayload ||
-      confirmationPayload.orderNumber !== orderSuccess
-    )
-      return;
-
-    upiConfirmationSentRef.current = true;
-    (async () => {
-      try {
-        await sendWhatsAppConfirmation(confirmationPayload);
-        sessionStorage.removeItem(storageKey);
-      } catch (err) {
-        console.error('UPI WhatsApp confirmation failed:', err);
-        upiConfirmationSentRef.current = false;
-      }
-    })();
-  }, [barSettings, orderSuccess, sendWhatsAppConfirmation]);
 
   // Cart operations
   const addToCart = (productId) => {
@@ -467,49 +405,15 @@ const CustomerMenu = () => {
     setPaymentMethod(method);
   };
 
-  const handlePhoneBlur = async () => {
-    const digits = phone.replace(/\D/g, '');
-    if (digits.length !== 10) return;
-    const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-    if (!relayUrl) return;
-    setWhatsappCheck('checking');
-    try {
-      const controller = new AbortController();
-      setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(`${relayUrl.replace(/\/$/, '')}/check?number=91${digits}`, { signal: controller.signal });
-      if (!res.ok) throw new Error('not ok');
-      const data = await res.json();
-      const registered = data.exists ?? data.registered ?? data.isWhatsApp ?? null;
-      setWhatsappCheck(registered === false ? 'invalid' : registered === true ? 'valid' : null);
-    } catch {
-      setWhatsappCheck(null);
-    }
-  };
-
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     if (cartItemsList.length === 0) return;
     if (isOfferCartOdd) return;
 
     if (!name.trim()) {
-      setPhoneWarning('Please enter your name!');
-      setTimeout(() => setPhoneWarning(''), 3000);
+      alert('Please enter your name.');
       return;
     }
-
-    const cleanPhone = phone.replace(/\D/g, '');
-    if (!phone.trim() || cleanPhone.length < 10) {
-      setPhoneWarning('Please enter a valid 10-digit WhatsApp number!');
-      setTimeout(() => setPhoneWarning(''), 3000);
-      if (phoneInputRef.current) phoneInputRef.current.focus();
-      return;
-    }
-    if (cleanPhone !== confirmPhone.replace(/\D/g, '')) {
-      setPhoneWarning('Mobile numbers do not match. Please re-enter.');
-      setTimeout(() => setPhoneWarning(''), 4000);
-      return;
-    }
-    setPhoneWarning('');
 
     if (orderType === 'delivery') {
       if (!deliveryAddress.address.trim() || !deliveryAddress.pincode.trim()) {
@@ -535,25 +439,6 @@ const CustomerMenu = () => {
         // paid checkouts. Use a throwaway ticket until then.
         const orderNumber = `T-${Date.now()}`;
         setUpiQrStatus('Creating your order...');
-        const confirmationPayload = {
-          phone,
-          name,
-          orderNumber,
-          tableNumber,
-          totalAmount: finalTotal,
-          discountAmount: offerResult.discountAmount,
-          paymentMethod,
-          items: cartItemsList.map((item) => ({
-            name: item.name,
-            quantity: item.quantity,
-            unitPrice: item.price,
-            totalPrice: item.price * item.quantity,
-          })),
-          subtotal: totalAmount,
-          deliveryFee: deliveryFeeAmount,
-          orderType,
-          ...(orderType === 'delivery' && { deliveryAddress }),
-        };
 
         // 1. Save order to Firestore (pending)
         const orderData = {
@@ -561,7 +446,6 @@ const CustomerMenu = () => {
           ticketId: orderNumber,
           source: 'web',
           customerName: name,
-          customerPhone: phone,
           tableNumber,
           items: cartItemsList.map((item) => ({
             productId: String(item.id),
@@ -584,8 +468,7 @@ const CustomerMenu = () => {
         await addDoc(collection(db, 'orders'), orderData);
 
         // 2. Get Cashfree payment link from backend
-        const relayUrl =
-          barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+        const relayUrl = APP_CONFIG.relayUrl;
         // Hash-based URL so HashRouter's useSearchParams can read the params on return
         const returnUrl = `${window.location.origin}/?payment=success&orderId=${orderNumber}`;
         const res = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
@@ -594,7 +477,7 @@ const CustomerMenu = () => {
           body: JSON.stringify({
             amount: finalTotal,
             orderId: orderNumber,
-            phone,
+            phone: '9999999999',
             name,
             returnUrl,
           }),
@@ -662,31 +545,11 @@ const CustomerMenu = () => {
           console.error('Failed to generate sequential web order number:', err);
         }
 
-        const confirmationPayload = {
-          phone,
-          name,
-          orderNumber,
-          tableNumber,
-          totalAmount: finalTotal,
-          discountAmount: offerResult.discountAmount,
-          paymentMethod,
-          items: cartItemsList.map((item) => ({
-            name: item.name,
-            quantity: item.quantity,
-            unitPrice: item.price,
-            totalPrice: item.price * item.quantity,
-          })),
-          subtotal: totalAmount,
-          deliveryFee: deliveryFeeAmount,
-          orderType,
-          ...(orderType === 'delivery' && { deliveryAddress }),
-        };
         const orderData = {
           orderNumber,
           ticketId: orderNumber,
           source: 'web',
           customerName: name,
-          customerPhone: phone,
           tableNumber,
           items: cartItemsList.map((item) => ({
             productId: String(item.id),
@@ -707,13 +570,6 @@ const CustomerMenu = () => {
           createdAt: serverTimestamp(),
         };
         await addDoc(collection(db, 'orders'), orderData);
-
-        // Send WhatsApp confirmation
-        try {
-          await sendWhatsAppConfirmation(confirmationPayload);
-        } catch (waErr) {
-          console.error('WhatsApp notification failed:', waErr);
-        }
 
         setCart({});
         setOrderSuccess(orderNumber);
@@ -811,8 +667,7 @@ const CustomerMenu = () => {
           <strong>
             #{orderSuccess.startsWith('T-') ? 'confirming…' : orderSuccess}
           </strong>{' '}
-          has been received. We&apos;ve sent a confirmation receipt to your
-          WhatsApp.
+          has been received.
         </p>
         <div
           className="success-status-anim"
@@ -1934,84 +1789,6 @@ const CustomerMenu = () => {
                     boxSizing: 'border-box',
                   }}
                 />
-              </div>
-              <div style={{ marginTop: '10px' }}>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    ref={phoneInputRef}
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => {
-                      setPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
-                      setWhatsappCheck(null);
-                    }}
-                    onBlur={handlePhoneBlur}
-                    required
-                    placeholder="Enter WhatsApp number"
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      paddingRight: '34px',
-                      borderRadius: '8px',
-                      border: `1.5px solid ${whatsappCheck === 'invalid' ? '#dc2626' : whatsappCheck === 'valid' ? '#16a34a' : '#e6ded3'}`,
-                      outline: 'none',
-                      fontSize: '0.88rem',
-                      fontFamily: '"Outfit", sans-serif',
-                      color: '#221f1a',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  {whatsappCheck === 'checking' && (
-                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#6c757d', fontSize: '12px' }}>…</span>
-                  )}
-                  {whatsappCheck === 'valid' && (
-                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '15px' }} title="Registered on WhatsApp">✓</span>
-                  )}
-                  {whatsappCheck === 'invalid' && (
-                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#dc2626', fontSize: '15px' }} title="Not registered on WhatsApp">✕</span>
-                  )}
-                </div>
-
-                <div style={{ marginTop: '10px' }}>
-                  <input
-                    type="tel"
-                    value={confirmPhone}
-                    onChange={(e) => setConfirmPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                    required
-                    placeholder="Confirm mobile number"
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      border: `1.5px solid ${confirmPhone && confirmPhone !== phone ? '#dc2626' : '#e6ded3'}`,
-                      outline: 'none',
-                      fontSize: '0.88rem',
-                      fontFamily: '"Outfit", sans-serif',
-                      color: '#221f1a',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  {confirmPhone && confirmPhone !== phone && (
-                    <p style={{ color: '#b6412c', fontSize: '0.78rem', margin: '4px 0 0', fontWeight: '600' }}>Numbers do not match</p>
-                  )}
-                </div>
-
-                {phoneWarning && (
-                  <div
-                    style={{
-                      marginTop: '6px',
-                      color: '#b6412c',
-                      fontSize: '0.82rem',
-                      fontWeight: '600',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      animation: 'fadeIn 0.2s ease-out',
-                    }}
-                  >
-                    ⚠️ {phoneWarning}
-                  </div>
-                )}
               </div>
             </div>
 

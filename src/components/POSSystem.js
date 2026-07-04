@@ -27,7 +27,6 @@ import { isOfferActiveToday, calculateOfferDiscount } from '../utils/offerUtils'
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { dbService } from '../services/dbService';
-import { whatsappService } from '../services/whatsappService';
 import { APP_CONFIG } from '../config';
 import malabarLogo from '../assets/malabar-waffle-logo.png';
 import {
@@ -75,9 +74,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [confirmPhone, setConfirmPhone] = useState('');
-  const [phoneError, setPhoneError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [discount, setDiscount] = useState(0);
   const [showDiscountInput, setShowDiscountInput] = useState(false);
@@ -86,7 +82,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const [notice, setNotice] = useState(null);
   const [activeTab, setActiveTab] = useState('menu'); // 'menu' or 'cart' for mobile view
   const searchInputRef = useRef(null);
-  const phoneInputRef = useRef(null);
   const noticeTimeoutRef = useRef(null);
   const qrPollIntervalRef = useRef(null);
   const cfUnsubRef = useRef(null);
@@ -175,9 +170,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     loadProducts();
     loadBarSettings();
 
-    // Pre-warm the deployed relay so the first payment is instant
-    fetch(`${APP_CONFIG.whatsappRelayUrl}/health`).catch(() => {});
-
     return () => {
       if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
       if (qrPollIntervalRef.current) clearInterval(qrPollIntervalRef.current);
@@ -215,26 +207,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       }
 
       setBarSettings(settings);
-
-      // Check if WhatsApp is linked and active
-      try {
-        const relayUrl =
-          settings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-        const data = await whatsappService.getStatus(relayUrl);
-        if (data && data.status !== 'CONNECTED') {
-          showNotice(
-            'warning',
-            'Warning: WhatsApp is not linked. Please link your device in Settings to send receipts.',
-            2000
-          );
-        }
-      } catch (waErr) {
-        showNotice(
-          'warning',
-          'Warning: Could not connect to WhatsApp relay. Please check your settings.',
-          2000
-        );
-      }
     } catch (error) {
       // Failed to load bar settings
       setBarSettings(null);
@@ -261,7 +233,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         saleType: 'parcel',
         tableNumber: order.tableNumber || null,
         customerName: order.customerName || 'Online Customer',
-        customerPhone: order.customerPhone || '',
         items: order.items.map((item) => ({
           productId: Number(item.productId),
           name: item.name,
@@ -365,36 +336,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         orderNumber: sequentialNumber,
       });
 
-      // 2. Silently trigger WhatsApp receipt delivery — skip if the payment webhook
-      //    already sent one (UPI orders have whatsappSent: true set by the relay webhook)
-      if (order.customerPhone && !order.whatsappSent) {
-        try {
-          const relayUrl =
-            barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-          const saleDataForReceipt = {
-            saleNumber: sequentialNumber,
-            saleType: 'parcel',
-            tableNumber: order.tableNumber || null,
-            customerName: order.customerName,
-            customerPhone: order.customerPhone,
-            items: order.items,
-            subtotal: order.totalAmount,
-            taxAmount: 0,
-            discountAmount: 0,
-            totalAmount: order.totalAmount,
-            paymentMethod: order.paymentMethod,
-            saleDate: getLocalDateTimeString(),
-          };
-          await whatsappService.sendBill(
-            relayUrl,
-            barSettings || {},
-            saleDataForReceipt
-          );
-        } catch (waErr) {
-          console.error('WhatsApp final receipt failed:', waErr);
-        }
-      }
-
       showNotice(
         'success',
         `Completed Order #${sequentialNumber}.`
@@ -481,11 +422,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   }, [cart]);
 
   const addToCart = (product) => {
-    // Pre-warm the deployed relay the moment the customer adds their first item
-    if (isKiosk && cart.length === 0) {
-      fetch(`${APP_CONFIG.whatsappRelayUrl}/health`).catch(() => {});
-    }
-
     const existingItem = cart.find((item) => item.id === product.id);
 
     if (existingItem) {
@@ -602,7 +538,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         saleType: 'parcel',
         tableNumber: null,
         customerName: customerName.trim() || (isKiosk ? 'Kiosk Customer' : 'Walk-in Customer'),
-        customerPhone,
         items: cart.map((item) => ({
           productId: item.id,
           name: item.name,
@@ -622,23 +557,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       // Save sale to database
       await dbService.createSale(saleData);
 
-      // Auto-send WhatsApp receipt silently for cash orders only.
-      // Skip UPI — the Cashfree webhook on the relay already sends the receipt.
-      if (customerPhone && customerPhone.trim() !== '' && (selectedMethod || paymentMethod) !== 'upi') {
-        try {
-          const relayUrl = APP_CONFIG.whatsappRelayUrl;
-          await whatsappService.sendBill(relayUrl, barSettings || {}, saleData);
-        } catch (waErr) {
-          // Silent fail — WhatsApp is optional
-        }
-      }
-
       // Clear cart and customer info
       setCart([]);
       setCustomerName('');
-      setCustomerPhone('');
-      setConfirmPhone('');
-      setPhoneError('');
       setDiscount(0);
       setShowDiscountInput(false);
       setActiveTab('menu');
@@ -649,7 +570,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       // Trigger dashboard refresh by dispatching a custom event
       window.dispatchEvent(new CustomEvent('saleCompleted'));
       playSuccessFeedback();
-      showNotice('success', 'Order Placed! Check WhatsApp for receipt.');
+      showNotice('success', 'Order placed!');
     } catch (error) {
       // Failed to process sale
       console.error('Sale write error:', error);
@@ -675,20 +596,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     }
 
     if (!customerName.trim()) {
-      setPhoneError('Please enter the customer name!');
-      return;
-    }
-
-    const cleanedPhone = customerPhone.replace(/\D/g, '');
-    if (!cleanedPhone || cleanedPhone.length !== 10) {
-      setPhoneError('Please enter a valid 10-digit WhatsApp number!');
-      if (phoneInputRef.current) {
-        phoneInputRef.current.focus({ preventScroll: true });
-      }
-      return;
-    }
-    if (isKiosk && cleanedPhone !== confirmPhone.replace(/\D/g, '')) {
-      setPhoneError('Mobile numbers do not match. Please re-enter.');
+      showNotice('error', 'Please enter the customer name!', 4000);
       return;
     }
 
@@ -707,7 +615,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   };
 
   const startCashfreeKioskPayment = async () => {
-    const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
+    const relayUrl = APP_CONFIG.relayUrl;
     try {
       const orderId = await generateSaleNumber();
       const amount = calculateTotal();
@@ -719,7 +627,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         body: JSON.stringify({
           amount,
           orderId,
-          phone: customerPhone || '9999999999',
+          phone: '9999999999',
           name: customerName.trim() || 'Kiosk Customer',
           isKiosk: true,
         }),
@@ -774,7 +682,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           orderNumber: String(orderId),
           amount,
           customerName: customerName.trim() || 'Kiosk Customer',
-          customerPhone: customerPhone || '',
           paymentStatus: 'pending',
           paymentMethod: 'upi',
           createdAt: new Date(),
@@ -1568,66 +1475,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 style={{ padding: '8px 12px', fontSize: '13px', width: '100%' }}
               />
             </div>
-            <div
-              className="form-row cart-phone-row"
-              style={{ marginTop: '0', marginBottom: '16px' }}
-            >
-              <input
-                type="tel"
-                placeholder={
-                  isKiosk
-                    ? 'Enter WhatsApp number'
-                    : 'Phone Number'
-                }
-                value={customerPhone}
-                ref={phoneInputRef}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, '');
-                  if (value.length <= 10) {
-                    setCustomerPhone(value);
-                    if (phoneError) setPhoneError('');
-                  }
-                }}
-                className={`form-input cart-phone-input ${phoneError ? 'error' : ''}`}
-                style={{ padding: '8px 12px', fontSize: '13px', width: '100%' }}
-                maxLength="10"
-              />
-              {isKiosk && (
-                <>
-                  <input
-                    type="tel"
-                    placeholder="Confirm mobile number"
-                    value={confirmPhone}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '');
-                      if (value.length <= 10) {
-                        setConfirmPhone(value);
-                        if (phoneError) setPhoneError('');
-                      }
-                    }}
-                    className="form-input cart-phone-input"
-                    style={{
-                      padding: '8px 12px',
-                      fontSize: '13px',
-                      width: '100%',
-                      marginTop: '8px',
-                      border: `1.5px solid ${confirmPhone && confirmPhone !== customerPhone ? '#dc2626' : '#e6ded3'}`,
-                    }}
-                    maxLength="10"
-                  />
-                  {confirmPhone && confirmPhone !== customerPhone && (
-                    <p style={{ color: '#b6412c', fontSize: '0.78rem', margin: '4px 0 0', fontWeight: '600' }}>
-                      Numbers do not match
-                    </p>
-                  )}
-                </>
-              )}
-              {phoneError && (
-                <div className="cart-phone-error" role="alert">
-                  ⚠️ {phoneError}
-                </div>
-              )}
-            </div>
             <div className="cart-items">
               {cart.length === 0 ? (
                 <div className="empty-cart" style={{ padding: '40px 0' }}>
@@ -2253,8 +2100,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                             display: 'block',
                           }}
                         >
-                          Customer: <strong>{order.customerName}</strong> (
-                          {order.customerPhone})
+                          Customer: <strong>{order.customerName}</strong>
                         </span>
                       </div>
 

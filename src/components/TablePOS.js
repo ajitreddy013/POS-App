@@ -22,8 +22,6 @@ import {
 } from 'lucide-react';
 import { getLocalDateTimeString } from '../utils/dateUtils';
 import { dbService } from '../services/dbService';
-import { whatsappService } from '../services/whatsappService';
-import { APP_CONFIG } from '../config';
 import { playSuccessFeedback, playErrorFeedback } from '../utils/feedbackUtils';
 
 const formatCurrency = (value) => `₹${Number(value || 0).toFixed(2)}`;
@@ -33,7 +31,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [discount, setDiscount] = useState(0);
   const [showDiscountInput, setShowDiscountInput] = useState(false);
@@ -42,13 +39,11 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const [barSettings, setBarSettings] = useState(null);
   const [autoSaving, setAutoSaving] = useState(false);
   const searchInputRef = useRef(null);
-  const phoneInputRef = useRef(null);
   const [notice, setNotice] = useState(null);
   const [activeTab, setActiveTab] = useState('menu'); // 'menu' or 'cart' for mobile view
   const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const noticeTimeoutRef = useRef(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [whatsappCheck, setWhatsappCheck] = useState(null); // null | 'checking' | 'valid' | 'invalid' | 'unavailable'
   const [paymentQrUrl, setPaymentQrUrl] = useState('');
   const [activeQrId, setActiveQrId] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('creating');
@@ -60,8 +55,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       if (tableOrder) {
         setCart(tableOrder.items || []);
         setCustomerName(tableOrder.customer_name || '');
-        setCustomerPhone(tableOrder.customer_phone || '');
-        setWhatsappCheck(null);
         setDiscount(tableOrder.discount || 0);
         setTax(tableOrder.tax || 0);
       }
@@ -90,26 +83,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       const settings = await dbService.getBarSettings();
       // No setSendWhatsapp state exists, so we just set settings
       setBarSettings(settings);
-
-      // Check if WhatsApp is linked and active
-      try {
-        const relayUrl =
-          settings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-        const data = await whatsappService.getStatus(relayUrl);
-        if (data && data.status !== 'CONNECTED') {
-          showNotice(
-            'warning',
-            'Warning: WhatsApp is not linked. Please link your device in Settings to send receipts.',
-            12000
-          );
-        }
-      } catch (waErr) {
-        showNotice(
-          'warning',
-          'Warning: Could not connect to WhatsApp relay. Please check your settings.',
-          12000
-        );
-      }
     } catch (error) {
       // Failed to load bar settings
       setBarSettings(null);
@@ -135,28 +108,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       noticeTimeoutRef.current = window.setTimeout(() => {
         setNotice(null);
       }, duration);
-    }
-  };
-
-  const handlePhoneBlur = async () => {
-    const digits = customerPhone.trim();
-    if (digits.length !== 10) return;
-    const relayUrl =
-      barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-    if (!relayUrl) return;
-    setWhatsappCheck('checking');
-    const result = await whatsappService.checkNumber(relayUrl, digits);
-    if (!result.success) {
-      setWhatsappCheck('unavailable');
-      return;
-    }
-    if (result.registered === false) {
-      setWhatsappCheck('invalid');
-      showNotice('error', 'This number is not registered on WhatsApp. Receipt will not be delivered.');
-    } else if (result.registered === true) {
-      setWhatsappCheck('valid');
-    } else {
-      setWhatsappCheck('unavailable');
     }
   };
 
@@ -217,7 +168,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       const orderData = {
         table_id: table.id,
         customer_name: customerName,
-        customer_phone: customerPhone,
         items: currentCart,
         discount,
         tax,
@@ -304,16 +254,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       errors.push('Customer name');
     }
 
-    if (!customerPhone || customerPhone.trim() === '') {
-      errors.push('Customer phone number');
-    } else if (
-      customerPhone.trim().length !== 10 ||
-      !/^\d{10}$/.test(customerPhone.trim())
-    ) {
-      alert('Phone number must be exactly 10 digits!');
-      return;
-    }
-
     if (errors.length > 0) {
       alert(
         `${errors.join(' and ')} ${errors.length > 1 ? 'are' : 'is'} mandatory for pending bills!`
@@ -328,7 +268,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         saleType: 'table',
         tableNumber: table.name,
         customerName: customerName.trim(),
-        customerPhone: customerPhone.trim(),
         items: cart.map((item) => ({
           productId: item.id,
           name: item.name,
@@ -350,7 +289,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       // Clear cart and customer info
       setCart([]);
       setCustomerName('');
-      setCustomerPhone('');
       setDiscount(0);
       setTax(0);
       setActiveTab('menu');
@@ -378,7 +316,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       const orderData = {
         table_id: table.id,
         customer_name: customerName,
-        customer_phone: customerPhone,
         items: cart,
         discount,
         tax,
@@ -414,7 +351,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         tableId: table.id,
         tableName: table.name,
         customerName: customerName || 'Table Customer',
-        customerPhone,
         items: cart.map((item) => ({
           productId: item.id,
           name: item.name,
@@ -448,20 +384,9 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         await printBill(saleData);
       }
 
-      // Auto-send WhatsApp receipt silently if customer phone is available
-      if (customerPhone && customerPhone.trim() !== '') {
-        try {
-          const relayUrl = APP_CONFIG.whatsappRelayUrl;
-          await whatsappService.sendBill(relayUrl, barSettings || {}, saleData);
-        } catch (waErr) {
-          // Silent fail — WhatsApp is optional
-        }
-      }
-
       // Clear cart and customer info
       setCart([]);
       setCustomerName('');
-      setCustomerPhone('');
       setDiscount(0);
       setTax(0);
       setActiveTab('menu');
@@ -472,7 +397,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       // Trigger dashboard refresh by dispatching a custom event
       window.dispatchEvent(new CustomEvent('saleCompleted'));
       playSuccessFeedback();
-      showNotice('success', 'Order Placed! Check WhatsApp for receipt.');
+      showNotice('success', 'Order placed!');
     } catch (error) {
       // Failed to process sale
       console.error('Table POS sale write error:', error);
@@ -493,13 +418,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       alert('Please enter customer name!');
       return;
     }
-    const cleanedPhone = customerPhone.trim();
-    if (!cleanedPhone || cleanedPhone.length !== 10 || !/^\d{10}$/.test(cleanedPhone)) {
-      alert('Please enter a valid 10-digit phone number!');
-      if (phoneInputRef.current) phoneInputRef.current.focus({ preventScroll: true });
-      return;
-    }
-
     // Check if payment method is UPI and direct VPA configured
     const isUpiEnabled = barSettings && !!barSettings.upi_vpa;
     if (paymentMethod === 'upi' && isUpiEnabled) {
@@ -884,34 +802,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                 className="form-input"
                 style={{ padding: '8px 12px', fontSize: '13px' }}
               />
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <input
-                  type="tel"
-                  placeholder="Phone Number"
-                  value={customerPhone}
-                  ref={phoneInputRef}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, '');
-                    if (value.length <= 10) {
-                      setCustomerPhone(value);
-                      setWhatsappCheck(null);
-                    }
-                  }}
-                  onBlur={handlePhoneBlur}
-                  className="form-input"
-                  style={{ padding: '8px 12px', fontSize: '13px', paddingRight: whatsappCheck ? '28px' : undefined }}
-                  maxLength="10"
-                />
-                {whatsappCheck === 'checking' && (
-                  <span style={{ position: 'absolute', right: '8px', fontSize: '12px', color: '#6c757d' }}>…</span>
-                )}
-                {whatsappCheck === 'valid' && (
-                  <span style={{ position: 'absolute', right: '8px', fontSize: '14px', color: '#16a34a' }} title="Registered on WhatsApp">✓</span>
-                )}
-                {whatsappCheck === 'invalid' && (
-                  <span style={{ position: 'absolute', right: '8px', fontSize: '14px', color: '#dc2626' }} title="Not on WhatsApp">✕</span>
-                )}
-              </div>
             </div>
 
             <div className="cart-section">

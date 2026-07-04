@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Wifi, WifiOff, Lock, CloudLightning, QrCode, Truck, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Lock, CloudLightning, QrCode, Truck, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { dbService } from '../services/dbService';
-import { whatsappService } from '../services/whatsappService';
-import { APP_CONFIG } from '../config';
 import { getFirebaseDb } from '../firebase';
 import { doc, writeBatch, setDoc, getDocs, getDoc, collection } from 'firebase/firestore';
 import QRCode from 'qrcode';
@@ -15,11 +13,6 @@ const Settings = () => {
     address: '',
     thank_you_message: '',
     printing_enabled: 1,
-    whatsapp_enabled: 0,
-    whatsapp_relay_url: '',
-    whatsapp_template_name: 'counterflow_pos_receipt',
-    whatsapp_language_code: 'en',
-    whatsapp_default_country_code: '91',
     admin_password: '123456',
     firebase_config: '',
     hosted_app_url: '',
@@ -38,10 +31,9 @@ const Settings = () => {
     to: '',
     enabled: false
   });
-  const [activeTab, setActiveTab] = useState('integrations');
+  const [activeTab, setActiveTab] = useState('general');
   const [isEditingBarInfo, setIsEditingBarInfo] = useState(false);
   const [isEditingEmailInfo, setIsEditingEmailInfo] = useState(false);
-  const [isEditingWhatsappInfo, setIsEditingWhatsappInfo] = useState(false);
   const [isEditingSecurity, setIsEditingSecurity] = useState(false);
   const [loading, setLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
@@ -55,24 +47,10 @@ const Settings = () => {
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
 
-  const [whatsappStatus, setWhatsappStatus] = useState('DISCONNECTED');
-  const [whatsappQr, setWhatsappQr] = useState(null);
-  const [whatsappError, setWhatsappError] = useState(null);
-  const [whatsappLoading, setWhatsappLoading] = useState(false);
-
   // Self-Ordering Table QR States
   const [tablesList, setTablesList] = useState([]);
   const [selectedTable, setSelectedTable] = useState('Parcel');
   const [tableQrCodeUrl, setTableQrCodeUrl] = useState('');
-
-  useEffect(() => {
-    if (whatsappError) {
-      const timer = setTimeout(() => {
-        setWhatsappError(null);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [whatsappError]);
 
   const loadTables = async () => {
     try {
@@ -215,70 +193,12 @@ const Settings = () => {
     loadTables();
   }, []);
 
-  const getActiveRelayUrl = () => {
-    return barSettings.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-  };
-
-  useEffect(() => {
-    let intervalId = null;
-    const activeUrl = getActiveRelayUrl();
-    
-    if (activeUrl) {
-      checkRelayStatus();
-      intervalId = setInterval(checkRelayStatus, 5000); // Poll every 5 seconds
-    } else {
-      setWhatsappStatus('DISCONNECTED');
-      setWhatsappQr(null);
-    }
-    
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [barSettings.whatsapp_relay_url]);
-
   useEffect(() => {
     const targetUrl = barSettings.hosted_app_url || 'https://counterflow-kiosk.web.app/';
     QRCode.toDataURL(targetUrl, { width: 350, margin: 2 })
       .then(url => setTableQrCodeUrl(url))
       .catch(err => console.error('Error generating customer website QR:', err));
   }, [barSettings.hosted_app_url]);
-
-  const checkRelayStatus = async () => {
-    const activeUrl = getActiveRelayUrl();
-    if (!activeUrl) return;
-    try {
-      const data = await whatsappService.getStatus(activeUrl);
-      setWhatsappStatus(data.status);
-      setWhatsappQr(data.qrCode);
-      setWhatsappError(data.error || null);
-    } catch (err) {
-      setWhatsappStatus('DISCONNECTED');
-      setWhatsappQr(null);
-      setWhatsappError(err.message);
-    }
-  };
-
-  const handleWhatsappLogout = async () => {
-    const activeUrl = getActiveRelayUrl();
-    if (!activeUrl) return;
-    try {
-      setWhatsappLoading(true);
-      const res = await whatsappService.logout(activeUrl);
-      if (res.success) {
-        alert('WhatsApp unlinked successfully!');
-        setWhatsappStatus('DISCONNECTED');
-        setWhatsappQr(null);
-      } else {
-        alert(`Failed to unlink: ${res.error}`);
-      }
-    } catch (err) {
-      alert(`Error unlinking WhatsApp: ${err.message}`);
-    } finally {
-      setWhatsappLoading(false);
-    }
-  };
-
-
 
   const loadBarSettings = async () => {
     try {
@@ -399,11 +319,6 @@ const Settings = () => {
             address: barSettings.address || '',
             thank_you_message: barSettings.thank_you_message || '',
             printing_enabled: barSettings.printing_enabled !== undefined ? Number(barSettings.printing_enabled) : 0,
-            whatsapp_enabled: barSettings.whatsapp_enabled !== undefined ? Number(barSettings.whatsapp_enabled) : 0,
-            whatsapp_relay_url: barSettings.whatsapp_relay_url || '',
-            whatsapp_template_name: barSettings.whatsapp_template_name || 'counterflow_pos_receipt',
-            whatsapp_language_code: barSettings.whatsapp_language_code || 'en',
-            whatsapp_default_country_code: barSettings.whatsapp_default_country_code || '91',
             upi_provider: barSettings.upi_provider || 'cashfree',
             upi_vpa: barSettings.upi_vpa || '',
             hosted_app_url: barSettings.hosted_app_url || '',
@@ -420,7 +335,6 @@ const Settings = () => {
       }
 
       setIsEditingBarInfo(false);
-      setIsEditingWhatsappInfo(false);
       alert('Shop information saved successfully!');
     } catch (error) {
       // Failed to save bar settings
@@ -613,11 +527,6 @@ const Settings = () => {
           address: '',
           thank_you_message: '',
           printing_enabled: 1,
-          whatsapp_enabled: 0,
-          whatsapp_relay_url: '',
-          whatsapp_template_name: 'counterflow_pos_receipt',
-          whatsapp_language_code: 'en',
-          whatsapp_default_country_code: '91',
           admin_password: '123456'
         });
         
@@ -665,7 +574,6 @@ const Settings = () => {
   };
 
   const tabs = [
-    { id: 'integrations', label: 'Integrations', icon: MessageCircle },
     { id: 'general', label: 'General', icon: Store },
     { id: 'offers', label: 'Offers', icon: Tag },
     { id: 'delivery', label: 'Delivery', icon: Truck },
@@ -735,76 +643,6 @@ const Settings = () => {
     </div>
   );
 
-  const renderIntegrationsTab = () => (
-    <>
-      {/* WhatsApp */}
-      <div className="cfg-card">
-        <div className="cfg-card-hdr">
-          <div className="cfg-card-hdr-left">
-            <div className="cfg-card-icon" style={{ background: '#f0fdf4' }}>
-              <MessageCircle size={16} color="#25D366" />
-            </div>
-            <div>
-              <h2>WhatsApp Receipts</h2>
-              <p>Link a phone to send receipts via WhatsApp</p>
-            </div>
-          </div>
-          {whatsappStatus === 'CONNECTED' ? (
-            <span className="cfg-badge cfg-badge-green"><Wifi size={12} /> Active</span>
-          ) : whatsappStatus === 'QR_READY' ? (
-            <span className="cfg-badge cfg-badge-yellow"><MessageCircle size={12} /> Scan QR</span>
-          ) : whatsappStatus === 'AUTHENTICATING' || whatsappStatus === 'INITIALIZING' ? (
-            <span className="cfg-badge cfg-badge-blue"><RotateCcw size={12} className="spin" /> Connecting</span>
-          ) : (
-            <span className="cfg-badge cfg-badge-red"><WifiOff size={12} /> Offline</span>
-          )}
-        </div>
-        <div className="cfg-card-body">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'center' }}>
-            <div>
-              <p style={{ margin: '0 0 16px', fontSize: '0.88rem', color: '#64748b', lineHeight: '1.6' }}>
-                Connect your WhatsApp via the relay service. Once linked, POS receipts are sent automatically from your phone.
-              </p>
-              {whatsappStatus === 'CONNECTED' && (
-                <button onClick={handleWhatsappLogout} disabled={whatsappLoading} className="cfg-btn cfg-btn-ghost" style={{ color: '#ef4444', borderColor: '#fca5a5' }}>
-                  <WifiOff size={14} />
-                  {whatsappLoading ? 'Unlinking…' : 'Unlink Device'}
-                </button>
-              )}
-              {whatsappError && <p style={{ fontSize: '0.78rem', color: '#ef4444', margin: '10px 0 0' }}>{whatsappError}</p>}
-            </div>
-            <div className="cfg-qr-shell" style={{ minHeight: '180px' }}>
-              {whatsappStatus === 'QR_READY' && whatsappQr ? (
-                <>
-                  <p style={{ margin: '0 0 12px', fontSize: '0.82rem', fontWeight: '600', color: '#1e293b' }}>Scan with WhatsApp → Linked Devices</p>
-                  <div style={{ background: '#fff', padding: '10px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                    <img src={whatsappQr} alt="WhatsApp QR" style={{ width: '160px', height: '160px', display: 'block' }} />
-                  </div>
-                </>
-              ) : whatsappStatus === 'CONNECTED' ? (
-                <div style={{ color: '#16a34a', textAlign: 'center' }}>
-                  <MessageCircle size={36} style={{ margin: '0 auto 8px' }} />
-                  <p style={{ margin: 0, fontWeight: '700', fontSize: '0.95rem' }}>Linked</p>
-                  <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: '#64748b' }}>Receipts sending automatically</p>
-                </div>
-              ) : whatsappStatus === 'AUTHENTICATING' || whatsappStatus === 'INITIALIZING' ? (
-                <div style={{ color: '#475569', textAlign: 'center' }}>
-                  <RotateCcw size={32} className="spin" style={{ margin: '0 auto 8px' }} />
-                  <p style={{ margin: 0, fontWeight: '600', fontSize: '0.88rem' }}>Connecting…</p>
-                </div>
-              ) : (
-                <div style={{ color: '#94a3b8', textAlign: 'center' }}>
-                  <WifiOff size={32} style={{ margin: '0 auto 8px' }} />
-                  <p style={{ margin: 0, fontSize: '0.82rem' }}>Relay offline or not configured</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </>
-  );
 
   const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'];
@@ -1713,7 +1551,6 @@ const Settings = () => {
             <div className="cfg-nav-label">Store</div>
             {[
               { id: 'general',      label: 'General',        icon: Store },
-              { id: 'integrations', label: 'Integrations',   icon: MessageCircle },
               { id: 'delivery',     label: 'Delivery',       icon: Truck },
               { id: 'offers',       label: 'Offers',         icon: Tag },
             ].map(({ id, label, icon: Icon }) => (
@@ -1751,7 +1588,6 @@ const Settings = () => {
         {/* ── Panel ── */}
         <div className="cfg-panel">
           {activeTab === 'general'      && renderGeneralTab()}
-          {activeTab === 'integrations' && renderIntegrationsTab()}
           {activeTab === 'offers'       && renderOffersTab()}
           {activeTab === 'delivery'     && renderDeliveryTab()}
           {activeTab === 'menu-qr'      && renderMenuQrTab()}
