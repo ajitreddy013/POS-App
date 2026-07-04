@@ -29,7 +29,6 @@ import { Browser } from '@capacitor/browser';
 import { dbService } from '../services/dbService';
 import { whatsappService } from '../services/whatsappService';
 import { APP_CONFIG } from '../config';
-import QRCode from 'qrcode';
 import malabarLogo from '../assets/malabar-waffle-logo.png';
 import {
   playSuccessFeedback,
@@ -704,12 +703,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       return;
     }
 
-    const isRazorpayEnabled = barSettings && barSettings.razorpay_enabled === 1;
-    if (selectedMethod === 'upi' && isRazorpayEnabled) {
-      await startRazorpayPayment(selectedMethod);
-      return;
-    }
-
     executeSaleWrite(selectedMethod);
   };
 
@@ -848,83 +841,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       const saleWriter = executeSaleWriteRef.current || executeSaleWrite;
       await saleWriter('upi');
     }, 1000);
-  };
-
-  const startRazorpayPayment = async (selectedMethod) => {
-    const relayUrl =
-      barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
-
-    try {
-      const orderId = await generateSaleNumber();
-      const amount = calculateTotal();
-      setLoading(true);
-      const response = await fetch(`${relayUrl}/payment/create-qr`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, orderId }),
-      });
-      const data = await response.json();
-      setLoading(false);
-
-      if (!data.success) throw new Error(data.error || 'Unknown error creating QR code.');
-
-      // If merchant VPA is configured, prefer showing a direct UPI QR generated locally
-      let qrImage = data.qrImageUrl;
-      try {
-        if (barSettings && barSettings.upi_vpa) {
-          const upiUri = `upi://pay?pa=${encodeURIComponent(barSettings.upi_vpa)}&pn=${encodeURIComponent(
-            barSettings.bar_name || ''
-          )}&am=${encodeURIComponent(Number(amount).toFixed(2))}&cu=INR&tn=${encodeURIComponent('Order ' + orderId)}`;
-          qrImage = await QRCode.toDataURL(upiUri, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
-        }
-      } catch (qrErr) {
-        console.error('Failed to generate local UPI QR:', qrErr);
-        qrImage = data.qrImageUrl;
-      }
-
-      qrPaymentPendingRef.current = true;
-      setUpiQrPayment({ orderId, amount, qrImageUrl: qrImage, paymentLinkId: data.paymentLinkId || null });
-      setUpiQrStatus('Waiting for customer payment...');
-
-      if (qrPollIntervalRef.current) clearInterval(qrPollIntervalRef.current);
-
-      qrPollIntervalRef.current = setInterval(async () => {
-        try {
-          const statusResponse = await fetch(`${relayUrl}/payment/status`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              qrCodeId: data.qrCodeId || null,
-              paymentLinkId: data.paymentLinkId || null,
-            }),
-          });
-
-          const statusData = await statusResponse.json();
-          if (statusData.success && statusData.paid) {
-            qrPaymentPendingRef.current = false;
-            if (qrPollIntervalRef.current) {
-              clearInterval(qrPollIntervalRef.current);
-              qrPollIntervalRef.current = null;
-            }
-            setUpiQrStatus('Payment received. Completing order...');
-            setTimeout(async () => {
-              setUpiQrPayment(null);
-              setUpiQrStatus('');
-              await executeSaleWrite(selectedMethod);
-            }, 1000);
-          }
-        } catch (pollError) {
-          console.error('Error polling Razorpay QR status:', pollError);
-        }
-      }, 2000);
-    } catch (err) {
-      setLoading(false);
-      setUpiQrPayment(null);
-      setUpiQrStatus('');
-      alert(
-        `Cannot create payment QR at:\n${relayUrl}\n\nError: ${err.message}`
-      );
-    }
   };
 
   const closeUpiQrPayment = () => {
@@ -2069,7 +1985,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         </div>
       )}
 
-      {/* UPI Payment Modal — Cashfree hosted page or Razorpay QR */}
+      {/* UPI Payment Modal — Cashfree hosted page */}
       {upiQrPayment && (
         <div
           className="upi-qr-overlay"

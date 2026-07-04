@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import useBarSettings from '../utils/useBarSettings';
 import { isOfferActiveToday, calculateOfferDiscount } from '../utils/offerUtils';
-import QRCode from 'qrcode';
 
 const CustomerMenu = () => {
   const searchParams = useSearchParams()[0];
@@ -186,59 +185,46 @@ const CustomerMenu = () => {
     }
   };
 
-  // Razorpay UPI QR integration
-  const startRazorpayPayment = async (orderNumber) => {
-    const relayUrl = APP_CONFIG.whatsappRelayUrl;
+  // Cashfree UPI QR integration — tempOrderId is a throwaway id used only for
+  // Cashfree's own bookkeeping; the real sequential order number is assigned
+  // only after this promise resolves (see handlePlaceOrder), so an abandoned
+  // or failed payment never wastes a number.
+  const startCashfreeUpiPayment = async (tempOrderId) => {
+    const relayUrl = barSettings?.whatsapp_relay_url || APP_CONFIG.whatsappRelayUrl;
 
     return new Promise((resolve, reject) => {
       qrPaymentPromiseRef.current = { resolve, reject };
       setUpiQrLoading(true);
       setUpiQrStatus('Generating UPI QR code...');
       setUpiQrPayment({
-        orderId: orderNumber,
+        orderId: tempOrderId,
         amount: finalTotal,
         qrImageUrl: '',
       });
 
-      fetch(`${relayUrl}/payment/create-qr`, {
+      fetch(`${relayUrl}/payment/cashfree/upi-qr`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: finalTotal, orderId: orderNumber }),
+        body: JSON.stringify({
+          amount: finalTotal,
+          orderId: tempOrderId,
+          phone,
+          name,
+        }),
       })
         .then((response) => response.json())
-        .then(async (data) => {
+        .then((data) => {
           if (!data.success) {
             throw new Error(data.error || 'Failed to create UPI QR code.');
           }
 
           setUpiQrLoading(false);
 
-          // Prefer a locally-generated direct UPI QR (upi://) when merchant VPA is available in settings.
-          let qrImage = data.qrImageUrl;
-          try {
-            if (barSettings && barSettings.upi_vpa) {
-              const upiUri = `upi://pay?pa=${encodeURIComponent(
-                barSettings.upi_vpa
-              )}&pn=${encodeURIComponent(barSettings.bar_name || '')}&am=${encodeURIComponent(
-                Number(finalTotal).toFixed(2)
-              )}&cu=INR&tn=${encodeURIComponent('Order ' + orderNumber)}`;
-              qrImage = await QRCode.toDataURL(upiUri, {
-                errorCorrectionLevel: 'M',
-                margin: 2,
-                scale: 6,
-              });
-            }
-          } catch (qrErr) {
-            console.error('Failed to generate local UPI QR:', qrErr);
-            // fallback to server-provided QR image
-            qrImage = data.qrImageUrl;
-          }
-
+          const cfOrderId = data.orderId;
           setUpiQrPayment({
-            orderId: orderNumber,
+            orderId: tempOrderId,
             amount: finalTotal,
-            qrImageUrl: qrImage,
-            paymentLinkId: data.paymentLinkId || null,
+            qrImageUrl: `data:image/png;base64,${data.qrData}`,
           });
           setUpiQrStatus('Waiting for customer payment...');
 
@@ -248,14 +234,14 @@ const CustomerMenu = () => {
 
           qrPollIntervalRef.current = setInterval(async () => {
             try {
-              const statusResponse = await fetch(`${relayUrl}/payment/status`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  qrCodeId: data.qrCodeId || null,
-                  paymentLinkId: data.paymentLinkId || null,
-                }),
-              });
+              const statusResponse = await fetch(
+                `${relayUrl}/payment/cashfree/order-status`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ cfOrderId }),
+                }
+              );
 
               const statusData = await statusResponse.json();
               if (statusData.success && statusData.paid) {
@@ -274,9 +260,9 @@ const CustomerMenu = () => {
                 }, 1000);
               }
             } catch (error) {
-              console.error('Error polling Razorpay QR status:', error);
+              console.error('Error polling Cashfree QR status:', error);
             }
-          }, 2000);
+          }, 3000);
         })
         .catch((error) => {
           if (qrPollIntervalRef.current) {
@@ -331,31 +317,36 @@ const CustomerMenu = () => {
     setPhoneError('');
 
     setSubmitting(true);
-    let orderNumber = `W-${Date.now().toString().slice(-5)}`;
-    try {
-      const settingsRef = doc(db, 'settings', 'order_counters');
-      await runTransaction(db, async (transaction) => {
-        const settingsSnap = await transaction.get(settingsRef);
-        let currentCount = 0;
-        if (settingsSnap.exists()) {
-          currentCount = settingsSnap.data().completedWebOrders || 0;
-        }
-        currentCount += 1;
-        transaction.set(settingsRef, { completedWebOrders: currentCount }, { merge: true });
-        orderNumber = `W-${currentCount}`;
-      });
-    } catch (err) {
-      console.error('Failed to generate sequential web order number:', err);
-    }
 
     try {
       let payStatus = 'pending';
 
       if (paymentMethod === 'upi') {
-        await startRazorpayPayment(orderNumber);
+        // Real order number is only reserved once payment is actually
+        // confirmed — a temp id is enough for Cashfree's own bookkeeping
+        // pre-payment, so an abandoned/cancelled QR never wastes a number.
+        const tempOrderId = `APP-${Date.now()}`;
+        await startCashfreeUpiPayment(tempOrderId);
         payStatus = 'paid';
       }
       // Use finalTotal (after 1+1 offer discount) for actual payment
+
+      let orderNumber = `A-${Date.now().toString().slice(-5)}`;
+      try {
+        const settingsRef = doc(db, 'settings', 'order_counters');
+        await runTransaction(db, async (transaction) => {
+          const settingsSnap = await transaction.get(settingsRef);
+          let currentCount = 0;
+          if (settingsSnap.exists()) {
+            currentCount = settingsSnap.data().completedAppOrders || 0;
+          }
+          currentCount += 1;
+          transaction.set(settingsRef, { completedAppOrders: currentCount }, { merge: true });
+          orderNumber = `A-${currentCount}`;
+        });
+      } catch (err) {
+        console.error('Failed to generate sequential app order number:', err);
+      }
 
       // Save order to Firestore
       const orderData = {
@@ -1248,7 +1239,7 @@ const CustomerMenu = () => {
         </div>
       )}
 
-      {/* Razorpay UPI QR Modal */}
+      {/* Cashfree UPI QR Modal */}
       {upiQrPayment && (
         <div
           style={{
@@ -1281,7 +1272,7 @@ const CustomerMenu = () => {
                 color: '#1C5C3A',
               }}
             >
-              Scan Razorpay UPI QR
+              Scan UPI QR to Pay
             </h3>
             <p style={{ margin: '0 0 16px 0', color: '#64748B' }}>
               Order #{upiQrPayment.orderId}
@@ -1337,7 +1328,7 @@ const CustomerMenu = () => {
               ) : (
                 <img
                   src={upiQrPayment.qrImageUrl}
-                  alt="Razorpay UPI QR code"
+                  alt="UPI QR code"
                   style={{
                     width: '200px',
                     height: '200px',

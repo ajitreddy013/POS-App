@@ -330,9 +330,6 @@ export const dbService = {
     if (isElectron) return await window.electronAPI.getBarSettings();
     let settings = await db.bar_settings.get(1);
     if (settings) {
-      if (settings.razorpay_enabled === undefined) {
-        settings.razorpay_enabled = 1;
-      }
       if (settings.upi_provider === undefined) {
         settings.upi_provider = "cashfree";
       }
@@ -360,7 +357,6 @@ export const dbService = {
       whatsapp_template_name: "counterflow_pos_receipt",
       whatsapp_language_code: "en",
       whatsapp_default_country_code: "91",
-      razorpay_enabled: 1,
       upi_provider: "cashfree",
       upi_vpa: "",
       admin_password: "123456",
@@ -384,7 +380,6 @@ export const dbService = {
       whatsapp_template_name: settings.whatsapp_template_name || "counterflow_pos_receipt",
       whatsapp_language_code: settings.whatsapp_language_code || "en",
       whatsapp_default_country_code: settings.whatsapp_default_country_code || "91",
-      razorpay_enabled: settings.razorpay_enabled !== undefined ? Number(settings.razorpay_enabled) : 1,
       upi_provider: settings.upi_provider || settings.upiProvider || "cashfree",
       upi_vpa: settings.upi_vpa || settings.upiVpa || "",
       admin_password: settings.admin_password || existing.admin_password || "123456",

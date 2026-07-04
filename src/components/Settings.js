@@ -404,7 +404,6 @@ const Settings = () => {
             whatsapp_template_name: barSettings.whatsapp_template_name || 'counterflow_pos_receipt',
             whatsapp_language_code: barSettings.whatsapp_language_code || 'en',
             whatsapp_default_country_code: barSettings.whatsapp_default_country_code || '91',
-            razorpay_enabled: barSettings.razorpay_enabled !== undefined ? Number(barSettings.razorpay_enabled) : 1,
             upi_provider: barSettings.upi_provider || 'cashfree',
             upi_vpa: barSettings.upi_vpa || '',
             hosted_app_url: barSettings.hosted_app_url || '',

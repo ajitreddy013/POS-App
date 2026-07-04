@@ -1067,9 +1067,19 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
         if (firebaseInitialized && firestoreIntegrationEnabled) {
           const db = getFirestore();
           const ordersRef = db.collection('orders');
-          const snapshot = await ordersRef
-            .where('orderNumber', '==', orderNumber)
+          // Web orders are matched via the stable ticketId field (their
+          // orderNumber may still be a temp "T-..." placeholder at this
+          // point). Other order sources (e.g. kiosk hosted payment) never
+          // set ticketId, so fall back to matching orderNumber directly —
+          // keeps this handler backward-compatible with those flows.
+          let snapshot = await ordersRef
+            .where('ticketId', '==', orderNumber)
             .get();
+          if (snapshot.empty) {
+            snapshot = await ordersRef
+              .where('orderNumber', '==', orderNumber)
+              .get();
+          }
 
           if (snapshot.empty) {
             console.warn(
@@ -1082,15 +1092,39 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
                 console.log(`[Webhook] Order #${orderNumber} already marked paid/sent in database. Skipping.`);
                 return;
               }
+
+              // If this order was created with a temp ticket, this is the
+              // first confirmation it actually got paid — reserve the real
+              // sequential bill number now instead of at submission, so
+              // abandoned/never-paid checkouts never waste a number.
+              let realOrderNumber = orderData.orderNumber;
+              if (/^(T-|W-temp-|W-\d{5,})/.test(realOrderNumber)) {
+                const counterRef = db.collection('settings').doc('order_counters');
+                await db.runTransaction(async (transaction) => {
+                  const counterSnap = await transaction.get(counterRef);
+                  const currentCount = counterSnap.exists
+                    ? counterSnap.data().completedWebOrders || 0
+                    : 0;
+                  const nextCount = currentCount + 1;
+                  transaction.set(
+                    counterRef,
+                    { completedWebOrders: nextCount },
+                    { merge: true }
+                  );
+                  realOrderNumber = `W-${nextCount}`;
+                });
+              }
+
               // Set whatsappSent: true atomically with paymentStatus so the
               // order watcher never sees a paid+unnotified window
               await doc.ref.update({
                 paymentStatus: 'paid',
                 orderStatus: 'pending_acceptance',
                 whatsappSent: true,
+                orderNumber: realOrderNumber,
               });
               console.log(
-                `Updated Firestore Order ID: ${doc.id} paymentStatus to "paid", orderStatus to "pending_acceptance"`
+                `Updated Firestore Order ID: ${doc.id} paymentStatus to "paid", orderStatus to "pending_acceptance", orderNumber to "${realOrderNumber}"`
               );
 
               if (connectionStatus === 'CONNECTED' && sock) {
@@ -1103,7 +1137,7 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
                     settings,
                     {
                       ...orderData,
-                      orderNumber,
+                      orderNumber: realOrderNumber,
                       paymentStatus: 'paid',
                     }
                   );
@@ -1111,7 +1145,7 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
                   try {
                     await sock.sendMessage(cleanNumber, { text: messageText });
                     console.log(
-                      `Sent Cashfree payment confirmation WhatsApp for Order #${orderNumber} to: ${cleanNumber}`
+                      `Sent Cashfree payment confirmation WhatsApp for Order #${realOrderNumber} to: ${cleanNumber}`
                     );
                   } catch (waErr) {
                     console.error(

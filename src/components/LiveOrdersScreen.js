@@ -31,7 +31,17 @@ const getElapsedString = (createdAt) => {
 const LiveOrdersScreen = () => {
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [tickedOrders, setTickedOrders] = useState(new Set());
+  const [tickedOrders, setTickedOrders] = useState(() => {
+    try {
+      const saved = localStorage.getItem('liveOrders_ticked');
+      if (!saved) return new Set();
+      const { date, ids } = JSON.parse(saved);
+      const today = new Date().toLocaleDateString('en-CA');
+      return date === today ? new Set(ids) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
   const [timeCounter, setTimeCounter] = useState(0);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -43,6 +53,12 @@ const LiveOrdersScreen = () => {
       } else {
         next.add(orderId);
       }
+      try {
+        localStorage.setItem('liveOrders_ticked', JSON.stringify({
+          date: new Date().toLocaleDateString('en-CA'),
+          ids: [...next],
+        }));
+      } catch { /* silent */ }
       return next;
     });
   };
@@ -71,6 +87,8 @@ const LiveOrdersScreen = () => {
       orderBy('createdAt', 'desc')
     );
 
+    const todayStr = startOfToday.toLocaleDateString('en-CA'); // YYYY-MM-DD
+
     const unsubscribe = onSnapshot(
       q,
       (querySnapshot) => {
@@ -78,6 +96,18 @@ const LiveOrdersScreen = () => {
         querySnapshot.forEach((doc) => {
           const data = doc.data();
           if (data.orderStatus === 'cancelled') return;
+
+          // Client-side date guard — reject any order not from today
+          const createdMs = data.createdAt?.toMillis
+            ? data.createdAt.toMillis()
+            : data.createdAt instanceof Date
+              ? data.createdAt.getTime()
+              : null;
+          if (createdMs !== null) {
+            const orderDateStr = new Date(createdMs).toLocaleDateString('en-CA');
+            if (orderDateStr !== todayStr) return;
+          }
+
           const isCash = data.paymentMethod === 'cash';
           const isPaidUPI =
             data.paymentMethod === 'upi' && data.paymentStatus === 'paid';
@@ -174,7 +204,8 @@ const LiveOrdersScreen = () => {
                 const isDelivery = order.orderType === 'delivery';
                 const isWeb = order.source === 'web' || (!order.source && order.orderNumber?.startsWith('W-'));
                 const isCompleted = order.orderStatus === 'completed';
-                const isTicked = tickedOrders.has(order.id);
+                // Auto-tick completed orders; manual ticks also count
+                const isTicked = tickedOrders.has(order.id) || isCompleted;
 
                 return (
                   <div key={order.id} style={{ position: 'relative' }}>

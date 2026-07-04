@@ -15,6 +15,8 @@ import {
   onSnapshot,
   doc,
   runTransaction,
+  query,
+  where,
 } from 'firebase/firestore';
 import { APP_CONFIG } from '../config';
 import {
@@ -177,6 +179,25 @@ const CustomerMenu = () => {
       }
     }
   }, [searchParams, setSearchParams]);
+
+  // While the payment webhook is still assigning the final W-N number, the
+  // success screen only has the temporary ticket — watch the order doc so it
+  // flips over live once the webhook writes the real orderNumber.
+  useEffect(() => {
+    if (!orderSuccess || !orderSuccess.startsWith('T-') || !db) return;
+    const ticketQuery = query(
+      collection(db, 'orders'),
+      where('ticketId', '==', orderSuccess)
+    );
+    const unsubscribe = onSnapshot(ticketQuery, (snap) => {
+      if (snap.empty) return;
+      const liveOrderNumber = snap.docs[0].data().orderNumber;
+      if (liveOrderNumber && !liveOrderNumber.startsWith('T-')) {
+        setOrderSuccess(liveOrderNumber);
+      }
+    });
+    return () => unsubscribe();
+  }, [orderSuccess, db]);
 
   useEffect(() => {
     const tableParam = searchParams.get('table');
@@ -505,26 +526,14 @@ const CustomerMenu = () => {
     setAddressWarning('');
     setSubmitting(true);
 
-    let orderNumber = `W-${Date.now().toString().slice(-5)}`;
-    try {
-      const settingsRef = doc(db, 'settings', 'order_counters');
-      await runTransaction(db, async (transaction) => {
-        const settingsSnap = await transaction.get(settingsRef);
-        let currentCount = 0;
-        if (settingsSnap.exists()) {
-          currentCount = settingsSnap.data().completedWebOrders || 0;
-        }
-        currentCount += 1;
-        transaction.set(settingsRef, { completedWebOrders: currentCount }, { merge: true });
-        orderNumber = `W-${currentCount}`;
-      });
-    } catch (err) {
-      console.error('Failed to generate sequential web order number:', err);
-    }
-
     try {
       if (paymentMethod === 'upi') {
         // ── UPI PAYMENT: Save order → get Cashfree link → redirect ──
+        // The real sequential W-N number is only assigned once the Cashfree
+        // webhook confirms payment (see relay's PAYMENT_SUCCESS_WEBHOOK
+        // handler) — this avoids burning a bill number on abandoned/never-
+        // paid checkouts. Use a throwaway ticket until then.
+        const orderNumber = `T-${Date.now()}`;
         setUpiQrStatus('Creating your order...');
         const confirmationPayload = {
           phone,
@@ -549,6 +558,7 @@ const CustomerMenu = () => {
         // 1. Save order to Firestore (pending)
         const orderData = {
           orderNumber,
+          ticketId: orderNumber,
           source: 'web',
           customerName: name,
           customerPhone: phone,
@@ -633,7 +643,25 @@ const CustomerMenu = () => {
           window.location.href = data.paymentLink;
         }
       } else {
-        // Cash / COD payment
+        // Cash / COD payment — no payment step, no abandonment risk, so the
+        // real sequential number is safe to assign immediately.
+        let orderNumber = `W-${Date.now().toString().slice(-5)}`;
+        try {
+          const settingsRef = doc(db, 'settings', 'order_counters');
+          await runTransaction(db, async (transaction) => {
+            const settingsSnap = await transaction.get(settingsRef);
+            let currentCount = 0;
+            if (settingsSnap.exists()) {
+              currentCount = settingsSnap.data().completedWebOrders || 0;
+            }
+            currentCount += 1;
+            transaction.set(settingsRef, { completedWebOrders: currentCount }, { merge: true });
+            orderNumber = `W-${currentCount}`;
+          });
+        } catch (err) {
+          console.error('Failed to generate sequential web order number:', err);
+        }
+
         const confirmationPayload = {
           phone,
           name,
@@ -655,6 +683,7 @@ const CustomerMenu = () => {
         };
         const orderData = {
           orderNumber,
+          ticketId: orderNumber,
           source: 'web',
           customerName: name,
           customerPhone: phone,
@@ -778,8 +807,12 @@ const CustomerMenu = () => {
             lineHeight: '1.7',
           }}
         >
-          Thank you! Your order <strong>#{orderSuccess}</strong> has been
-          received. We&apos;ve sent a confirmation receipt to your WhatsApp.
+          Thank you! Your order{' '}
+          <strong>
+            #{orderSuccess.startsWith('T-') ? 'confirming…' : orderSuccess}
+          </strong>{' '}
+          has been received. We&apos;ve sent a confirmation receipt to your
+          WhatsApp.
         </p>
         <div
           className="success-status-anim"
