@@ -133,6 +133,7 @@ app.use(express.json());
 let connectionStatus = 'INITIALIZING'; // INITIALIZING, QR_READY, CONNECTED, DISCONNECTED
 let activeQrCode = null; // Store QR code data URI
 let sock = null;
+const processedWebhookOrders = new Set();
 
 function isFirestoreUnauthenticatedError(err) {
   return (
@@ -1048,6 +1049,14 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
       `Cashfree Webhook: Payment success event for CF Order ${cfOrderId}, POS Order #${orderNumber}`
     );
 
+    if (processedWebhookOrders.has(orderNumber)) {
+      console.log(`[Webhook] Already processed webhook for order #${orderNumber} in-memory. Skipping.`);
+      return res.json({ status: 'ok' });
+    }
+    processedWebhookOrders.add(orderNumber);
+    // Auto-expire after 10 minutes to prevent memory leak
+    setTimeout(() => processedWebhookOrders.delete(orderNumber), 10 * 60 * 1000);
+
     try {
       const orderDetails = await cashfreeRequest('GET', `/orders/${cfOrderId}`);
       console.log(
@@ -1069,6 +1078,10 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
           } else {
             snapshot.forEach(async (doc) => {
               const orderData = doc.data();
+              if (orderData.paymentStatus === 'paid' || orderData.whatsappSent) {
+                console.log(`[Webhook] Order #${orderNumber} already marked paid/sent in database. Skipping.`);
+                return;
+              }
               // Set whatsappSent: true atomically with paymentStatus so the
               // order watcher never sees a paid+unnotified window
               await doc.ref.update({
@@ -1125,6 +1138,7 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
         );
       }
     } catch (err) {
+      processedWebhookOrders.delete(orderNumber);
       if (isFirestoreUnauthenticatedError(err)) {
         disableFirestoreIntegration(err.message);
         res.json({ status: 'ok' });
