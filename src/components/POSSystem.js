@@ -88,6 +88,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const qrPollIntervalRef = useRef(null);
   const cfUnsubRef = useRef(null);
   const cfBrowserListenerRef = useRef(null);
+  const cfOrderDocRefRef = useRef(null); // Firestore order doc ref for the active Cashfree payment
 
   const executeSaleWriteRef = useRef(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -512,11 +513,11 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     return orderNum;
   };
 
-  const executeSaleWrite = async (selectedMethod) => {
+  const executeSaleWrite = async (selectedMethod, precomputedSaleNumber = null) => {
     setLoading(true);
     try {
       const saleData = {
-        saleNumber: await generateSaleNumber(),
+        saleNumber: precomputedSaleNumber || await generateSaleNumber(),
         saleType: 'parcel',
         tableNumber: null,
         customerName: customerName.trim() || (isKiosk ? 'Kiosk Customer' : 'Walk-in Customer'),
@@ -695,6 +696,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           })),
         };
         const docRef = await addDoc(collection(db, 'orders'), orderData);
+        cfOrderDocRefRef.current = docRef; // Store so completeCashfreePayment can update it
         cfUnsubRef.current = onSnapshot(docRef, (snap) => {
           const d = snap.data();
           if (d && d.paymentStatus === 'paid' && qrPaymentPendingRef.current) {
@@ -751,9 +753,28 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     setTimeout(async () => {
       setUpiQrPayment(null);
       setUpiQrStatus('');
-      // Use ref so we always call the latest executeSaleWrite (avoids stale closure)
+
+      // Generate A-N sequential number now that payment is confirmed (no number wasted).
+      // Update the Firestore order immediately so kitchen sees A-N right away.
+      let billNumber = null;
+      try {
+        billNumber = await generateSaleNumber();
+        const orderDocRef = cfOrderDocRefRef.current;
+        if (orderDocRef) {
+          await updateDoc(orderDocRef, {
+            orderNumber: billNumber,
+            paymentStatus: 'paid',
+            orderStatus: 'preparing',
+          });
+          cfOrderDocRefRef.current = null;
+        }
+      } catch (e) {
+        console.warn('Failed to update Firestore order number after payment:', e);
+      }
+
+      // Write the local Dexie sale using the same A-N number so records match
       const saleWriter = executeSaleWriteRef.current || executeSaleWrite;
-      await saleWriter('upi');
+      await saleWriter('upi', billNumber);
     }, 1000);
   };
 
