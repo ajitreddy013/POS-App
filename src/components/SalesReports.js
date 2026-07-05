@@ -286,7 +286,7 @@ const SalesReports = () => {
         sale.customer_name || sale.customerName || "Walk-in",
         formatDateForDisplay(sale.sale_date || sale.saleDate),
         (sale.payment_method || sale.paymentMethod || "").toUpperCase(),
-        `Rs ${parseFloat(sale.total_amount || sale.totalAmount || 0).toFixed(2)}`,
+        parseFloat(sale.total_amount || sale.totalAmount || 0).toFixed(2),
       ]);
 
       const drawFooter = () => {
@@ -306,7 +306,7 @@ const SalesReports = () => {
         headStyles: { fillColor: BRAND, textColor: 255, fontStyle: "bold", fontSize: 9 },
         alternateRowStyles: { fillColor: [253, 251, 247] },
         columnStyles: { 4: { halign: "right" } },
-        foot: [["", "", "", { content: "Total Revenue", styles: { halign: "right" } }, `Rs ${totalRevenue.toFixed(2)}`]],
+        foot: [["", "", "", { content: "Total Revenue", styles: { halign: "right" } }, { content: `Rs ${totalRevenue.toFixed(2)}`, styles: { halign: "right" } }]],
         footStyles: { fillColor: [248, 250, 252], textColor: [15, 23, 42], fontStyle: "bold", fontSize: 9.5, lineWidth: 0.15, lineColor: [226, 232, 240] },
         didDrawPage: drawFooter,
       });
