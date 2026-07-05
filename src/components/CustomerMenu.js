@@ -306,21 +306,25 @@ const CustomerMenu = () => {
       }
       // Use finalTotal (after 1+1 offer discount) for actual payment
 
-      let orderNumber = `A-${Date.now().toString().slice(-5)}`;
-      try {
-        const settingsRef = doc(db, 'settings', 'order_counters');
-        await runTransaction(db, async (transaction) => {
-          const settingsSnap = await transaction.get(settingsRef);
-          let currentCount = 0;
-          if (settingsSnap.exists()) {
-            currentCount = settingsSnap.data().completedAppOrders || 0;
-          }
-          currentCount += 1;
-          transaction.set(settingsRef, { completedAppOrders: currentCount }, { merge: true });
-          orderNumber = `A-${currentCount}`;
-        });
-      } catch (err) {
-        console.error('Failed to generate sequential app order number:', err);
+      // Fallback uses a format that won't match the /^[WA]-\d+$/ regex so
+      // handleCompleteOnlineOrder will correctly re-assign a sequential A-N.
+      let orderNumber = `PENDING-${Date.now()}`;
+      if (db) {
+        try {
+          const settingsRef = doc(db, 'settings', 'order_counters');
+          await runTransaction(db, async (transaction) => {
+            const settingsSnap = await transaction.get(settingsRef);
+            let currentCount = 0;
+            if (settingsSnap.exists()) {
+              currentCount = settingsSnap.data().completedAppOrders || 0;
+            }
+            currentCount += 1;
+            transaction.set(settingsRef, { completedAppOrders: currentCount }, { merge: true });
+            orderNumber = `A-${currentCount}`;
+          });
+        } catch (err) {
+          console.error('Failed to generate sequential app order number:', err);
+        }
       }
 
       // Save order to Firestore
