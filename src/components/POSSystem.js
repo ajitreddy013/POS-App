@@ -251,6 +251,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       const isWebOrder = order.source === 'web' || (!order.source && order.orderNumber?.startsWith('W-'));
       const prefix = isWebOrder ? 'W' : 'A';
       
+      // Matches W-N or A-N but not PENDING-/T-/APP- temp formats
       const hasSequentialNumber = /^[WA]-\d+$/.test(order.orderNumber);
       let sequentialNumber = order.orderNumber;
 
@@ -488,7 +489,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       return `A-${allSales.length + 1}`;
     }
     const settingsRef = doc(db, 'settings', 'bar_settings');
-    let orderNum = `A-${Date.now().toString().slice(-5)}`;
+    let orderNum = null;
     try {
       await runTransaction(db, async (transaction) => {
         const settingsSnap = await transaction.get(settingsRef);
@@ -502,6 +503,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       });
     } catch (err) {
       console.error('Failed to generate sequential kiosk order number:', err);
+    }
+    if (!orderNum) {
+      const allSales = (await dbService.getSales()) || [];
+      orderNum = `A-${allSales.length + 1}`;
     }
     return orderNum;
   };
