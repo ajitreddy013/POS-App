@@ -1099,6 +1099,7 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
               // abandoned/never-paid checkouts never waste a number.
               let realOrderNumber = orderData.orderNumber;
               if (/^(T-|W-temp-|W-\d{5,})/.test(realOrderNumber)) {
+                // Web order with temp number → assign W-N
                 const counterRef = db.collection('settings').doc('order_counters');
                 await db.runTransaction(async (transaction) => {
                   const counterSnap = await transaction.get(counterRef);
@@ -1112,6 +1113,22 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
                     { merge: true }
                   );
                   realOrderNumber = `W-${nextCount}`;
+                });
+              } else if (/^KSK/.test(realOrderNumber)) {
+                // Kiosk UPI order with temp KSK tracking ID → assign A-N
+                const counterRef = db.collection('settings').doc('order_counters');
+                await db.runTransaction(async (transaction) => {
+                  const counterSnap = await transaction.get(counterRef);
+                  const currentCount = counterSnap.exists
+                    ? counterSnap.data().completedAppOrders || 0
+                    : 0;
+                  const nextCount = currentCount + 1;
+                  transaction.set(
+                    counterRef,
+                    { completedAppOrders: nextCount },
+                    { merge: true }
+                  );
+                  realOrderNumber = `A-${nextCount}`;
                 });
               }
 
