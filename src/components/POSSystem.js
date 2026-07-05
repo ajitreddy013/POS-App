@@ -248,6 +248,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       const db = getFirebaseDb();
       if (!db) return;
 
+      // Guard against double-completion (webhook retry + manual tap at same time)
+      const liveSnap = await getDoc(doc(db, 'orders', order.id));
+      if (liveSnap.data()?.orderStatus === 'completed') return;
+
       // Assign sequential order number at completion if not already sequential
       const isWebOrder = order.source === 'web' || (!order.source && order.orderNumber?.startsWith('W-'));
       const prefix = isWebOrder ? 'W' : 'A';
