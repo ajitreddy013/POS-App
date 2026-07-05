@@ -296,6 +296,13 @@ const CustomerMenu = () => {
     return map;
   }, [filteredProducts]);
 
+  const fmt12h = (t) => {
+    if (!t) return '';
+    const [h, m] = t.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
+  };
+
   const offerActive = useMemo(
     () => isOfferActiveToday(barSettings),
     [barSettings]
@@ -1541,6 +1548,28 @@ const CustomerMenu = () => {
           </div>
 
           <main style={{ padding: '8px 12px 16px' }}>
+            {/* Delivery info note */}
+            {barSettings?.delivery_enabled && (
+              <div style={{
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                borderRadius: '10px',
+                padding: '8px 14px',
+                fontSize: '13px',
+                color: '#166534',
+                marginBottom: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: '500',
+              }}>
+                🛵{' '}
+                {barSettings.delivery_start_time && barSettings.delivery_end_time
+                  ? `Delivery available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Min. order ₹${barSettings.delivery_free_above ?? 300} · Fee ₹${barSettings.delivery_fee ?? 30}`
+                  : `Home delivery available · Min. order ₹${barSettings.delivery_free_above ?? 300} · Fee ₹${barSettings.delivery_fee ?? 30}`}
+              </div>
+            )}
+
             {/* Order Type Selector — only show if delivery is enabled in settings */}
             {barSettings?.delivery_enabled && (
               <div

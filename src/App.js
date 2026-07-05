@@ -431,6 +431,16 @@ function AppContent() {
     runCleanup();
   }, [isAdminUnlocked]);
 
+  useEffect(() => {
+    const handleTestOrderNotice = (e) => {
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      setGlobalNotice({ type: 'info', message: e.detail.message });
+      setTimeout(() => setGlobalNotice(null), 5000);
+    };
+    window.addEventListener('test-order-notice', handleTestOrderNotice);
+    return () => window.removeEventListener('test-order-notice', handleTestOrderNotice);
+  }, []);
+
   /**
    * Toggle sidebar visibility
    * Allows users to collapse/expand the navigation sidebar
@@ -718,7 +728,7 @@ function AppContent() {
       {globalNotice && (
         <div style={{
           position: 'fixed',
-          bottom: 'calc(24px + env(safe-area-inset-bottom))',
+          top: 'calc(24px + env(safe-area-inset-top))',
           right: '24px',
           background: '#1C5C3A',
           color: '#ffffff',

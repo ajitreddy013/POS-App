@@ -167,9 +167,16 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     loadProducts();
     loadBarSettings();
 
+    const handleTestToast = (e) => {
+      const { type, message } = e.detail;
+      showNotice(type, message);
+    };
+    window.addEventListener('test-toast', handleTestToast);
+
     return () => {
       if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
       if (qrPollIntervalRef.current) clearInterval(qrPollIntervalRef.current);
+      window.removeEventListener('test-toast', handleTestToast);
     };
   }, []);
 
@@ -359,8 +366,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       }
       groups[cat].push(product);
     });
+    if (isKiosk) {
+      Object.keys(groups).forEach((cat) => {
+        groups[cat].sort((a, b) => (a.price || 0) - (b.price || 0));
+      });
+    }
     return groups;
-  }, [filteredProducts]);
+  }, [filteredProducts, isKiosk]);
 
   const toggleCategoryCollapse = (catName) => {
     setCollapsedCategories((prev) => ({

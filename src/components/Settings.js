@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Lock, CloudLightning, QrCode, Truck, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Lock, CloudLightning, QrCode, Truck, Tag, ChevronLeft, ChevronRight, Bell } from 'lucide-react';
 import { dbService } from '../services/dbService';
 import { getFirebaseDb } from '../firebase';
 import { doc, writeBatch, setDoc, getDocs, getDoc, collection } from 'firebase/firestore';
@@ -19,6 +19,9 @@ const Settings = () => {
     delivery_enabled: false,
     delivery_fee: 30,
     delivery_free_above: 300,
+    delivery_min_order: 300,
+    delivery_start_time: '16:00',
+    delivery_end_time: '22:00',
     offer_enabled: false,
     offer_dates: [],
   });
@@ -323,8 +326,10 @@ const Settings = () => {
             upi_vpa: barSettings.upi_vpa || '',
             hosted_app_url: barSettings.hosted_app_url || '',
             delivery_enabled: barSettings.delivery_enabled === true,
-            delivery_fee: 0,
-            delivery_free_above: 0,
+            delivery_fee: barSettings.delivery_fee ?? 30,
+            delivery_free_above: barSettings.delivery_min_order ?? 300,
+            delivery_start_time: barSettings.delivery_start_time || '16:00',
+            delivery_end_time: barSettings.delivery_end_time || '22:00',
             offer_enabled: barSettings.offer_enabled || false,
             offer_dates: barSettings.offer_dates || [],
           }, { merge: true });
@@ -830,9 +835,51 @@ const Settings = () => {
             </span>
           </label>
           {barSettings.delivery_enabled && (
-            <div className="cfg-alert-box cfg-alert-success">
-              🛵 Delivery is <strong>free</strong> for all orders within a <strong>2 km radius</strong>.
-            </div>
+            <>
+              <div className="cfg-field-group">
+                <label className="cfg-label">Delivery Hours</label>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <input
+                    type="time"
+                    className="cfg-input"
+                    value={barSettings.delivery_start_time || '16:00'}
+                    onChange={e => handleBarSettingsChange('delivery_start_time', e.target.value)}
+                  />
+                  <span style={{ color: '#666' }}>to</span>
+                  <input
+                    type="time"
+                    className="cfg-input"
+                    value={barSettings.delivery_end_time || '22:00'}
+                    onChange={e => handleBarSettingsChange('delivery_end_time', e.target.value)}
+                  />
+                </div>
+                <p className="cfg-hint">Customers will see this window on the ordering page.</p>
+              </div>
+              <div className="cfg-field-group">
+                <label className="cfg-label">Minimum Order Value (₹)</label>
+                <input
+                  type="number"
+                  className="cfg-input"
+                  style={{ maxWidth: '140px' }}
+                  value={barSettings.delivery_min_order ?? 300}
+                  min={0}
+                  onChange={e => handleBarSettingsChange('delivery_min_order', Number(e.target.value))}
+                />
+                <p className="cfg-hint">Orders below this amount are not eligible for delivery.</p>
+              </div>
+              <div className="cfg-field-group">
+                <label className="cfg-label">Delivery Fee (₹)</label>
+                <input
+                  type="number"
+                  className="cfg-input"
+                  style={{ maxWidth: '140px' }}
+                  value={barSettings.delivery_fee ?? 30}
+                  min={0}
+                  onChange={e => handleBarSettingsChange('delivery_fee', Number(e.target.value))}
+                />
+                <p className="cfg-hint">Set to 0 for free delivery.</p>
+              </div>
+            </>
           )}
           <div>
             <button onClick={saveBarSettings} disabled={loading} className="cfg-btn cfg-btn-primary">
@@ -1028,6 +1075,47 @@ const Settings = () => {
       </div>
 
       {/* Danger Zone */}
+      <div className="cfg-card" style={{ borderColor: '#e0f2fe' }}>
+        <div className="cfg-card-hdr">
+          <div className="cfg-card-hdr-left">
+            <div className="cfg-card-icon" style={{ background: '#e0f2fe' }}>
+              <Bell size={16} color="#0284c7" />
+            </div>
+            <div>
+              <h2>Test Notifications</h2>
+              <p>Preview how toast and order alerts look on this device</p>
+            </div>
+          </div>
+        </div>
+        <div className="cfg-card-body">
+          <button
+            className="cfg-btn"
+            style={{ background: '#0284c7', color: '#fff', border: 'none' }}
+            onClick={() => {
+              const types = [
+                { kind: 'pos', type: 'success', message: 'Order placed successfully!' },
+                { kind: 'pos', type: 'error', message: 'Payment failed. Please retry.' },
+                { kind: 'pos', type: 'warning', message: 'Low stock: Malabar Waffle' },
+                { kind: 'order', message: '📦 New Order Received! #W-99' },
+              ];
+              types.forEach(({ kind, type, message }, i) => {
+                setTimeout(() => {
+                  if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                  if (kind === 'pos') {
+                    window.dispatchEvent(new CustomEvent('test-toast', { detail: { type, message } }));
+                  } else {
+                    window.dispatchEvent(new CustomEvent('test-order-notice', { detail: { message } }));
+                  }
+                }, i * 5500);
+              });
+            }}
+          >
+            <Bell size={14} />
+            Run Test (4 toasts × 5 sec each)
+          </button>
+        </div>
+      </div>
+
       <div className="cfg-card cfg-danger-card">
         <div className="cfg-card-hdr">
           <div className="cfg-card-hdr-left">
