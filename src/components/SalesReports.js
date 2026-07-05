@@ -241,28 +241,41 @@ const SalesReports = () => {
       const boxGap = 5;
       const boxWidth = (contentWidth - boxGap) / 2;
       const boxHeight = 20;
-      const summaryItems = [
+      const rowGap = 5;
+
+      const summaryItemsRow1 = [
+        { label: "CASH SALES", value: `Rs ${cashRevenue.toFixed(2)}`, color: [43, 108, 176] },
+        { label: "UPI SALES", value: `Rs ${upiRevenue.toFixed(2)}`, color: [128, 90, 213] },
+      ];
+
+      const summaryItemsRow2 = [
         { label: "TOTAL SALES", value: `Rs ${totalRevenue.toFixed(2)}`, color: [27, 117, 67] },
         { label: "TOTAL TRANSACTIONS", value: `${totalTransactions}`, color: [182, 65, 44] },
       ];
 
-      summaryItems.forEach((item, i) => {
-        const x = margin + i * (boxWidth + boxGap);
-        doc.setFillColor(248, 250, 252);
-        doc.setDrawColor(226, 232, 240);
-        doc.setLineWidth(0.2);
-        doc.roundedRect(x, cursorY, boxWidth, boxHeight, 2, 2, "FD");
+      const renderSummaryRow = (items, yPos) => {
+        items.forEach((item, i) => {
+          const x = margin + i * (boxWidth + boxGap);
+          doc.setFillColor(248, 250, 252);
+          doc.setDrawColor(226, 232, 240);
+          doc.setLineWidth(0.2);
+          doc.roundedRect(x, yPos, boxWidth, boxHeight, 2, 2, "FD");
 
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(7.3);
-        doc.setTextColor(120, 120, 120);
-        doc.text(item.label, x + 4, cursorY + 7);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(7.3);
+          doc.setTextColor(120, 120, 120);
+          doc.text(item.label, x + 4, yPos + 7);
 
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(12.5);
-        doc.setTextColor(...item.color);
-        doc.text(item.value, x + 4, cursorY + 16);
-      });
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(12.5);
+          doc.setTextColor(...item.color);
+          doc.text(item.value, x + 4, yPos + 16);
+        });
+      };
+
+      renderSummaryRow(summaryItemsRow1, cursorY);
+      cursorY += boxHeight + rowGap;
+      renderSummaryRow(summaryItemsRow2, cursorY);
 
       cursorY += boxHeight + 10;
 
@@ -293,7 +306,7 @@ const SalesReports = () => {
         headStyles: { fillColor: BRAND, textColor: 255, fontStyle: "bold", fontSize: 9 },
         alternateRowStyles: { fillColor: [253, 251, 247] },
         columnStyles: { 4: { halign: "right" } },
-        foot: [["", "", "", "Total Revenue", `Rs ${totalRevenue.toFixed(2)}`]],
+        foot: [["", "", "", { content: "Total Revenue", styles: { halign: "right" } }, `Rs ${totalRevenue.toFixed(2)}`]],
         footStyles: { fillColor: [248, 250, 252], textColor: [15, 23, 42], fontStyle: "bold", fontSize: 9.5, lineWidth: 0.15, lineColor: [226, 232, 240] },
         didDrawPage: drawFooter,
       });
@@ -322,9 +335,20 @@ const SalesReports = () => {
   };
 
   // Calculate totals
-  const totalRevenue = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
-  const cashRevenue = sales.filter(s => (s.payment_method || s.paymentMethod || '').toLowerCase() === 'cash').reduce((sum, s) => sum + s.total_amount, 0);
-  const upiRevenue = sales.filter(s => (s.payment_method || s.paymentMethod || '').toLowerCase() === 'upi').reduce((sum, s) => sum + s.total_amount, 0);
+  const getSaleAmount = (sale) => parseFloat(sale.total_amount || sale.totalAmount || 0);
+  
+  const totalRevenue = sales.reduce((sum, sale) => sum + getSaleAmount(sale), 0);
+  
+  const cashRevenue = sales.filter(s => {
+    const method = (s.payment_method || s.paymentMethod || '').toLowerCase();
+    return method === 'cash';
+  }).reduce((sum, s) => sum + getSaleAmount(s), 0);
+  
+  const upiRevenue = sales.filter(s => {
+    const method = (s.payment_method || s.paymentMethod || '').toLowerCase();
+    return method === 'upi' || method === 'cashfree';
+  }).reduce((sum, s) => sum + getSaleAmount(s), 0);
+  
   const totalTransactions = sales.length;
 
   // Handle viewing individual bill
