@@ -361,12 +361,14 @@ const LiveOrdersScreen = () => {
                           <strong
                             style={{
                               color:
-                                order.paymentStatus === 'paid'
+                                order.paymentMethod === 'cash'
+                                  ? '#b6412c' // Keep cash distinct visually
+                                  : order.paymentStatus === 'paid'
                                   ? '#1c8d3c'
                                   : '#b6412c',
                             }}
                           >
-                            {order.paymentStatus === 'paid' ? 'PAID' : 'CASH'}
+                            {order.paymentMethod === 'cash' ? 'CASH' : (order.paymentStatus === 'paid' ? 'PAID' : 'PENDING')}
                           </strong>
                         </div>
                       </div>
@@ -604,16 +606,20 @@ const LiveOrdersScreen = () => {
                       fontSize: '0.8rem',
                       fontWeight: '700',
                       color:
-                        selectedOrder.paymentStatus === 'paid'
+                        selectedOrder.paymentMethod === 'cash'
+                          ? '#b6412c'
+                          : selectedOrder.paymentStatus === 'paid'
                           ? '#1c8d3c'
                           : '#b6412c',
                     }}
                   >
-                    {selectedOrder.paymentStatus === 'paid'
+                    {selectedOrder.paymentMethod === 'cash'
+                      ? '💵 CASH'
+                      : selectedOrder.paymentStatus === 'paid'
                       ? '💳 PAID ONLINE'
                       : selectedOrder.orderType === 'delivery'
-                        ? '🛵 CASH ON DELIVERY'
-                        : '💵 PAY AT COUNTER'}
+                      ? '🛵 CASH ON DELIVERY'
+                      : '💵 PAY AT COUNTER'}
                   </span>
                 </div>
               </div>
