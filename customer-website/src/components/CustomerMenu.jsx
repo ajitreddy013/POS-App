@@ -314,6 +314,8 @@ const CustomerMenu = () => {
     return nowMins >= sh * 60 + sm && nowMins < eh * 60 + em;
   };
 
+  const deliveryOpen = isDeliveryOpen();
+
   const offerActive = useMemo(
     () => isOfferActiveToday(barSettings),
     [barSettings]
@@ -1560,19 +1562,17 @@ const CustomerMenu = () => {
 
           <main style={{ padding: '8px 12px 16px' }}>
             {/* Order Type Selector — only show if delivery is enabled in settings */}
-            {barSettings?.delivery_enabled && (() => {
-              const deliveryOpen = isDeliveryOpen();
-              return (
-                <div
-                  style={{
-                    background: '#ffffff',
-                    borderRadius: '16px',
-                    padding: '12px',
-                    marginBottom: '12px',
-                    border: '1.5px solid #e6ded3',
-                    boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
-                  }}
-                >
+            {barSettings?.delivery_enabled && (
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  padding: '12px',
+                  marginBottom: '12px',
+                  border: '1.5px solid #e6ded3',
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
+                }}
+              >
                   {/* Delivery timing note — always visible at top */}
                   <div style={{
                     background: deliveryOpen ? '#f0fdf4' : '#fef9ec',
@@ -1650,9 +1650,8 @@ const CustomerMenu = () => {
                       <span>Home Delivery</span>
                     </button>
                   </div>
-                </div>
-              );
-            })()}
+              </div>
+            )}
 
             {/* Delivery Address Form */}
             {orderType === 'delivery' && barSettings?.delivery_enabled && (
