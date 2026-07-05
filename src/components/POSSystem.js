@@ -271,14 +271,40 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         }
       }
 
-      // Update Dexie sale to use the sequential number
+      // Record sale in Dexie for POS reports.
+      // Online orders are never written to Dexie at placement time, so we create
+      // the record here. If a Dexie sale already exists under the old order number
+      // (e.g. a kiosk UPI order) we just rename it; otherwise we create it fresh.
       try {
-        await dbService.updateSaleNumber(order.orderNumber, sequentialNumber);
+        const updateResult = await dbService.updateSaleNumber(order.orderNumber, sequentialNumber);
+        if (!updateResult?.success) {
+          await dbService.createSale({
+            saleNumber: sequentialNumber,
+            saleType: order.orderType === 'delivery' ? 'delivery' : 'parcel',
+            tableNumber: order.tableNumber || null,
+            customerName: order.customerName || '',
+            customerPhone: order.customerPhone || '',
+            items: (order.items || []).map((item) => ({
+              productId: item.productId,
+              name: item.name,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              totalPrice: item.totalPrice,
+            })),
+            subtotal: order.subtotal || order.totalAmount,
+            taxAmount: 0,
+            discountAmount: order.discountAmount || 0,
+            totalAmount: order.totalAmount,
+            paymentMethod: order.paymentMethod,
+            saleDate: getLocalDateTimeString(),
+            barSettings,
+          });
+        }
       } catch (err) {
-        console.warn('Failed to update Dexie sale number:', err);
+        console.warn('Failed to record completed order in Dexie:', err);
       }
 
-      // 1. Update status in Firestore to completed, with the sequential order number
+      // Update Firestore order to completed with the sequential order number
       const orderRef = doc(db, 'orders', order.id);
       await updateDoc(orderRef, {
         orderStatus: 'completed',
