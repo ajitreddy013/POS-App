@@ -365,13 +365,13 @@ const CustomerMenu = () => {
     });
   };
 
-  const DELIVERY_FEE = 30;
-  const DELIVERY_FREE_ABOVE = 300;
+  const DELIVERY_FEE = barSettings?.delivery_fee ?? 30;
+  const DELIVERY_FREE_ABOVE = barSettings?.delivery_free_above ?? 300;
 
   const deliveryFeeAmount = useMemo(() => {
     if (orderType !== 'delivery') return 0;
     return totalAmount >= DELIVERY_FREE_ABOVE ? 0 : DELIVERY_FEE;
-  }, [orderType, totalAmount]);
+  }, [orderType, totalAmount, DELIVERY_FEE, DELIVERY_FREE_ABOVE]);
 
   const finalTotal = useMemo(
     () =>
@@ -1667,24 +1667,6 @@ const CustomerMenu = () => {
                   boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
                 }}
               >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: '#fff8e1',
-                    border: '1.5px solid #ffe082',
-                    borderRadius: '8px',
-                    padding: '8px 10px',
-                    marginBottom: '10px',
-                    fontSize: '0.8rem',
-                    color: '#7a5c00',
-                    fontWeight: '600',
-                  }}
-                >
-                  <span style={{ fontSize: '1rem' }}>📍</span>
-                  Delivery only accepted within 2 km area.
-                </div>
                 <h3
                   style={{
                     margin: '0 0 10px 0',
