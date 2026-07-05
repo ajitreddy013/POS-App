@@ -1818,36 +1818,38 @@ const CustomerMenu = () => {
                   </p>
                 )}
               </div>
-              <div style={{ marginBottom: '10px' }}>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  value={phone}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
-                    setPhone(val);
-                    if (val.length === 10) setPhoneError(false);
-                  }}
-                  required={orderType === 'delivery'}
-                  placeholder={orderType === 'delivery' ? "Phone/WhatsApp Number * (10 digits)" : "Phone/WhatsApp Number (optional)"}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: '8px',
-                    border: `1.5px solid ${phoneError ? '#dc2626' : '#e6ded3'}`,
-                    outline: 'none',
-                    fontSize: '0.88rem',
-                    fontFamily: '"Outfit", sans-serif',
-                    color: '#221f1a',
-                    boxSizing: 'border-box',
-                  }}
-                />
-                {phoneError && (
-                  <p style={{ color: '#b6412c', fontSize: '0.78rem', margin: '4px 0 0', fontWeight: '600' }}>
-                    Please enter a valid 10-digit phone number
-                  </p>
-                )}
-              </div>
+              {orderType === 'delivery' && (
+                <div style={{ marginBottom: '10px' }}>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    value={phone}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setPhone(val);
+                      if (val.length === 10) setPhoneError(false);
+                    }}
+                    required={orderType === 'delivery'}
+                    placeholder="Phone/WhatsApp Number * (10 digits)"
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${phoneError ? '#dc2626' : '#e6ded3'}`,
+                      outline: 'none',
+                      fontSize: '0.88rem',
+                      fontFamily: '"Outfit", sans-serif',
+                      color: '#221f1a',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  {phoneError && (
+                    <p style={{ color: '#b6412c', fontSize: '0.78rem', margin: '4px 0 0', fontWeight: '600' }}>
+                      Please enter a valid 10-digit phone number
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Cart Items */}
