@@ -303,6 +303,17 @@ const CustomerMenu = () => {
     return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
   };
 
+  const isDeliveryOpen = () => {
+    const start = barSettings?.delivery_start_time;
+    const end = barSettings?.delivery_end_time;
+    if (!start || !end) return true;
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    return nowMins >= sh * 60 + sm && nowMins < eh * 60 + em;
+  };
+
   const offerActive = useMemo(
     () => isOfferActiveToday(barSettings),
     [barSettings]
@@ -1549,98 +1560,28 @@ const CustomerMenu = () => {
 
           <main style={{ padding: '8px 12px 16px' }}>
             {/* Order Type Selector — only show if delivery is enabled in settings */}
-            {barSettings?.delivery_enabled && (
-              <div
-                style={{
-                  background: '#ffffff',
-                  borderRadius: '16px',
-                  padding: '12px',
-                  marginBottom: '12px',
-                  border: '1.5px solid #e6ded3',
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
-                }}
-              >
-                <h3
-                  style={{
-                    margin: '0 0 10px 0',
-                    fontSize: '0.95rem',
-                    fontWeight: '700',
-                  }}
-                >
-                  Order Type
-                </h3>
+            {barSettings?.delivery_enabled && (() => {
+              const deliveryOpen = isDeliveryOpen();
+              return (
                 <div
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '10px',
+                    background: '#ffffff',
+                    borderRadius: '16px',
+                    padding: '12px',
+                    marginBottom: '12px',
+                    border: '1.5px solid #e6ded3',
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.01)',
                   }}
                 >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOrderType('dine_in');
-                      setAddressWarning('');
-                    }}
-                    style={{
-                      padding: '10px 8px',
-                      borderRadius: '12px',
-                      border:
-                        orderType === 'dine_in'
-                          ? '2px solid #b6412c'
-                          : '1.5px solid #e6ded3',
-                      background:
-                        orderType === 'dine_in' ? '#fbf7f4' : '#ffffff',
-                      color: orderType === 'dine_in' ? '#b6412c' : '#7f766a',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 0.2s',
-                    }}
-                  >
-                    <span>Dine In / Pickup</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOrderType('delivery');
-                      setAddressWarning('');
-                    }}
-                    style={{
-                      padding: '10px 8px',
-                      borderRadius: '12px',
-                      border:
-                        orderType === 'delivery'
-                          ? '2px solid #b6412c'
-                          : '1.5px solid #e6ded3',
-                      background:
-                        orderType === 'delivery' ? '#fbf7f4' : '#ffffff',
-                      color: orderType === 'delivery' ? '#b6412c' : '#7f766a',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 0.2s',
-                    }}
-                  >
-                    <span>Home Delivery</span>
-                  </button>
-                </div>
-                {/* Delivery info note — shown only when Home Delivery is selected */}
-                {orderType === 'delivery' && (
+                  {/* Delivery timing note — always visible at top */}
                   <div style={{
-                    background: '#f0fdf4',
-                    border: '1px solid #bbf7d0',
+                    background: deliveryOpen ? '#f0fdf4' : '#fef9ec',
+                    border: `1px solid ${deliveryOpen ? '#bbf7d0' : '#fde68a'}`,
                     borderRadius: '8px',
                     padding: '8px 12px',
                     fontSize: '13px',
-                    color: '#166534',
-                    marginTop: '10px',
+                    color: deliveryOpen ? '#166534' : '#92400e',
+                    marginBottom: '10px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
@@ -1648,12 +1589,70 @@ const CustomerMenu = () => {
                   }}>
                     🛵{' '}
                     {barSettings.delivery_start_time && barSettings.delivery_end_time
-                      ? `Delivery available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`
+                      ? deliveryOpen
+                        ? `Delivery available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`
+                        : `Delivery closed · Available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`
                       : 'Home delivery available · Within 2 km radius'}
                   </div>
-                )}
-              </div>
-            )}
+
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: '700' }}>
+                    Order Type
+                  </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => { setOrderType('dine_in'); setAddressWarning(''); }}
+                      style={{
+                        padding: '10px 8px',
+                        borderRadius: '12px',
+                        border: orderType === 'dine_in' ? '2px solid #b6412c' : '1.5px solid #e6ded3',
+                        background: orderType === 'dine_in' ? '#fbf7f4' : '#ffffff',
+                        color: orderType === 'dine_in' ? '#b6412c' : '#7f766a',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      <span>Dine In / Pickup</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!deliveryOpen}
+                      onClick={() => {
+                        if (!deliveryOpen) return;
+                        setOrderType('delivery');
+                        setAddressWarning('');
+                      }}
+                      style={{
+                        padding: '10px 8px',
+                        borderRadius: '12px',
+                        border: !deliveryOpen
+                          ? '1.5px solid #e6ded3'
+                          : orderType === 'delivery' ? '2px solid #b6412c' : '1.5px solid #e6ded3',
+                        background: !deliveryOpen
+                          ? '#f5f5f5'
+                          : orderType === 'delivery' ? '#fbf7f4' : '#ffffff',
+                        color: !deliveryOpen ? '#b0b0b0' : orderType === 'delivery' ? '#b6412c' : '#7f766a',
+                        fontWeight: '700',
+                        cursor: deliveryOpen ? 'pointer' : 'not-allowed',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s',
+                        opacity: deliveryOpen ? 1 : 0.55,
+                      }}
+                    >
+                      <span>Home Delivery</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Delivery Address Form */}
             {orderType === 'delivery' && barSettings?.delivery_enabled && (
