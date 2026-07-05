@@ -540,6 +540,37 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       // Save sale to database
       await dbService.createSale(saleData);
 
+      // If it's a manual sale (cash or manual POS UPI), it hasn't been added to Firestore 'orders' yet.
+      // Cashfree UPI already adds to 'orders' in startCashfreeKioskPayment.
+      // We must add it here so the kitchen (Live Orders screen) can see it!
+      if (!precomputedSaleNumber) {
+        try {
+          const db = getFirebaseDb();
+          if (db) {
+            const orderData = {
+              orderNumber: saleData.saleNumber,
+              amount: saleData.totalAmount,
+              totalAmount: saleData.totalAmount,
+              customerName: saleData.customerName,
+              paymentStatus: 'paid', // Cash/manual UPI is considered paid immediately
+              paymentMethod: saleData.paymentMethod,
+              orderStatus: 'preparing',
+              createdAt: new Date(),
+              source: isKiosk ? 'kiosk' : 'pos',
+              items: saleData.items.map((item) => ({
+                name: item.name,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                totalPrice: item.totalPrice,
+              })),
+            };
+            await addDoc(collection(db, 'orders'), orderData);
+          }
+        } catch (e) {
+          console.error('Failed to create Firestore order for kitchen:', e);
+        }
+      }
+
       // Clear cart and customer info
       setCart([]);
       setCustomerName('');
