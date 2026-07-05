@@ -257,37 +257,51 @@ export const dbService = {
   getSales: async (dateRange) => {
     if (isElectron) return await window.electronAPI.getSales(dateRange);
 
-    // On a new device, seed local DB from Firestore if empty
-    const localCount = await db.sales.count();
-    if (localCount === 0) {
-      try {
-        const firestoreDb = getFirebaseDb();
-        if (firestoreDb) {
-          const snap = await getDocs(collection(firestoreDb, 'sales'));
-          if (!snap.empty) {
-            for (const d of snap.docs) {
-              const data = d.data();
-              const { localId: _localId, ...saleFields } = data;
-              const exists = saleFields.saleNumber
-                ? await db.sales.where('saleNumber').equals(saleFields.saleNumber).first()
-                : null;
-              if (!exists) await db.sales.add(saleFields);
-            }
-          }
+    // Try fetching from Firestore first (source of truth)
+    try {
+      const firestoreDb = getFirebaseDb();
+      if (firestoreDb) {
+        let salesQuery = collection(firestoreDb, 'sales');
+        
+        if (dateRange && (dateRange.startDate || dateRange.start) && (dateRange.endDate || dateRange.end)) {
+          const start = dateRange.startDate || dateRange.start;
+          const end = dateRange.endDate || dateRange.end;
+          const startStr = start.substring(0, 10) + ' 00:00:00';
+          const endStr = end.substring(0, 10) + ' 23:59:59';
+          
+          salesQuery = query(
+            salesQuery,
+            where('saleDate', '>=', startStr),
+            where('saleDate', '<=', endStr)
+          );
         }
-      } catch (e) { console.warn('Firestore sales pull failed:', e); }
+        
+        const snap = await getDocs(salesQuery);
+        const cloudSales = [];
+        snap.forEach(d => {
+          cloudSales.push({ id: d.id, ...d.data() });
+        });
+        
+        // Return sorted by date descending
+        return cloudSales.sort((a, b) => new Date(b.saleDate) - new Date(a.saleDate));
+      }
+    } catch (e) {
+      console.warn('Firestore getSales failed, falling back to local offline DB:', e);
     }
 
+    // Fallback to local IndexedDB if offline
     let q = db.sales;
     if (dateRange && (dateRange.startDate || dateRange.start) && (dateRange.endDate || dateRange.end)) {
       const start = dateRange.startDate || dateRange.start;
       const end = dateRange.endDate || dateRange.end;
-      return await q.filter(s => {
+      const localResult = await q.filter(s => {
         const sDate = s.saleDate.substring(0, 10);
         return sDate >= start.substring(0, 10) && sDate <= end.substring(0, 10);
       }).toArray();
+      return localResult.sort((a, b) => new Date(b.saleDate) - new Date(a.saleDate));
     }
-    return await q.toArray();
+    const localResult = await q.toArray();
+    return localResult.sort((a, b) => new Date(b.saleDate) - new Date(a.saleDate));
   },
 
   getSalesWithDetails: async (dateRange) => {
