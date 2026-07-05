@@ -837,51 +837,41 @@ const Settings = () => {
           {barSettings.delivery_enabled && (
             <>
               {(() => {
-                const parse12h = (t) => {
-                  const [hh, mm] = (t || '00:00').split(':').map(Number);
-                  return { h: hh % 12 || 12, m: mm, ampm: hh >= 12 ? 'PM' : 'AM' };
+                const fmt12h = (t) => {
+                  if (!t) return '—';
+                  const [hh, mm] = t.split(':').map(Number);
+                  const ampm = hh >= 12 ? 'PM' : 'AM';
+                  return `${hh % 12 || 12}:${String(mm).padStart(2, '0')} ${ampm}`;
                 };
-                const to24h = (h, m, ampm) => {
-                  let hh = Number(h) % 12;
-                  if (ampm === 'PM') hh += 12;
-                  return `${String(hh).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                const btnStyle = {
+                  padding: '10px 18px', borderRadius: '10px',
+                  border: '1.5px solid #d1d5db', background: '#fff',
+                  fontSize: '16px', fontWeight: '700', color: '#1c5c3a',
+                  minWidth: '120px', textAlign: 'center', userSelect: 'none',
                 };
-                const selStyle = { padding: '8px 10px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', background: '#fff' };
-                const startP = parse12h(barSettings.delivery_start_time || '16:00');
-                const endP = parse12h(barSettings.delivery_end_time || '22:00');
-                const hours = [1,2,3,4,5,6,7,8,9,10,11,12];
-                const mins = [0, 30];
                 return (
                   <div className="cfg-field-group">
                     <label className="cfg-label">Delivery Hours</label>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <select style={selStyle} value={startP.h}
-                        onChange={e => handleBarSettingsChange('delivery_start_time', to24h(e.target.value, startP.m, startP.ampm))}>
-                        {hours.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                      <select style={selStyle} value={startP.m}
-                        onChange={e => handleBarSettingsChange('delivery_start_time', to24h(startP.h, e.target.value, startP.ampm))}>
-                        {mins.map(m => <option key={m} value={m}>{String(m).padStart(2,'0')}</option>)}
-                      </select>
-                      <select style={selStyle} value={startP.ampm}
-                        onChange={e => handleBarSettingsChange('delivery_start_time', to24h(startP.h, startP.m, e.target.value))}>
-                        <option>AM</option><option>PM</option>
-                      </select>
-                      <span style={{ color: '#666', padding: '0 4px' }}>to</span>
-                      <select style={selStyle} value={endP.h}
-                        onChange={e => handleBarSettingsChange('delivery_end_time', to24h(e.target.value, endP.m, endP.ampm))}>
-                        {hours.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                      <select style={selStyle} value={endP.m}
-                        onChange={e => handleBarSettingsChange('delivery_end_time', to24h(endP.h, e.target.value, endP.ampm))}>
-                        {mins.map(m => <option key={m} value={m}>{String(m).padStart(2,'0')}</option>)}
-                      </select>
-                      <select style={selStyle} value={endP.ampm}
-                        onChange={e => handleBarSettingsChange('delivery_end_time', to24h(endP.h, endP.m, e.target.value))}>
-                        <option>AM</option><option>PM</option>
-                      </select>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <div style={btnStyle}>{fmt12h(barSettings.delivery_start_time || '16:00')}</div>
+                        <input type="time"
+                          value={barSettings.delivery_start_time || '16:00'}
+                          onChange={e => handleBarSettingsChange('delivery_start_time', e.target.value)}
+                          style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
+                        />
+                      </div>
+                      <span style={{ color: '#888', fontWeight: '600' }}>to</span>
+                      <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <div style={btnStyle}>{fmt12h(barSettings.delivery_end_time || '22:00')}</div>
+                        <input type="time"
+                          value={barSettings.delivery_end_time || '22:00'}
+                          onChange={e => handleBarSettingsChange('delivery_end_time', e.target.value)}
+                          style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
+                        />
+                      </div>
                     </div>
-                    <p className="cfg-hint">Customers will see this window on the ordering page.</p>
+                    <p className="cfg-hint">Tap to set time. Customers will see this window on the ordering page.</p>
                   </div>
                 );
               })()}
@@ -891,9 +881,11 @@ const Settings = () => {
                   type="number"
                   className="cfg-input"
                   style={{ maxWidth: '140px' }}
-                  value={barSettings.delivery_min_order ?? 300}
+                  value={barSettings.delivery_min_order ?? ''}
                   min={0}
-                  onChange={e => handleBarSettingsChange('delivery_min_order', Number(e.target.value))}
+                  onFocus={e => e.target.select()}
+                  onChange={e => handleBarSettingsChange('delivery_min_order', e.target.value === '' ? '' : Number(e.target.value))}
+                  onBlur={e => { if (e.target.value === '') handleBarSettingsChange('delivery_min_order', 0); }}
                 />
                 <p className="cfg-hint">Orders below this amount will be charged a delivery fee.</p>
               </div>
@@ -903,9 +895,11 @@ const Settings = () => {
                   type="number"
                   className="cfg-input"
                   style={{ maxWidth: '140px' }}
-                  value={barSettings.delivery_fee ?? 30}
+                  value={barSettings.delivery_fee ?? ''}
                   min={0}
-                  onChange={e => handleBarSettingsChange('delivery_fee', Number(e.target.value))}
+                  onFocus={e => e.target.select()}
+                  onChange={e => handleBarSettingsChange('delivery_fee', e.target.value === '' ? '' : Number(e.target.value))}
+                  onBlur={e => { if (e.target.value === '') handleBarSettingsChange('delivery_fee', 0); }}
                 />
                 <p className="cfg-hint">Charged when order total is below the minimum above.</p>
               </div>
