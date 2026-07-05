@@ -23,16 +23,15 @@ service cloud.firestore {
     }
 
     // Sales history: POS syncs here for cross-device reports
-    // No public read — your revenue data should not be exposed to the internet
     match /sales/{saleId} {
       allow write: if true;
-      allow read:  if false;
+      allow read:  if true;
     }
 
     // Spendings: POS syncs here for cross-device reports
     match /spendings/{spendingId} {
       allow write: if true;
-      allow read:  if false;
+      allow read:  if true;
     }
   }
 }
