@@ -245,18 +245,12 @@ const LiveOrdersScreen = () => {
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                          marginBottom: '2px',
+                          marginBottom: '6px',
                         }}
                       >
                         <strong style={{ fontSize: '1rem', color: '#221f1a' }}>
                           {order.customerName || 'Customer'} #{order.orderNumber}
                         </strong>
-                      </div>
-                      {isDelivery && order.customerPhone && (
-                        <div style={{ fontSize: '0.8rem', color: '#7e22ce', fontWeight: '700', marginBottom: '6px' }}>
-                          📞 {order.customerPhone}
-                        </div>
-                      )}
                         <div
                           style={{
                             display: 'flex',
@@ -316,6 +310,11 @@ const LiveOrdersScreen = () => {
                           )}
                         </div>
                       </div>
+                      {isDelivery && order.customerPhone && (
+                        <div style={{ fontSize: '0.8rem', color: '#7e22ce', fontWeight: '700', marginBottom: '6px' }}>
+                          📞 {order.customerPhone}
+                        </div>
+                      )}
 
                       <div
                         style={{
