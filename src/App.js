@@ -170,7 +170,7 @@ function AppContent() {
           type: isDelivery ? 'warning' : 'info',
           message: notification.title || (isDelivery ? '🛵 New Delivery Order!' : '📦 New Order Received!'),
         });
-        setTimeout(() => setGlobalNotice(null), 6000);
+        setTimeout(() => setGlobalNotice(null), 5000);
       });
 
       PushNotifications.addListener('registrationError', (err) => {
@@ -718,7 +718,7 @@ function AppContent() {
       {globalNotice && (
         <div style={{
           position: 'fixed',
-          top: '24px',
+          bottom: 'calc(24px + env(safe-area-inset-bottom))',
           right: '24px',
           background: '#1C5C3A',
           color: '#ffffff',

@@ -2434,7 +2434,7 @@ tr:hover {
 
 .pos-notice {
   position: fixed;
-  top: 18px;
+  bottom: calc(24px + env(safe-area-inset-bottom));
   right: 18px;
   z-index: 1200;
   display: flex;
@@ -2450,7 +2450,7 @@ tr:hover {
 }
 
 .app.kiosk-locked .pos-notice {
-  top: 90px; /* Below the header */
+  bottom: calc(24px + env(safe-area-inset-bottom));
 }
 
 .pos-notice-bar {
@@ -2507,8 +2507,8 @@ tr:hover {
 
 @media (max-width: 900px) {
   .pos-notice {
-    top: calc(16px + env(safe-area-inset-top));
-    bottom: auto;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    top: auto;
     right: 5%;
     left: 5%;
     width: auto;
@@ -2519,7 +2519,7 @@ tr:hover {
 @keyframes posNoticeIn {
   from {
     opacity: 0;
-    transform: translate3d(0, -10px, 0) scale(0.98);
+    transform: translate3d(0, 10px, 0) scale(0.98);
   }
 
   to {
@@ -11990,9 +11990,9 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
 
   .app.kiosk-locked .pos-notice,
   .app.admin-unlocked .pos-notice {
-    top: calc(var(--mobile-status-strip) + 78px) !important;
+    bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+    top: auto !important;
     right: 14px !important;
-    bottom: auto !important;
     left: 14px !important;
     z-index: 13000 !important;
     width: auto !important;
@@ -12003,7 +12003,8 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
   }
 
   .app.admin-unlocked .pos-notice {
-    top: calc(var(--admin-topbar-height) + 10px) !important;
+    bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+    top: auto !important;
   }
 
   .pos-notice-content {
