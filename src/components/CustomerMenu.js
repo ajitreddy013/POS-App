@@ -615,8 +615,8 @@ const CustomerMenu = () => {
         }}>
           🛵{' '}
           {barSettings.delivery_start_time && barSettings.delivery_end_time
-            ? `Delivery available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Min. order ₹${barSettings.delivery_free_above ?? 300} · Fee ₹${barSettings.delivery_fee ?? 30}`
-            : `Home delivery available · Min. order ₹${barSettings.delivery_free_above ?? 300} · Fee ₹${barSettings.delivery_fee ?? 30}`}
+            ? `Delivery available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`
+            : 'Home delivery available · Within 2 km radius'}
         </div>
       )}
 
