@@ -331,11 +331,16 @@ const SalesReports = () => {
   const handleViewBill = async (sale) => {
     try {
       // Get detailed sale data with items
-      const saleWithItems = await dbService.getSaleWithItems(sale.id);
+      let saleWithItems = (sale.items && sale.items.length > 0) ? sale : await dbService.getSaleWithItems(sale.id);
       
       if (!saleWithItems) {
-        alert('Sale data not found');
-        return;
+        // Fallback: if it's a Firestore document and getSaleWithItems returned undefined because of string ID, just use sale
+        if (typeof sale.id === 'string' && isNaN(Number(sale.id))) {
+          saleWithItems = sale;
+        } else {
+          alert('Sale data not found');
+          return;
+        }
       }
       
       // Get bar settings for formatting the bill
