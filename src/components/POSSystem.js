@@ -497,7 +497,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           currentCount = settingsSnap.data().completedAppOrders || 0;
         }
         currentCount += 1;
-        transaction.update(settingsRef, { completedAppOrders: currentCount });
+        transaction.set(settingsRef, { completedAppOrders: currentCount }, { merge: true });
         orderNum = `A-${currentCount}`;
       });
     } catch (err) {
