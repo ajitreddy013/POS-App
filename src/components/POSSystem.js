@@ -251,11 +251,12 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       const isWebOrder = order.source === 'web' || (!order.source && order.orderNumber?.startsWith('W-'));
       const prefix = isWebOrder ? 'W' : 'A';
       
-      // Matches W-N or A-N but not PENDING-/T-/APP- temp formats
+      // Matches W-N or A-N — sequential number assigned at completion to avoid skipping on cancellations
       const hasSequentialNumber = /^[WA]-\d+$/.test(order.orderNumber);
       let sequentialNumber = order.orderNumber;
 
       if (!hasSequentialNumber) {
+        // Order has a temp ID (KSK... for kiosk UPI, or similar) — assign sequential number now
         const counterField = isWebOrder ? 'completedWebOrders' : 'completedAppOrders';
         try {
           const counterRef = doc(db, 'settings', 'order_counters');
@@ -613,10 +614,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const startCashfreeKioskPayment = async () => {
     const relayUrl = APP_CONFIG.relayUrl;
     try {
-      // Use a timestamp-based tracking ID for the Cashfree/Firestore order.
-      // The sequential A-N bill number is assigned only in executeSaleWrite after
-      // payment is confirmed, so each sale consumes exactly one sequential number.
-      const orderId = `KSK${Date.now().toString().slice(-8)}`;
+      // Use a timestamp-based tracking ID for the Cashfree API (must be unique per transaction).
+      // The sequential A-N bill number is assigned only when the kitchen COMPLETES the order
+      // in handleCompleteOnlineOrder — this way numbers are never skipped on cancelled payments.
+      const cfTrackingId = `KSK${Date.now().toString().slice(-8)}`;
       const amount = calculateTotal();
       setLoading(true);
 
@@ -625,7 +626,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount,
-          orderId,
+          orderId: cfTrackingId,
           phone: '9999999999',
           name: customerName.trim() || 'Kiosk Customer',
           isKiosk: true,
@@ -670,7 +671,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       }
 
       qrPaymentPendingRef.current = true;
-      setUpiQrPayment({ orderId, amount, qrImageUrl: null, mode: 'cashfree', hostedUrl: data.paymentLink });
+      setUpiQrPayment({ orderId: cfTrackingId, amount, qrImageUrl: null, mode: 'cashfree', hostedUrl: data.paymentLink });
       setUpiQrStatus('Waiting for customer payment...');
 
       // Firestore listener — fires when webhook marks order paid
@@ -678,7 +679,8 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       if (db) {
         if (cfUnsubRef.current) cfUnsubRef.current();
         const orderData = {
-          orderNumber: String(orderId),
+          orderNumber: cfTrackingId,    // Temp ID — replaced with A-N when kitchen completes
+          cfTrackingId: cfTrackingId,   // Kept for reference
           amount,
           totalAmount: amount,
           customerName: customerName.trim() || 'Kiosk Customer',
