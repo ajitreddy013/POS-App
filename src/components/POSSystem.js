@@ -488,7 +488,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       const allSales = (await dbService.getSales()) || [];
       return `A-${allSales.length + 1}`;
     }
-    const settingsRef = doc(db, 'settings', 'bar_settings');
+    const settingsRef = doc(db, 'settings', 'order_counters');
     let orderNum = null;
     try {
       await runTransaction(db, async (transaction) => {
@@ -557,57 +557,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       console.error('Sale write error:', error);
       playErrorFeedback();
       showNotice('error', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleKioskCashCheckout = async () => {
-    setLoading(true);
-    try {
-      const db = getFirebaseDb();
-      if (!db) {
-        throw new Error('Firebase database not available.');
-      }
-
-      // Timestamp-based tracking ID — the final sequential A-N bill number is
-      // assigned by handleCompleteOnlineOrder when staff marks the order done.
-      const orderId = `KSK${Date.now().toString().slice(-8)}`;
-      const amount = calculateTotal();
-
-      const orderData = {
-        orderNumber: String(orderId),
-        amount,
-        totalAmount: amount,
-        customerName: customerName.trim() || 'Kiosk Customer',
-        paymentStatus: 'pending',
-        paymentMethod: 'cash',
-        orderStatus: 'preparing',
-        createdAt: new Date(),
-        items: cart.map((item) => ({
-          name: item.name,
-          quantity: item.quantity,
-          unitPrice: item.price,
-          totalPrice: item.price * item.quantity,
-        })),
-      };
-
-      await addDoc(collection(db, 'orders'), orderData);
-
-      setCart([]);
-      setCustomerName('');
-      setDiscount(0);
-      setShowDiscountInput(false);
-      setActiveTab('menu');
-
-      await loadProducts();
-
-      playSuccessFeedback();
-      showNotice('success', `Cash order placed! Order #${orderId}`);
-    } catch (error) {
-      console.error('Kiosk cash order creation error:', error);
-      playErrorFeedback();
-      showNotice('error', 'Failed to place cash order.');
     } finally {
       setLoading(false);
     }
@@ -2005,7 +1954,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 type="button"
                 className="btn btn-primary"
                 style={{ background: '#166534', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 18px', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem', flex: 1 }}
-                onClick={() => { setCashConfirm(null); handleKioskCashCheckout(); }}
+                onClick={() => { setCashConfirm(null); executeSaleWrite('cash'); }}
               >
                 Cash Received ✓
               </button>
