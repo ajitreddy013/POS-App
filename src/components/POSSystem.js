@@ -565,7 +565,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         throw new Error('Firebase database not available.');
       }
 
-      const orderId = await generateSaleNumber();
+      // Timestamp-based tracking ID — the final sequential A-N bill number is
+      // assigned by handleCompleteOnlineOrder when staff marks the order done.
+      const orderId = `KSK${Date.now().toString().slice(-8)}`;
       const amount = calculateTotal();
 
       const orderData = {
@@ -657,7 +659,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const startCashfreeKioskPayment = async () => {
     const relayUrl = APP_CONFIG.relayUrl;
     try {
-      const orderId = await generateSaleNumber();
+      // Use a timestamp-based tracking ID for the Cashfree/Firestore order.
+      // The sequential A-N bill number is assigned only in executeSaleWrite after
+      // payment is confirmed, so each sale consumes exactly one sequential number.
+      const orderId = `KSK${Date.now().toString().slice(-8)}`;
       const amount = calculateTotal();
       setLoading(true);
 
