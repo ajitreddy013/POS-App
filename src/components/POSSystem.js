@@ -754,22 +754,38 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       setUpiQrPayment(null);
       setUpiQrStatus('');
 
-      // Generate A-N sequential number now that payment is confirmed (no number wasted).
-      // Update the Firestore order immediately so kitchen sees A-N right away.
+      // Check if the webhook already assigned the A-N sequential number
       let billNumber = null;
       try {
-        billNumber = await generateSaleNumber();
         const orderDocRef = cfOrderDocRefRef.current;
+        let latestOrderNumber = null;
+        
         if (orderDocRef) {
-          await updateDoc(orderDocRef, {
-            orderNumber: billNumber,
-            paymentStatus: 'paid',
-            orderStatus: 'preparing',
-          });
-          cfOrderDocRefRef.current = null;
+          const latestSnap = await getDoc(orderDocRef);
+          if (latestSnap.exists()) {
+            latestOrderNumber = latestSnap.data().orderNumber;
+          }
+        }
+
+        if (latestOrderNumber && !String(latestOrderNumber).startsWith('KSK')) {
+          // Webhook already replaced KSK with A-N, use it to prevent double-increment!
+          billNumber = latestOrderNumber;
+        } else {
+          // Polling won the race or webhook failed — generate locally
+          billNumber = await generateSaleNumber();
+          if (orderDocRef) {
+            await updateDoc(orderDocRef, {
+              orderNumber: billNumber,
+              paymentStatus: 'paid',
+              orderStatus: 'preparing',
+            });
+            cfOrderDocRefRef.current = null;
+          }
         }
       } catch (e) {
-        console.warn('Failed to update Firestore order number after payment:', e);
+        console.warn('Failed to resolve Firestore order number after payment:', e);
+        // Fallback if everything fails so Dexie still gets a number
+        billNumber = billNumber || await generateSaleNumber();
       }
 
       // Write the local Dexie sale using the same A-N number so records match
