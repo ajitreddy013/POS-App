@@ -303,9 +303,9 @@ const CustomerMenu = () => {
     return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
   };
 
-  const isDeliveryOpen = () => {
-    const start = barSettings?.delivery_start_time;
-    const end = barSettings?.delivery_end_time;
+  const checkDeliveryOpen = (settings) => {
+    const start = settings?.delivery_start_time;
+    const end = settings?.delivery_end_time;
     if (!start || !end) return true;
     const now = new Date();
     const nowMins = now.getHours() * 60 + now.getMinutes();
@@ -314,7 +314,13 @@ const CustomerMenu = () => {
     return nowMins >= sh * 60 + sm && nowMins < eh * 60 + em;
   };
 
-  const deliveryOpen = isDeliveryOpen();
+  const [deliveryOpen, setDeliveryOpen] = useState(() => checkDeliveryOpen(barSettings));
+
+  useEffect(() => {
+    setDeliveryOpen(checkDeliveryOpen(barSettings));
+    const interval = setInterval(() => setDeliveryOpen(checkDeliveryOpen(barSettings)), 30000);
+    return () => clearInterval(interval);
+  }, [barSettings?.delivery_start_time, barSettings?.delivery_end_time]);
 
   const offerActive = useMemo(
     () => isOfferActiveToday(barSettings),
