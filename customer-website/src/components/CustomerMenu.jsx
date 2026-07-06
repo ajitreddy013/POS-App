@@ -1561,8 +1561,8 @@ const CustomerMenu = () => {
           </div>
 
           <main style={{ padding: '8px 12px 16px' }}>
-            {/* Delivery timing note — always visible when delivery is enabled */}
-            {barSettings?.delivery_enabled && (
+            {/* Delivery timing note — shown at top when Home Delivery is selected */}
+            {barSettings?.delivery_enabled && orderType === 'delivery' && (
               <div style={{
                 background: deliveryOpen ? '#f0fdf4' : '#fef9ec',
                 border: `1px solid ${deliveryOpen ? '#bbf7d0' : '#fde68a'}`,
