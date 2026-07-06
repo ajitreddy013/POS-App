@@ -311,7 +311,13 @@ const CustomerMenu = () => {
     const nowMins = now.getHours() * 60 + now.getMinutes();
     const [sh, sm] = start.split(':').map(Number);
     const [eh, em] = end.split(':').map(Number);
-    return nowMins >= sh * 60 + sm && nowMins < eh * 60 + em;
+    const startMins = sh * 60 + sm;
+    const endMins = eh * 60 + em;
+    if (startMins > endMins) {
+      // overnight range e.g. 4 PM – 7 AM: open if after start OR before end
+      return nowMins >= startMins || nowMins < endMins;
+    }
+    return nowMins >= startMins && nowMins < endMins;
   };
 
   const [deliveryOpen, setDeliveryOpen] = useState(() => checkDeliveryOpen(barSettings));
