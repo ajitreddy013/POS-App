@@ -927,19 +927,22 @@ app.get('/payment-done', (req, res) => {
   </style>
 </head>
 <body>
-  <div class="icon">⏳</div>
-  <p>Processing payment…</p>
-  <p style="font-size:0.9rem;margin-top:8px;">Returning to register</p>
-  <!-- Hidden anchor: Chrome Custom Tab allows programmatic .click() on a real anchor element -->
-  <a id="returnLink"
-     href="intent://#Intent;package=com.ajitreddy.counterflowpos;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;S.browser_fallback_url=about%3Ablank;end"
-     style="display:none">back</a>
+  <div class="icon">✅</div>
+  <p>Payment successful!</p>
+  <p style="font-size:0.9rem;margin-top:8px;">Returning to register…</p>
+  <!-- counterflow:// deep link brings the Android app to the foreground from CCT.
+       The app's WebView resumes, JS restarts, and polling detects the completed payment. -->
+  <a id="returnLink" href="counterflow://payment-done" style="display:none">back</a>
   <script>
     if (navigator.vibrate) { try { navigator.vibrate([100]); } catch(e) {} }
+    // Primary: navigate to deep link — Chrome CCT passes it to the Android app
+    window.location.href = 'counterflow://payment-done';
     setTimeout(function() {
-      document.getElementById('returnLink').click();
+      // Fallback click in case location.href was blocked
+      try { document.getElementById('returnLink').click(); } catch(e) {}
+      // Last resort: try window.close (works in regular browser tabs)
       setTimeout(function() { try { window.close(); } catch(e) {} }, 800);
-    }, 300);
+    }, 400);
   </script>
 </body>
 </html>`);

@@ -24,6 +24,15 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Deep link so Chrome Custom Tab can hand control back to the app
+                 after Cashfree payment. CCT navigates to counterflow://payment-done,
+                 Android resumes this Activity, WebView JS restarts, payment is detected. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="counterflow" android:host="payment-done" />
+            </intent-filter>
         </activity>
 
         <provider
