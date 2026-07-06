@@ -1790,6 +1790,7 @@ const CustomerMenu = () => {
                   ref={nameInputRef}
                   type="text"
                   value={name}
+                  disabled={orderType === 'delivery' && !deliveryOpen}
                   onChange={(e) => { setName(e.target.value); if (e.target.value.trim()) setNameError(false); }}
                   required
                   placeholder="Your name *"
@@ -1803,6 +1804,7 @@ const CustomerMenu = () => {
                     fontFamily: '"Outfit", sans-serif',
                     color: '#221f1a',
                     boxSizing: 'border-box',
+                    background: orderType === 'delivery' && !deliveryOpen ? '#f5f5f5' : '#fff',
                   }}
                 />
                 {nameError && (
@@ -1817,6 +1819,7 @@ const CustomerMenu = () => {
                     type="tel"
                     inputMode="numeric"
                     value={phone}
+                    disabled={!deliveryOpen}
                     onChange={(e) => {
                       const val = e.target.value.replace(/\D/g, '').slice(0, 10);
                       setPhone(val);
@@ -1834,6 +1837,7 @@ const CustomerMenu = () => {
                       fontFamily: '"Outfit", sans-serif',
                       color: '#221f1a',
                       boxSizing: 'border-box',
+                      background: deliveryOpen ? '#fff' : '#f5f5f5',
                     }}
                   />
                   {phoneError && (
