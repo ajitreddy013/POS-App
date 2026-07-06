@@ -692,9 +692,16 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
       const cfOrderId = data.cfOrderId || data.orderId;
 
+      // Open Cashfree's hosted checkout page directly — bypass the intermediate
+      // counterflow page whose SDK redirect doesn't work in Capacitor Custom Chrome Tab.
+      const isProd = data.environment === 'production';
+      const sessionId = data.paymentSessionId;
+      const cfHostedUrl = isProd
+        ? `https://payments.cashfree.com/order/#${sessionId}`
+        : `https://sandbox.cashfree.com/order/#${sessionId}`;
+
       // Hook browserFinished to clean up when user manually closes the browser.
-      // Polling + Firestore listener handle payment detection; no browserPageLoaded
-      // cancel logic to avoid false-positive cancellations during Cashfree page loads.
+      // Polling + Firestore listener handle payment detection reliably.
       try {
         if (cfBrowserListenerRef.current) {
           cfBrowserListenerRef.current.remove();
@@ -713,13 +720,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
       browserOpenTimeRef.current = Date.now();
       try {
-        await Browser.open({ url: data.paymentLink, presentationStyle: 'fullscreen' });
+        await Browser.open({ url: cfHostedUrl });
       } catch (_) {
-        window.open(data.paymentLink, '_blank');
+        window.open(cfHostedUrl, '_blank');
       }
 
       qrPaymentPendingRef.current = true;
-      setUpiQrPayment({ orderId: cfTrackingId, amount, qrImageUrl: null, mode: 'cashfree', hostedUrl: data.paymentLink });
+      setUpiQrPayment({ orderId: cfTrackingId, amount, qrImageUrl: null, mode: 'cashfree', hostedUrl: cfHostedUrl });
       setUpiQrStatus('Waiting for customer payment...');
 
       // Firestore listener — fires when webhook marks order paid
