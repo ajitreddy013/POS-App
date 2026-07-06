@@ -1561,30 +1561,6 @@ const CustomerMenu = () => {
           </div>
 
           <main style={{ padding: '8px 12px 16px' }}>
-            {/* Delivery timing note — always visible when delivery is enabled */}
-            {barSettings?.delivery_enabled && (
-              <div style={{
-                background: deliveryOpen ? '#f0fdf4' : '#fef9ec',
-                border: `1px solid ${deliveryOpen ? '#bbf7d0' : '#fde68a'}`,
-                borderRadius: '10px',
-                padding: '10px 14px',
-                fontSize: '13px',
-                color: deliveryOpen ? '#166534' : '#92400e',
-                marginBottom: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontWeight: '500',
-              }}>
-                🛵{' '}
-                {barSettings.delivery_start_time && barSettings.delivery_end_time
-                  ? deliveryOpen
-                    ? `Delivery available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`
-                    : `Delivery closed · Available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`
-                  : 'Home delivery available · Within 2 km radius'}
-              </div>
-            )}
-
             {/* Order Type Selector — only show if delivery is enabled in settings */}
             {barSettings?.delivery_enabled && (
               <div
@@ -1652,6 +1628,29 @@ const CustomerMenu = () => {
                       <span>Home Delivery</span>
                     </button>
                   </div>
+                  {/* Delivery timing note — shown below buttons when delivery is selected */}
+                  {orderType === 'delivery' && (
+                    <div style={{
+                      background: deliveryOpen ? '#f0fdf4' : '#fef9ec',
+                      border: `1px solid ${deliveryOpen ? '#bbf7d0' : '#fde68a'}`,
+                      borderRadius: '10px',
+                      padding: '10px 14px',
+                      fontSize: '13px',
+                      color: deliveryOpen ? '#166534' : '#92400e',
+                      marginTop: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontWeight: '500',
+                    }}>
+                      🛵{' '}
+                      {barSettings.delivery_start_time && barSettings.delivery_end_time
+                        ? deliveryOpen
+                          ? `Delivery available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`
+                          : `Delivery closed · Available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`
+                        : 'Home delivery available · Within 2 km radius'}
+                    </div>
+                  )}
               </div>
             )}
 

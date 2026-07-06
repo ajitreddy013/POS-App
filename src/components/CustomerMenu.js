@@ -598,28 +598,6 @@ const CustomerMenu = () => {
         </div>
       )}
 
-      {/* Delivery info banner */}
-      {barSettings?.delivery_enabled && (
-        <div style={{
-          background: '#f0fdf4',
-          border: '1px solid #bbf7d0',
-          borderRadius: '10px',
-          padding: '8px 14px',
-          fontSize: '13px',
-          color: '#166534',
-          margin: '10px 12px 0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          fontWeight: '500',
-        }}>
-          🛵{' '}
-          {barSettings.delivery_start_time && barSettings.delivery_end_time
-            ? `Delivery available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`
-            : 'Home delivery available · Within 2 km radius'}
-        </div>
-      )}
-
       {/* Category Navigation Bar */}
       <div
         style={{
