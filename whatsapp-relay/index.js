@@ -109,7 +109,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-07-06-unified-counter-v2';
+const relayVersion = '2026-07-06-unified-counter-v3';
 
 const ALLOWED_ORIGINS = [
   'https://counterflow-kiosk.web.app',
@@ -526,9 +526,9 @@ app.post('/order/reserve-number', reserveNumberRateLimit, async (req, res) => {
 // View Deployed Logs — protected by ADMIN_TOKEN env var
 app.get('/logs', (req, res) => {
   const adminToken = process.env.ADMIN_TOKEN;
-  // if (adminToken && req.query.token !== adminToken) {
-  //   return res.status(401).send('Unauthorized');
-  // }
+  if (adminToken && req.query.token !== adminToken) {
+    return res.status(401).send('Unauthorized');
+  }
   res.setHeader('Content-Type', 'text/plain');
   res.send(logEntries.join('\n'));
 });
