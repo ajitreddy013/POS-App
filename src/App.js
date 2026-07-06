@@ -36,7 +36,7 @@
 // React core imports
 import React, { useState, useEffect } from "react";
 import { HashRouter as Router, Routes, Route, Link, useLocation, Navigate, useNavigate } from "react-router-dom";
-import { getFirebaseDb } from "./firebase";
+import { getFirebaseDb, ensureStaffAuth } from "./firebase";
 import { collection, query, where, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { playIncomingOrderChime } from "./utils/feedbackUtils";
 import { LocalNotifications } from '@capacitor/local-notifications';
@@ -112,6 +112,13 @@ function AppContent() {
         console.error('Service worker registration failed:', err);
       });
     }
+  }, []);
+
+  // Authenticate this device as staff so Firestore rules allow product/settings/
+  // sales/spendings writes and order updates. Fire-and-forget: reads keep working
+  // regardless, and this always finishes well before a user can trigger a write.
+  useEffect(() => {
+    ensureStaffAuth();
   }, []);
 
   // Register for FCM push notifications on app start — no admin-unlock gate so the

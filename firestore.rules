@@ -2,36 +2,50 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Products: Customer website needs to read the menu; POS writes product changes
-    match /products/{productId} {
-      allow read:  if true;
-      allow write: if true;
+    // Staff = the POS app, authenticated anonymously and granted a custom
+    // claim by whatsapp-relay's /auth/grant-staff endpoint after verifying
+    // a device key baked into the POS build. The public customer website
+    // never receives this claim.
+    function isStaff() {
+      return request.auth != null && request.auth.token.staff == true;
     }
 
-    // Orders: Customers create orders; POS reads/updates status; nobody deletes
+    // Products: Customer website needs to read the menu; only POS (staff) writes
+    match /products/{productId} {
+      allow read:  if true;
+      allow write: if isStaff();
+    }
+
+    // Orders: Customers create orders with no login; POS (staff) updates
+    // status; nobody deletes. Read stays public — customer order tracking
+    // queries by ticketId, not by document ID.
     match /orders/{orderId} {
       allow create: if true;
       allow read:   if true;
-      allow update: if true;
+      allow update: if isStaff();
       allow delete: if false;
     }
 
-    // Settings: Customer website reads for offers/delivery; POS writes
+    // Settings: Customer website reads for offers/delivery; only POS (staff) writes
     match /settings/{docId} {
       allow read:  if true;
-      allow write: if true;
+      allow write: if isStaff();
     }
 
-    // Sales history: POS syncs here for cross-device reports
+    // Sales history: internal reports, staff-only in both directions
     match /sales/{saleId} {
-      allow write: if true;
-      allow read:  if true;
+      allow read, write: if isStaff();
     }
 
-    // Spendings: POS syncs here for cross-device reports
+    // Spendings: internal reports, staff-only in both directions
     match /spendings/{spendingId} {
-      allow write: if true;
-      allow read:  if true;
+      allow read, write: if isStaff();
+    }
+
+    // Registered POS devices — staff-only (previously had no rule at all,
+    // so this write was already silently failing before this change)
+    match /admin_devices/{deviceId} {
+      allow read, write: if isStaff();
     }
   }
 }
