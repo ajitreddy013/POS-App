@@ -14,7 +14,6 @@ import {
   serverTimestamp,
   onSnapshot,
   doc,
-  runTransaction,
   query,
   where,
 } from 'firebase/firestore';
@@ -577,22 +576,21 @@ const CustomerMenu = () => {
           window.location.href = data.paymentLink;
         }
       } else {
-        // Cash / COD payment — assign sequential number via Firestore transaction.
+        // Cash / COD payment — number reserved via relay (Admin SDK) so it
+        // never races with the UPI webhook transaction on the same counter.
         let orderNumber = `W-${Date.now().toString().slice(-5)}`;
         try {
-          const settingsRef = doc(db, 'settings', 'order_counters');
-          await runTransaction(db, async (transaction) => {
-            const settingsSnap = await transaction.get(settingsRef);
-            let currentCount = 0;
-            if (settingsSnap.exists()) {
-              currentCount = settingsSnap.data().totalOrders || 0;
-            }
-            currentCount += 1;
-            transaction.set(settingsRef, { totalOrders: currentCount }, { merge: true });
-            orderNumber = `W-${currentCount}`;
+          const numRes = await fetch(`${APP_CONFIG.relayUrl}/order/reserve-number`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prefix: 'W' }),
           });
+          const numData = await numRes.json();
+          if (numData.success && numData.orderNumber) {
+            orderNumber = numData.orderNumber;
+          }
         } catch (err) {
-          console.error('Failed to generate sequential web order number:', err);
+          console.error('Failed to reserve web order number:', err);
         }
 
         const orderData = {
