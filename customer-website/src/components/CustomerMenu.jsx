@@ -1676,7 +1676,6 @@ const CustomerMenu = () => {
                   <input
                     type="text"
                     value={deliveryAddress.address}
-                    disabled={!deliveryOpen}
                     onChange={(e) =>
                       setDeliveryAddress((prev) => ({
                         ...prev,
@@ -1694,7 +1693,6 @@ const CustomerMenu = () => {
                       fontFamily: '"Outfit", sans-serif',
                       color: '#221f1a',
                       boxSizing: 'border-box',
-                      background: deliveryOpen ? '#fff' : '#f5f5f5',
                     }}
                   />
                   <input
@@ -1702,7 +1700,6 @@ const CustomerMenu = () => {
                     inputMode="numeric"
                     maxLength={6}
                     value={deliveryAddress.pincode}
-                    disabled={!deliveryOpen}
                     onChange={(e) =>
                       setDeliveryAddress((prev) => ({
                         ...prev,
@@ -1720,13 +1717,11 @@ const CustomerMenu = () => {
                       fontFamily: '"Outfit", sans-serif',
                       color: '#221f1a',
                       boxSizing: 'border-box',
-                      background: deliveryOpen ? '#fff' : '#f5f5f5',
                     }}
                   />
                   <input
                     type="text"
                     value={deliveryAddress.landmark}
-                    disabled={!deliveryOpen}
                     onChange={(e) =>
                       setDeliveryAddress((prev) => ({
                         ...prev,
@@ -1744,7 +1739,6 @@ const CustomerMenu = () => {
                       fontFamily: '"Outfit", sans-serif',
                       color: '#221f1a',
                       boxSizing: 'border-box',
-                      background: deliveryOpen ? '#fff' : '#f5f5f5',
                     }}
                   />
                   {addressWarning && (
@@ -2225,24 +2219,39 @@ const CustomerMenu = () => {
                   </button>
                 </div>
               </div>
+              {orderType === 'delivery' && !deliveryOpen && (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '10px',
+                  marginBottom: '8px',
+                  background: '#fef9ec',
+                  border: '1px solid #fde68a',
+                  borderRadius: '10px',
+                  fontSize: '0.85rem',
+                  color: '#92400e',
+                  fontWeight: '600',
+                }}>
+                  Delivery closed · Available {fmt12h(barSettings?.delivery_start_time)} – {fmt12h(barSettings?.delivery_end_time)}
+                </div>
+              )}
               <button
                 type="submit"
-                disabled={submitting || isOfferCartOdd}
+                disabled={submitting || isOfferCartOdd || (orderType === 'delivery' && !deliveryOpen)}
                 style={{
                   width: '100%',
-                  background: isOfferCartOdd ? '#9ca3af' : '#b6412c',
+                  background: isOfferCartOdd || (orderType === 'delivery' && !deliveryOpen) ? '#9ca3af' : '#b6412c',
                   color: '#ffffff',
                   border: 'none',
                   padding: '12px',
                   borderRadius: '24px',
                   fontSize: '0.98rem',
                   fontWeight: '700',
-                  cursor: isOfferCartOdd ? 'not-allowed' : 'pointer',
+                  cursor: isOfferCartOdd || (orderType === 'delivery' && !deliveryOpen) ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: isOfferCartOdd
+                  boxShadow: isOfferCartOdd || (orderType === 'delivery' && !deliveryOpen)
                     ? 'none'
                     : '0 6px 20px rgba(182,65,44,0.3)',
                   opacity: submitting ? 0.8 : 1,
