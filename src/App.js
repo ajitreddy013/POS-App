@@ -731,8 +731,8 @@ function AppContent() {
           </div>
         </div>
       )}
-      {/* Global Notice Toast */}
-      {globalNotice && (
+      {/* Global Notice Toast — only shown to admin, not on kiosk screen */}
+      {globalNotice && isAdminUnlocked && (
         <div style={{
           position: 'fixed',
           top: 'calc(24px + env(safe-area-inset-top))',
