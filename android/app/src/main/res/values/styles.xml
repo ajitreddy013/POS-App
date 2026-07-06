@@ -13,10 +13,10 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
-        <!-- Status bar: opaque cream background, dark icons -->
-        <item name="android:windowTranslucentStatus">false</item>
+        <!-- Status bar overlays WebView; CSS env(safe-area-inset-top) handles the offset -->
+        <item name="android:windowTranslucentStatus">true</item>
         <item name="android:windowTranslucentNavigation">false</item>
-        <item name="android:statusBarColor">@color/statusBarColor</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
 

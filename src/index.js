@@ -8,8 +8,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 // On Android, enforce an opaque cream status bar with dark icons so it never
 // bleeds into the app content.
 if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
-  StatusBar.setOverlaysWebView({ overlay: false });
-  StatusBar.setBackgroundColor({ color: '#EDE4CA' });
+  StatusBar.setOverlaysWebView({ overlay: true });
   StatusBar.setStyle({ style: Style.Light });
 }
 

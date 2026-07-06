@@ -1103,46 +1103,7 @@ const Settings = () => {
       </div>
 
       {/* Danger Zone */}
-      <div className="cfg-card" style={{ borderColor: '#e0f2fe' }}>
-        <div className="cfg-card-hdr">
-          <div className="cfg-card-hdr-left">
-            <div className="cfg-card-icon" style={{ background: '#e0f2fe' }}>
-              <Bell size={16} color="#0284c7" />
-            </div>
-            <div>
-              <h2>Test Notifications</h2>
-              <p>Preview how toast and order alerts look on this device</p>
-            </div>
-          </div>
-        </div>
-        <div className="cfg-card-body">
-          <button
-            className="cfg-btn"
-            style={{ background: '#0284c7', color: '#fff', border: 'none' }}
-            onClick={() => {
-              const types = [
-                { kind: 'pos', type: 'success', message: 'Order placed successfully!' },
-                { kind: 'pos', type: 'error', message: 'Payment failed. Please retry.' },
-                { kind: 'pos', type: 'warning', message: 'Low stock: Malabar Waffle' },
-                { kind: 'order', message: '📦 New Order Received! #W-99' },
-              ];
-              types.forEach(({ kind, type, message }, i) => {
-                setTimeout(() => {
-                  if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-                  if (kind === 'pos') {
-                    window.dispatchEvent(new CustomEvent('test-toast', { detail: { type, message } }));
-                  } else {
-                    window.dispatchEvent(new CustomEvent('test-order-notice', { detail: { message } }));
-                  }
-                }, i * 5500);
-              });
-            }}
-          >
-            <Bell size={14} />
-            Run Test (4 toasts × 5 sec each)
-          </button>
-        </div>
-      </div>
+
 
       <div className="cfg-card cfg-danger-card">
         <div className="cfg-card-hdr">

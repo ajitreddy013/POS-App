@@ -1,6 +1,6 @@
 import Dexie from "dexie";
 import { getLocalDateTimeString } from "../utils/dateUtils";
-import { getFirebaseDb } from "../firebase";
+import { getFirebaseDb, ensureStaffAuth } from "../firebase";
 import { collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, updateDoc } from "firebase/firestore";
 
 // Check if running inside Electron
@@ -261,6 +261,10 @@ export const dbService = {
     try {
       const firestoreDb = getFirebaseDb();
       if (firestoreDb) {
+        // Ensure staff auth is complete before reading — sales rules require isStaff().
+        // On a fresh device this call may still be in-flight from App.js mount, so we wait.
+        await ensureStaffAuth();
+
         let salesQuery = collection(firestoreDb, 'sales');
         
         if (dateRange && (dateRange.startDate || dateRange.start) && (dateRange.endDate || dateRange.end)) {
