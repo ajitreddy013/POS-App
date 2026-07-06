@@ -1557,11 +1557,11 @@ function startOrderWhatsAppWatcher() {
         const data = doc.data();
         const docId = doc.id;
 
-        // FCM: notify admin for any new pending_acceptance order (cash or paid UPI)
+        // FCM: notify admin for any new order (cash or paid UPI)
         const needsFCM =
           !data.fcmSent &&
           !fcmProcessedIds.has(docId) &&
-          (data.orderStatus === 'pending_acceptance') &&
+          (data.orderStatus === 'pending_acceptance' || data.orderStatus === 'preparing') &&
           (data.paymentMethod !== 'upi' || data.paymentStatus === 'paid');
 
         if (needsFCM) {
