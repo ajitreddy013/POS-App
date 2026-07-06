@@ -1190,60 +1190,69 @@ app.post('/payment/cashfree/webhook', webhookRateLimit, async (req, res) => {
               `No Firestore order found with orderNumber: ${orderNumber}`
             );
           } else {
-            snapshot.forEach(async (doc) => {
+            // Use for...of so every await inside is properly waited before
+            // the next iteration — forEach does not await async callbacks.
+            for (const doc of snapshot.docs) {
               const orderData = doc.data();
               if (orderData.paymentStatus === 'paid' || orderData.whatsappSent) {
                 console.log(`[Webhook] Order #${orderNumber} already marked paid/sent in database. Skipping.`);
-                return;
+                continue;
               }
 
-              // If this order was created with a temp ticket, this is the
-              // first confirmation it actually got paid — reserve the real
-              // sequential bill number now instead of at submission, so
-              // abandoned/never-paid checkouts never waste a number.
               let realOrderNumber = orderData.orderNumber;
-              if (/^(T-|W-temp-|W-\d{5,})/.test(realOrderNumber)) {
-                // Web order with temp number → assign W-N
+              const needsNumber =
+                /^(T-|W-temp-|W-\d{5,})/.test(realOrderNumber) ||
+                /^KSK/.test(realOrderNumber);
+
+              if (needsNumber) {
+                // Combine counter increment + order status update in ONE
+                // transaction so two concurrent webhooks can never claim the
+                // same number — one will conflict and retry with the next value.
+                const isKiosk = /^KSK/.test(realOrderNumber);
+                const prefix = isKiosk ? 'A' : 'W';
                 const counterRef = db.collection('settings').doc('order_counters');
+                const orderRef = doc.ref;
+
                 await db.runTransaction(async (transaction) => {
-                  const counterSnap = await transaction.get(counterRef);
+                  const [counterSnap, orderSnap] = await Promise.all([
+                    transaction.get(counterRef),
+                    transaction.get(orderRef),
+                  ]);
+
+                  // Inner idempotency guard — handles concurrent webhook retries
+                  if (orderSnap.data()?.paymentStatus === 'paid') return;
+
                   const currentCount = counterSnap.exists
                     ? counterSnap.data().totalOrders || 0
                     : 0;
                   const nextCount = currentCount + 1;
-                  transaction.set(
-                    counterRef,
-                    { totalOrders: nextCount },
-                    { merge: true }
-                  );
-                  realOrderNumber = `W-${nextCount}`;
+
+                  transaction.set(counterRef, { totalOrders: nextCount }, { merge: true });
+                  transaction.update(orderRef, {
+                    paymentStatus: 'paid',
+                    orderStatus: 'pending_acceptance',
+                    whatsappSent: true,
+                    orderNumber: `${prefix}-${nextCount}`,
+                  });
+
+                  realOrderNumber = `${prefix}-${nextCount}`;
                 });
-              } else if (/^KSK/.test(realOrderNumber)) {
-                // Kiosk UPI order with temp KSK tracking ID → assign A-N
-                const counterRef = db.collection('settings').doc('order_counters');
-                await db.runTransaction(async (transaction) => {
-                  const counterSnap = await transaction.get(counterRef);
-                  const currentCount = counterSnap.exists
-                    ? counterSnap.data().totalOrders || 0
-                    : 0;
-                  const nextCount = currentCount + 1;
-                  transaction.set(
-                    counterRef,
-                    { totalOrders: nextCount },
-                    { merge: true }
-                  );
-                  realOrderNumber = `A-${nextCount}`;
+
+                // If the transaction aborted early (order already paid by a
+                // concurrent call), realOrderNumber still has the temp value —
+                // skip further processing for this doc.
+                if (realOrderNumber === orderData.orderNumber) continue;
+
+              } else {
+                // Already has a sequential number — just mark it paid.
+                await doc.ref.update({
+                  paymentStatus: 'paid',
+                  orderStatus: 'pending_acceptance',
+                  whatsappSent: true,
+                  orderNumber: realOrderNumber,
                 });
               }
 
-              // Set whatsappSent: true atomically with paymentStatus so the
-              // order watcher never sees a paid+unnotified window
-              await doc.ref.update({
-                paymentStatus: 'paid',
-                orderStatus: 'pending_acceptance',
-                whatsappSent: true,
-                orderNumber: realOrderNumber,
-              });
               console.log(
                 `Updated Firestore Order ID: ${doc.id} paymentStatus to "paid", orderStatus to "pending_acceptance", orderNumber to "${realOrderNumber}"`
               );
@@ -1269,18 +1278,13 @@ app.post('/payment/cashfree/webhook', webhookRateLimit, async (req, res) => {
                       `Sent Cashfree payment confirmation WhatsApp for Order #${realOrderNumber} to: ${cleanNumber}`
                     );
                   } catch (waErr) {
-                    console.error(
-                      `Failed to send WhatsApp confirmation:`,
-                      waErr
-                    );
+                    console.error(`Failed to send WhatsApp confirmation:`, waErr);
                   }
                 }
               } else {
-                console.warn(
-                  'WhatsApp Client is not connected. Cannot send payment confirmation.'
-                );
+                console.warn('WhatsApp Client is not connected. Cannot send payment confirmation.');
               }
-            });
+            }
           }
         } else {
           console.warn(
