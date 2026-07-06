@@ -1576,7 +1576,7 @@ const CustomerMenu = () => {
                 gap: '8px',
                 fontWeight: '600',
               }}>
-                {deliveryOpen ? '🟢' : '🔴'}{' '}
+                🛵{' '}
                 {deliveryOpen
                   ? `Delivery Open · ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`
                   : `Delivery Closed · Available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`}
