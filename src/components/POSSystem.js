@@ -693,19 +693,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       const cfOrderId = data.cfOrderId || data.orderId;
 
       // Non-fatal: hook browserPageLoaded to detect when Cashfree redirects to return_url.
-      // Also hook browserFinished to clean up when user manually closes the browser.
       try {
         if (cfBrowserListenerRef.current) {
           cfBrowserListenerRef.current.remove();
           cfBrowserListenerRef.current = null;
         }
-        if (cfBrowserFinishedRef.current) {
-          cfBrowserFinishedRef.current.remove();
-          cfBrowserFinishedRef.current = null;
-        }
         cfBrowserListenerRef.current = await Browser.addListener('browserPageLoaded', async () => {
           if (!qrPaymentPendingRef.current) return;
-          const elapsed = Date.now() - browserOpenTimeRef.current;
           try {
             const statusRes = await fetch(`${relayUrl}/payment/cashfree/order-status`, {
               method: 'POST',
@@ -715,23 +709,12 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
             const statusData = await statusRes.json();
             if (statusData.success && statusData.paid && qrPaymentPendingRef.current) {
               completeCashfreePayment();
-            } else if (elapsed > 8000 && qrPaymentPendingRef.current) {
-              // Return URL loaded but payment not confirmed — close browser and cancel
-              Browser.close().catch(() => {});
-              closeUpiQrPayment();
-              showNotice('error', 'Payment not completed');
             }
           } catch (_) { /* polling fallback handles failures */ }
         });
-        cfBrowserFinishedRef.current = await Browser.addListener('browserFinished', () => {
-          if (!qrPaymentPendingRef.current) return;
-          closeUpiQrPayment();
-          showNotice('info', 'Payment cancelled');
-        });
-      } catch (_) { /* browser events not supported — polling/Firestore handle detection */ }
+      } catch (_) { /* browserPageLoaded not supported — polling/Firestore handle detection */ }
 
       // Try native Capacitor Browser first; fall back to window.open if unavailable.
-      browserOpenTimeRef.current = Date.now();
       try {
         await Browser.open({ url: data.paymentLink, presentationStyle: 'fullscreen' });
       } catch (_) {
