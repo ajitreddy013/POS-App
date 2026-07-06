@@ -220,6 +220,10 @@ const Settings = () => {
         // Firestore unavailable — use local settings only
       }
 
+      // delivery_free_above is the Firestore key; delivery_min_order is the UI state key
+      if (settings.delivery_free_above !== undefined && settings.delivery_min_order === undefined) {
+        settings.delivery_min_order = settings.delivery_free_above;
+      }
       setBarSettings(settings);
     } catch (error) {
       // Failed to load bar settings
