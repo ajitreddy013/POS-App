@@ -1486,20 +1486,17 @@ async function sendFCMToAdmins(orderData) {
         : 'Payment: Cash at Counter';
 
     const response = await getMessaging().sendEachForMulticast({
-      notification: { title, body },
+      // Data-only (no 'notification' section): FCM always calls onMessageReceived
+      // regardless of app state. MyFirebaseMessagingService builds the notification
+      // with the colored launcher icon as large icon.
       data: {
+        title,
+        body,
         orderNumber: String(orderData.orderNumber || ''),
         isDelivery: String(isDelivery),
       },
       android: {
         priority: 'high',
-        notification: {
-          channelId: 'order_alerts',
-          priority: 'max',
-          defaultSound: true,
-          defaultVibrateTimings: true,
-          visibility: 'PUBLIC',
-        },
       },
       tokens,
     });
