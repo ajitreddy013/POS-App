@@ -1561,6 +1561,30 @@ const CustomerMenu = () => {
           </div>
 
           <main style={{ padding: '8px 12px 16px' }}>
+            {/* Delivery timing note — always visible when delivery is enabled */}
+            {barSettings?.delivery_enabled && (
+              <div style={{
+                background: deliveryOpen ? '#f0fdf4' : '#fef9ec',
+                border: `1px solid ${deliveryOpen ? '#bbf7d0' : '#fde68a'}`,
+                borderRadius: '10px',
+                padding: '10px 14px',
+                fontSize: '13px',
+                color: deliveryOpen ? '#166534' : '#92400e',
+                marginBottom: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontWeight: '500',
+              }}>
+                🛵{' '}
+                {barSettings.delivery_start_time && barSettings.delivery_end_time
+                  ? deliveryOpen
+                    ? `Delivery available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`
+                    : `Delivery closed · Available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`
+                  : 'Home delivery available · Within 2 km radius'}
+              </div>
+            )}
+
             {/* Order Type Selector — only show if delivery is enabled in settings */}
             {barSettings?.delivery_enabled && (
               <div
@@ -1599,58 +1623,25 @@ const CustomerMenu = () => {
                     </button>
                     <button
                       type="button"
-                      disabled={!deliveryOpen}
-                      onClick={() => {
-                        if (!deliveryOpen) return;
-                        setOrderType('delivery');
-                        setAddressWarning('');
-                      }}
+                      onClick={() => { setOrderType('delivery'); setAddressWarning(''); }}
                       style={{
                         padding: '10px 8px',
                         borderRadius: '12px',
-                        border: !deliveryOpen
-                          ? '1.5px solid #e6ded3'
-                          : orderType === 'delivery' ? '2px solid #b6412c' : '1.5px solid #e6ded3',
-                        background: !deliveryOpen
-                          ? '#f5f5f5'
-                          : orderType === 'delivery' ? '#fbf7f4' : '#ffffff',
-                        color: !deliveryOpen ? '#b0b0b0' : orderType === 'delivery' ? '#b6412c' : '#7f766a',
+                        border: orderType === 'delivery' ? '2px solid #b6412c' : '1.5px solid #e6ded3',
+                        background: orderType === 'delivery' ? '#fbf7f4' : '#ffffff',
+                        color: orderType === 'delivery' ? '#b6412c' : '#7f766a',
                         fontWeight: '700',
-                        cursor: deliveryOpen ? 'pointer' : 'not-allowed',
+                        cursor: 'pointer',
                         fontSize: '0.85rem',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         transition: 'all 0.2s',
-                        opacity: deliveryOpen ? 1 : 0.55,
                       }}
                     >
                       <span>Home Delivery</span>
                     </button>
                   </div>
-                  {/* Delivery timing note — shown below buttons when delivery is selected */}
-                  {orderType === 'delivery' && (
-                    <div style={{
-                      background: deliveryOpen ? '#f0fdf4' : '#fef9ec',
-                      border: `1px solid ${deliveryOpen ? '#bbf7d0' : '#fde68a'}`,
-                      borderRadius: '10px',
-                      padding: '10px 14px',
-                      fontSize: '13px',
-                      color: deliveryOpen ? '#166534' : '#92400e',
-                      marginTop: '10px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontWeight: '500',
-                    }}>
-                      🛵{' '}
-                      {barSettings.delivery_start_time && barSettings.delivery_end_time
-                        ? deliveryOpen
-                          ? `Delivery available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`
-                          : `Delivery closed · Available ${fmt12h(barSettings.delivery_start_time)} – ${fmt12h(barSettings.delivery_end_time)} · Within 2 km radius`
-                        : 'Home delivery available · Within 2 km radius'}
-                    </div>
-                  )}
               </div>
             )}
 
@@ -1685,6 +1676,7 @@ const CustomerMenu = () => {
                   <input
                     type="text"
                     value={deliveryAddress.address}
+                    disabled={!deliveryOpen}
                     onChange={(e) =>
                       setDeliveryAddress((prev) => ({
                         ...prev,
@@ -1702,6 +1694,7 @@ const CustomerMenu = () => {
                       fontFamily: '"Outfit", sans-serif',
                       color: '#221f1a',
                       boxSizing: 'border-box',
+                      background: deliveryOpen ? '#fff' : '#f5f5f5',
                     }}
                   />
                   <input
@@ -1709,6 +1702,7 @@ const CustomerMenu = () => {
                     inputMode="numeric"
                     maxLength={6}
                     value={deliveryAddress.pincode}
+                    disabled={!deliveryOpen}
                     onChange={(e) =>
                       setDeliveryAddress((prev) => ({
                         ...prev,
@@ -1726,11 +1720,13 @@ const CustomerMenu = () => {
                       fontFamily: '"Outfit", sans-serif',
                       color: '#221f1a',
                       boxSizing: 'border-box',
+                      background: deliveryOpen ? '#fff' : '#f5f5f5',
                     }}
                   />
                   <input
                     type="text"
                     value={deliveryAddress.landmark}
+                    disabled={!deliveryOpen}
                     onChange={(e) =>
                       setDeliveryAddress((prev) => ({
                         ...prev,
@@ -1748,6 +1744,7 @@ const CustomerMenu = () => {
                       fontFamily: '"Outfit", sans-serif',
                       color: '#221f1a',
                       boxSizing: 'border-box',
+                      background: deliveryOpen ? '#fff' : '#f5f5f5',
                     }}
                   />
                   {addressWarning && (
