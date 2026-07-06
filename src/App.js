@@ -157,6 +157,7 @@ function AppContent() {
         try {
           const db = getFirebaseDb();
           if (!db) return;
+          await ensureStaffAuth();
           const info = await Device.getId();
           const deviceId = info.identifier;
           await setDoc(doc(db, 'admin_devices', deviceId), {

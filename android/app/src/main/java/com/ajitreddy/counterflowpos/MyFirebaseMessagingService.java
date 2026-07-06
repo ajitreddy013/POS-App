@@ -48,19 +48,9 @@ public class MyFirebaseMessagingService extends com.capacitorjs.plugins.pushnoti
         if (title == null) title = "New Order";
         if (body  == null) body  = "";
 
-        // Full-color launcher icon as the large icon (right side of notification row)
-        android.graphics.drawable.Drawable drawable = androidx.core.content.ContextCompat.getDrawable(this, R.mipmap.ic_launcher);
-        Bitmap largeIcon = null;
-        if (drawable instanceof android.graphics.drawable.BitmapDrawable) {
-            largeIcon = ((android.graphics.drawable.BitmapDrawable) drawable).getBitmap();
-        } else if (drawable != null) {
-            int width = Math.max(drawable.getIntrinsicWidth(), 192);
-            int height = Math.max(drawable.getIntrinsicHeight(), 192);
-            largeIcon = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-            android.graphics.Canvas canvas = new android.graphics.Canvas(largeIcon);
-            drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
-            drawable.draw(canvas);
-        }
+        // Full-color launcher icon as the large icon — use the plain PNG directly to avoid
+        // AdaptiveIconDrawable on API 26+ (R.mipmap.ic_launcher resolves to adaptive XML there).
+        Bitmap largeIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_notification_large);
 
         // Tap notification → open app
         Intent intent = new Intent(this, MainActivity.class);
@@ -84,6 +74,15 @@ public class MyFirebaseMessagingService extends com.capacitorjs.plugins.pushnoti
 
         NotificationManager manager =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        // Create channel here in Java so it exists even on fresh install / cleared data,
+        // before any JavaScript has run. createNotificationChannel is idempotent.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && manager != null) {
+            android.app.NotificationChannel channel = new android.app.NotificationChannel(
+                    "order_alerts", "Order Alerts", NotificationManager.IMPORTANCE_HIGH);
+            channel.enableVibration(true);
+            channel.setVibrationPattern(new long[]{0, 200, 100, 200});
+            manager.createNotificationChannel(channel);
+        }
         if (manager != null) {
             manager.notify(notifId.getAndIncrement(), builder.build());
         }
