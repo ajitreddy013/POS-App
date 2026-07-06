@@ -203,7 +203,11 @@ export const dbService = {
     try {
       const firestoreDb = getFirebaseDb();
       if (firestoreDb) {
-        await addDoc(collection(firestoreDb, 'sales'), { ...finalSaleData, localId: id });
+        if (finalSaleData.saleNumber) {
+          await setDoc(doc(firestoreDb, 'sales', String(finalSaleData.saleNumber)), { ...finalSaleData, localId: id });
+        } else {
+          await addDoc(collection(firestoreDb, 'sales'), { ...finalSaleData, localId: id });
+        }
       }
     } catch (e) { console.warn('Firestore sale mirror failed:', e); }
 
