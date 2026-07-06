@@ -1838,7 +1838,7 @@ const CustomerMenu = () => {
                       if (val.length === 10) setPhoneError(false);
                     }}
                     required={orderType === 'delivery'}
-                    placeholder="Phone/WhatsApp Number * (10 digits)"
+                    placeholder="Phone Number * (10 digits)"
                     style={{
                       width: '100%',
                       padding: '10px 12px',
