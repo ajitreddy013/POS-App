@@ -42,7 +42,18 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         if (body  == null) body  = "";
 
         // Full-color launcher icon as the large icon (right side of notification row)
-        Bitmap largeIcon = BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher);
+        android.graphics.drawable.Drawable drawable = androidx.core.content.ContextCompat.getDrawable(this, R.mipmap.ic_launcher);
+        Bitmap largeIcon = null;
+        if (drawable instanceof android.graphics.drawable.BitmapDrawable) {
+            largeIcon = ((android.graphics.drawable.BitmapDrawable) drawable).getBitmap();
+        } else if (drawable != null) {
+            int width = Math.max(drawable.getIntrinsicWidth(), 192);
+            int height = Math.max(drawable.getIntrinsicHeight(), 192);
+            largeIcon = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas = new android.graphics.Canvas(largeIcon);
+            drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+            drawable.draw(canvas);
+        }
 
         // Tap notification → open app
         Intent intent = new Intent(this, MainActivity.class);
