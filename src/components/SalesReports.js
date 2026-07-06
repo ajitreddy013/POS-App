@@ -386,12 +386,15 @@ const SalesReports = () => {
       const subtotal     = saleWithItems.subtotal     !== undefined ? saleWithItems.subtotal     : (sale.subtotal !== undefined ? sale.subtotal : (totalAmount - taxAmount + discountAmount));
       const items        = saleWithItems.items || sale.items || [];
       
+      const deliveryAddress = saleWithItems.deliveryAddress || saleWithItems.delivery_address || sale.deliveryAddress || sale.delivery_address || null;
+
       const billData = {
         saleNumber,
         saleType,
         tableNumber,
         customerName,
         customerPhone,
+        deliveryAddress,
         items,
         subtotal,
         taxAmount,
@@ -761,10 +764,20 @@ const SalesReports = () => {
                         <span style={{ color: "#7f766a" }}>Customer:</span>
                         <strong style={{ color: "#221f1a" }}>{selectedBill.customerName}</strong>
                       </div>
-                      {selectedBill.customerPhone && (
+                      {selectedBill.saleType === 'delivery' && selectedBill.customerPhone && (
                         <div style={{ display: "flex", justifyContent: "space-between" }}>
                           <span style={{ color: "#7f766a" }}>Phone:</span>
                           <strong style={{ color: "#221f1a" }}>{selectedBill.customerPhone}</strong>
+                        </div>
+                      )}
+                      {selectedBill.saleType === 'delivery' && selectedBill.deliveryAddress && (
+                        <div style={{ marginTop: "6px", padding: "8px", background: "#fdfbf7", borderRadius: "6px", border: "1px solid #e6ded3", fontSize: "0.85rem" }}>
+                          <div style={{ color: "#7f766a", marginBottom: "2px", fontWeight: "600" }}>Delivery Address</div>
+                          <div style={{ color: "#221f1a" }}>{selectedBill.deliveryAddress.address}</div>
+                          {selectedBill.deliveryAddress.landmark && (
+                            <div style={{ color: "#7f766a" }}>Near: {selectedBill.deliveryAddress.landmark}</div>
+                          )}
+                          <div style={{ color: "#7f766a" }}>Pincode: {selectedBill.deliveryAddress.pincode}</div>
                         </div>
                       )}
                     </>
