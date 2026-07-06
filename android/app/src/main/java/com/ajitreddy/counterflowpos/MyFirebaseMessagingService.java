@@ -12,15 +12,22 @@ import com.google.firebase.messaging.RemoteMessage;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import androidx.annotation.NonNull;
+
 /**
  * Custom FCM service — gives us a colored large icon in the notification shade.
  * Registered with android:priority="1" so it takes precedence over Capacitor's
  * default service (priority 0). We send data-only FCM messages so onMessageReceived
  * is called in ALL app states (foreground, background, killed).
  */
-public class MyFirebaseMessagingService extends FirebaseMessagingService {
+public class MyFirebaseMessagingService extends com.capacitorjs.plugins.pushnotifications.MessagingService {
 
     private static final AtomicInteger notifId = new AtomicInteger(2000);
+
+    @Override
+    public void onNewToken(@NonNull String token) {
+        super.onNewToken(token);
+    }
 
     @Override
     public void onMessageReceived(RemoteMessage remoteMessage) {
