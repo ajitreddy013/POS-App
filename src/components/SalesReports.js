@@ -658,8 +658,16 @@ const SalesReports = () => {
               ) : sales.map(sale => {
                 const method = (sale.payment_method || sale.paymentMethod || 'cash').toLowerCase();
                 const isUpi = method === 'upi';
+                const saleNum = sale.sale_number || sale.saleNumber || '';
+                const isWeb = saleNum.startsWith('W-');
+                const isApp = saleNum.startsWith('A-');
+                const sourceBorder = isWeb
+                  ? '3px solid #2563eb'
+                  : isApp
+                  ? '3px solid #b6412c'
+                  : '3px solid #e6ded3';
                 return (
-                  <div key={sale.id} className="rpt-sale-card">
+                  <div key={sale.id} className="rpt-sale-card" style={{ borderLeft: sourceBorder }}>
                     <div className={`rpt-sale-icon ${isUpi ? 'upi' : 'cash'}`}>
                       {isUpi ? '💳' : '💵'}
                     </div>
@@ -667,6 +675,8 @@ const SalesReports = () => {
                       <div className="rpt-sale-name">{sale.customer_name || 'Walk-in Customer'}</div>
                       <div className="rpt-sale-meta">
                         #{sale.sale_number} · {formatDate(sale.sale_date)}
+                        {isWeb && <span style={{ marginLeft: '6px', fontSize: '0.7rem', color: '#2563eb', fontWeight: '600' }}>WEB</span>}
+                        {isApp && <span style={{ marginLeft: '6px', fontSize: '0.7rem', color: '#b6412c', fontWeight: '600' }}>KIOSK</span>}
                       </div>
                     </div>
                     <div className="rpt-sale-right">
