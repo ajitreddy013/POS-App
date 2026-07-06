@@ -57,6 +57,7 @@ const https = require('https');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
+const { getAuth } = require('firebase-admin/auth');
 const serviceAccountPath = path.join(__dirname, 'service-account.json');
 
 // Use a flag instead of admin.apps.length which is unreliable in firebase-admin v14+
@@ -506,6 +507,50 @@ const sendRateLimit = rateLimit({
   legacyHeaders: false,
 });
 
+const grantStaffRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10,             // the POS app only needs this once per app launch
+  message: { success: false, error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const webhookRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60,             // generous — Cashfree may retry, but caps spam from a forged orderId flood
+  message: { success: false, error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Grants the "staff" custom claim to an anonymous Firebase Auth user, so
+// firestore.rules allows product/settings/sales/spendings writes and order
+// updates. Gated by POS_DEVICE_KEY, a secret baked only into the POS app
+// build (never the public customer website) — proves the caller is the
+// trusted POS app, not an arbitrary internet client.
+app.post('/auth/grant-staff', grantStaffRateLimit, async (req, res) => {
+  const { uid, deviceKey } = req.body;
+  const expectedKey = process.env.POS_DEVICE_KEY;
+
+  if (!uid || !deviceKey) {
+    return res.status(400).json({ success: false, error: 'Missing uid or deviceKey.' });
+  }
+  if (!expectedKey || deviceKey !== expectedKey) {
+    return res.status(401).json({ success: false, error: 'Invalid device key.' });
+  }
+  if (!firebaseInitialized) {
+    return res.status(503).json({ success: false, error: 'Firebase Admin not initialized.' });
+  }
+
+  try {
+    await getAuth().setCustomUserClaims(uid, { staff: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to grant staff claim:', err.message);
+    res.status(500).json({ success: false, error: err.message || 'Failed to grant staff claim.' });
+  }
+});
+
 // Send WhatsApp Receipt
 app.post('/send', sendRateLimit, async (req, res) => {
   const { to, message } = req.body;
@@ -643,6 +688,37 @@ function cashfreeRequest(method, path, body, clientHeaders = {}) {
   });
 }
 
+// Finds an order doc by ticketId (web orders use this before their real
+// orderNumber is assigned) falling back to orderNumber directly — same
+// matching logic the webhook handler uses below, kept in one place.
+async function findOrderByTicketOrNumber(db, orderNumber) {
+  const ordersRef = db.collection('orders');
+  let snapshot = await ordersRef.where('ticketId', '==', orderNumber).get();
+  if (snapshot.empty) {
+    snapshot = await ordersRef.where('orderNumber', '==', orderNumber).get();
+  }
+  return snapshot.empty ? null : snapshot.docs[0];
+}
+
+// Recomputes what an order should actually cost from its stored line items
+// and the *current* authoritative product prices — never trusts a client-
+// supplied amount or a possibly-tampered totalAmount on the order doc itself.
+async function computeAuthoritativeOrderAmount(db, orderData) {
+  const items = Array.isArray(orderData.items) ? orderData.items : [];
+  const productsRef = db.collection('products');
+  const prices = await Promise.all(
+    items.map(async (item) => {
+      const snap = await productsRef.doc(String(item.productId)).get();
+      const price = snap.exists ? Number(snap.data().price) : 0;
+      return price * Number(item.quantity || 0);
+    })
+  );
+  const subtotal = prices.reduce((sum, lineTotal) => sum + lineTotal, 0);
+  const total =
+    subtotal + Number(orderData.deliveryFee || 0) - Number(orderData.discountAmount || 0);
+  return Math.max(Number(total.toFixed(2)), 0);
+}
+
 // Create Cashfree PG Order
 app.post('/payment/cashfree/create-order', async (req, res) => {
   const { amount, orderId, phone, name, isKiosk } = req.body;
@@ -656,6 +732,45 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
       error:
         'Missing required fields: amount and orderId must be provided, and Cashfree credentials must be configured on the server.',
     });
+  }
+
+  // Never trust the client-sent amount directly:
+  //  - Kiosk requests come from the POS app's own till — require proof it's
+  //    the trusted staff device (its Firebase ID token, minted via
+  //    /auth/grant-staff) rather than trusting any caller who sets isKiosk.
+  //  - Public/customer-website requests instead get their amount recomputed
+  //    from the order's own line items against live product prices, so a
+  //    tampered `amount` (or even a directly-forged cheap order doc) can't
+  //    result in an underpriced Cashfree order.
+  let verifiedAmount;
+  if (isKiosk) {
+    const authHeader = req.headers.authorization || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!idToken) {
+      return res.status(401).json({ success: false, error: 'Missing staff authorization.' });
+    }
+    try {
+      const decoded = await getAuth().verifyIdToken(idToken);
+      if (!decoded.staff) {
+        return res.status(403).json({ success: false, error: 'Not authorized as staff.' });
+      }
+    } catch (err) {
+      return res.status(401).json({ success: false, error: 'Invalid staff authorization.' });
+    }
+    verifiedAmount = Number(amount);
+  } else {
+    if (!firebaseInitialized || !firestoreIntegrationEnabled) {
+      return res.status(503).json({ success: false, error: 'Order verification unavailable.' });
+    }
+    const db = getFirestore();
+    const orderDoc = await findOrderByTicketOrNumber(db, String(orderId));
+    if (!orderDoc) {
+      return res.status(400).json({
+        success: false,
+        error: 'Order not found. Please create the order before requesting payment.',
+      });
+    }
+    verifiedAmount = await computeAuthoritativeOrderAmount(db, orderDoc.data());
   }
 
   try {
@@ -674,7 +789,7 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
 
     const payload = {
       order_id: cfOrderId,
-      order_amount: Number(Number(amount).toFixed(2)),
+      order_amount: Number(verifiedAmount.toFixed(2)),
       order_currency: 'INR',
       customer_details: {
         customer_id: `cust_${String(orderId)}`,
@@ -767,44 +882,30 @@ app.get('/payment-done', (req, res) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Payment Successful</title>
+  <title>Returning to app…</title>
   <style>
     * { box-sizing: border-box; }
-    html, body { height: 100%; }
     body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center;
-           justify-content: center; min-height: 100vh; margin: 0; background: #f0fdf4; color: #166534;
-           cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; padding: 24px; text-align: center; }
-    .icon { font-size: 88px; margin-bottom: 12px; }
-    h1 { font-size: 2rem; margin: 0 0 8px; }
-    p { color: #4b5563; font-size: 1.1rem; margin: 4px 0; }
-    button { margin-top: 28px; padding: 22px 48px; font-size: 1.4rem; font-weight: 700;
-             background: #166534; color: #fff; border: none; border-radius: 14px; cursor: pointer;
-             animation: pulse 1.1s ease-in-out infinite; }
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(22,101,52,0.5); }
-      50% { transform: scale(1.05); box-shadow: 0 0 0 16px rgba(22,101,52,0); }
-    }
+           justify-content: center; min-height: 100vh; margin: 0; background: #f8fafc; color: #374151;
+           padding: 24px; text-align: center; }
+    .icon { font-size: 56px; margin-bottom: 16px; }
+    p { font-size: 1.1rem; color: #6b7280; margin: 4px 0; }
   </style>
 </head>
-<body onclick="returnToApp()">
-  <div class="icon">✅</div>
-  <h1>Payment Successful!</h1>
-  <p>Tap anywhere below to go back to the register</p>
-  <button onclick="returnToApp()">⬅ Return to App</button>
+<body>
+  <div class="icon">⏳</div>
+  <p>Processing payment…</p>
+  <p style="font-size:0.9rem;margin-top:8px;">Returning to register</p>
+  <!-- Hidden anchor: Chrome Custom Tab allows programmatic .click() on a real anchor element -->
+  <a id="returnLink"
+     href="intent://#Intent;package=com.ajitreddy.counterflowpos;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;S.browser_fallback_url=about%3Ablank;end"
+     style="display:none">back</a>
   <script>
-    function returnToApp() {
-      // Android intent URL: brings kiosk app (com.ajitreddy.counterflowpos) to foreground.
-      // Requires a real tap — Chrome silently blocks intent:// navigation without a user gesture,
-      // so this only fires from the onclick handlers above, never automatically on page load.
-      window.location.href = 'intent://#Intent;package=com.ajitreddy.counterflowpos;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end';
-      setTimeout(function() {
-        try {
-          if (window.opener && !window.opener.closed) { window.opener.focus(); }
-        } catch(e) {}
-        window.close();
-      }, 300);
-    }
-    if (navigator.vibrate) { try { navigator.vibrate([200, 100, 200]); } catch(e) {} }
+    if (navigator.vibrate) { try { navigator.vibrate([100]); } catch(e) {} }
+    setTimeout(function() {
+      document.getElementById('returnLink').click();
+      setTimeout(function() { try { window.close(); } catch(e) {} }, 800);
+    }, 300);
   </script>
 </body>
 </html>`);
@@ -1018,9 +1119,11 @@ app.post('/payment/cashfree/upi-qr', async (req, res) => {
 });
 
 // Cashfree PG Webhook Endpoint
-app.post('/payment/cashfree/webhook', async (req, res) => {
-  // Verify Cashfree webhook signature (uses CASHFREE_WEBHOOK_SECRET, separate from API secret)
-  // Safe to warn-only: the handler re-verifies payment status via Cashfree API before acting
+app.post('/payment/cashfree/webhook', webhookRateLimit, async (req, res) => {
+  // Verify Cashfree webhook signature (uses CASHFREE_WEBHOOK_SECRET, separate from API secret).
+  // Only rejects on a confirmed mismatch (clear forgery); if the secret isn't
+  // configured or Cashfree didn't send the headers, behavior is unchanged —
+  // the handler still re-verifies payment status via the Cashfree API before acting.
   const webhookSignature = req.headers['x-webhook-signature'];
   const webhookTimestamp = req.headers['x-webhook-timestamp'];
   const webhookSecret = process.env.CASHFREE_WEBHOOK_SECRET;
@@ -1033,7 +1136,8 @@ app.post('/payment/cashfree/webhook', async (req, res) => {
       .update(signedPayload)
       .digest('base64');
     if (expectedSig !== webhookSignature) {
-      console.warn('Cashfree webhook signature mismatch — proceeding with active verification');
+      console.warn('Cashfree webhook signature mismatch — rejecting.');
+      return res.status(401).json({ success: false, error: 'Invalid webhook signature.' });
     }
   }
 

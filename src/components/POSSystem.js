@@ -35,7 +35,7 @@ import {
   playErrorFeedback,
   playIncomingOrderChime,
 } from '../utils/feedbackUtils';
-import { getFirebaseDb } from '../firebase';
+import { getFirebaseDb, getStaffIdToken } from '../firebase';
 import {
   collection,
   addDoc,
@@ -88,7 +88,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const qrPollIntervalRef = useRef(null);
   const cfUnsubRef = useRef(null);
   const cfBrowserListenerRef = useRef(null);
+  const cfBrowserFinishedRef = useRef(null);
   const cfOrderDocRefRef = useRef(null); // Firestore order doc ref for the active Cashfree payment
+  const browserOpenTimeRef = useRef(0);
 
   const executeSaleWriteRef = useRef(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -669,9 +671,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       const amount = calculateTotal();
       setLoading(true);
 
+      const staffIdToken = await getStaffIdToken();
       const response = await fetch(`${relayUrl}/payment/cashfree/create-order`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(staffIdToken && { Authorization: `Bearer ${staffIdToken}` }),
+        },
         body: JSON.stringify({
           amount,
           orderId: cfTrackingId,
@@ -687,15 +693,20 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
       const cfOrderId = data.cfOrderId || data.orderId;
 
-      // Non-fatal: try to hook browserPageLoaded so we close the browser the moment
-      // Cashfree redirects to return_url. Falls back to polling if not supported.
+      // Non-fatal: hook browserPageLoaded to detect when Cashfree redirects to return_url.
+      // Also hook browserFinished to clean up when user manually closes the browser.
       try {
         if (cfBrowserListenerRef.current) {
           cfBrowserListenerRef.current.remove();
           cfBrowserListenerRef.current = null;
         }
+        if (cfBrowserFinishedRef.current) {
+          cfBrowserFinishedRef.current.remove();
+          cfBrowserFinishedRef.current = null;
+        }
         cfBrowserListenerRef.current = await Browser.addListener('browserPageLoaded', async () => {
           if (!qrPaymentPendingRef.current) return;
+          const elapsed = Date.now() - browserOpenTimeRef.current;
           try {
             const statusRes = await fetch(`${relayUrl}/payment/cashfree/order-status`, {
               method: 'POST',
@@ -705,13 +716,23 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
             const statusData = await statusRes.json();
             if (statusData.success && statusData.paid && qrPaymentPendingRef.current) {
               completeCashfreePayment();
+            } else if (elapsed > 8000 && qrPaymentPendingRef.current) {
+              // Return URL loaded but payment not confirmed — close browser and cancel
+              Browser.close().catch(() => {});
+              closeUpiQrPayment();
+              showNotice('error', 'Payment not completed');
             }
           } catch (_) { /* polling fallback handles failures */ }
         });
-      } catch (_) { /* browserPageLoaded not supported — polling/Firestore handle detection */ }
+        cfBrowserFinishedRef.current = await Browser.addListener('browserFinished', () => {
+          if (!qrPaymentPendingRef.current) return;
+          closeUpiQrPayment();
+          showNotice('info', 'Payment cancelled');
+        });
+      } catch (_) { /* browser events not supported — polling/Firestore handle detection */ }
 
       // Try native Capacitor Browser first; fall back to window.open if unavailable.
-      // The return_url page uses an Android intent URL so no window reference needed.
+      browserOpenTimeRef.current = Date.now();
       try {
         await Browser.open({ url: data.paymentLink, presentationStyle: 'fullscreen' });
       } catch (_) {
@@ -794,6 +815,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       cfBrowserListenerRef.current.remove();
       cfBrowserListenerRef.current = null;
     }
+    if (cfBrowserFinishedRef.current) {
+      cfBrowserFinishedRef.current.remove();
+      cfBrowserFinishedRef.current = null;
+    }
     // Close the Cashfree in-app browser (Capacitor Browser plugin)
     Browser.close().catch(() => {});
     setUpiQrStatus('Payment received. Completing order...');
@@ -853,6 +878,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     if (cfBrowserListenerRef.current) {
       cfBrowserListenerRef.current.remove();
       cfBrowserListenerRef.current = null;
+    }
+    if (cfBrowserFinishedRef.current) {
+      cfBrowserFinishedRef.current.remove();
+      cfBrowserFinishedRef.current = null;
     }
     qrPaymentPendingRef.current = false;
     setUpiQrPayment(null);
@@ -1984,16 +2013,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
             </div>
 
             <div className="upi-qr-actions">
-              {upiQrPayment?.mode === 'cashfree' && (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  style={{ background: '#166534', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 18px', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem' }}
-                  onClick={completeCashfreePayment}
-                >
-                  Payment Received ✓
-                </button>
-              )}
               <button
                 type="button"
                 className="btn btn-secondary"
