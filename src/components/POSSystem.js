@@ -692,16 +692,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
       const cfOrderId = data.cfOrderId || data.orderId;
 
-      // Build Cashfree's hosted checkout URL directly from the session ID — no
-      // intermediate page needed (avoids SDK redirect issues in Custom Chrome Tabs).
-      const isProd = data.environment === 'production';
-      const cfHostedUrl = isProd
-        ? `https://payments.cashfree.com/order/#${data.paymentSessionId}`
-        : `https://sandbox.cashfree.com/order/#${data.paymentSessionId}`;
-
       // Hook browserFinished to clean up when user manually closes the browser.
-      // browserPageLoaded is NOT used for auto-cancel — the 3s polling + Firestore
-      // listener handle payment detection reliably without false-positive cancellations.
+      // Polling + Firestore listener handle payment detection; no browserPageLoaded
+      // cancel logic to avoid false-positive cancellations during Cashfree page loads.
       try {
         if (cfBrowserListenerRef.current) {
           cfBrowserListenerRef.current.remove();
@@ -718,16 +711,15 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         });
       } catch (_) { /* browser events not supported — polling/Firestore handle detection */ }
 
-      // Open Cashfree's hosted payment page directly in the in-app browser.
       browserOpenTimeRef.current = Date.now();
       try {
-        await Browser.open({ url: cfHostedUrl });
+        await Browser.open({ url: data.paymentLink, presentationStyle: 'fullscreen' });
       } catch (_) {
-        window.open(cfHostedUrl, '_blank');
+        window.open(data.paymentLink, '_blank');
       }
 
       qrPaymentPendingRef.current = true;
-      setUpiQrPayment({ orderId: cfTrackingId, amount, qrImageUrl: null, mode: 'cashfree', hostedUrl: cfHostedUrl });
+      setUpiQrPayment({ orderId: cfTrackingId, amount, qrImageUrl: null, mode: 'cashfree', hostedUrl: data.paymentLink });
       setUpiQrStatus('Waiting for customer payment...');
 
       // Firestore listener — fires when webhook marks order paid
