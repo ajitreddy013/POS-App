@@ -109,7 +109,7 @@ if (fs.existsSync(serviceAccountPath)) {
 
 const app = express();
 const port = process.env.PORT || 8080;
-const relayVersion = '2026-07-01-wa-order-watcher-v1';
+const relayVersion = '2026-07-06-unified-counter-v2';
 
 const ALLOWED_ORIGINS = [
   'https://counterflow-kiosk.web.app',
@@ -487,6 +487,40 @@ app.get('/status', (req, res) => {
     status: connectionStatus,
     qrCode: activeQrCode,
   });
+});
+
+// Reserve the next sequential order number — called by the website COD flow
+// so that ALL counter increments happen server-side (Admin SDK) and never race
+// with the webhook transaction that also increments the same counter.
+const reserveNumberRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: { success: false, error: 'Too many requests.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.post('/order/reserve-number', reserveNumberRateLimit, async (req, res) => {
+  const { prefix = 'W' } = req.body;
+  if (!['W', 'A'].includes(prefix)) {
+    return res.status(400).json({ success: false, error: 'Invalid prefix' });
+  }
+  try {
+    const db = getFirestore();
+    const counterRef = db.collection('settings').doc('order_counters');
+    let orderNumber = null;
+    await db.runTransaction(async (t) => {
+      const snap = await t.get(counterRef);
+      const current = snap.exists ? snap.data().totalOrders || 0 : 0;
+      const next = current + 1;
+      t.set(counterRef, { totalOrders: next }, { merge: true });
+      orderNumber = `${prefix}-${next}`;
+    });
+    res.json({ success: true, orderNumber });
+  } catch (err) {
+    logEntry(`[reserve-number] Error: ${err.message}`);
+    res.status(500).json({ success: false, error: 'Failed to reserve order number' });
+  }
 });
 
 // View Deployed Logs — protected by ADMIN_TOKEN env var
