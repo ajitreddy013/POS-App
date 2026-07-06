@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: counterflow-whatsapp-relay
+    name: pos-app-nqsm
     runtime: node
     rootDir: whatsapp-relay
     buildCommand: npm install
