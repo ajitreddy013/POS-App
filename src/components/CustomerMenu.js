@@ -323,10 +323,10 @@ const CustomerMenu = () => {
             const settingsSnap = await transaction.get(settingsRef);
             let currentCount = 0;
             if (settingsSnap.exists()) {
-              currentCount = settingsSnap.data().completedAppOrders || 0;
+              currentCount = settingsSnap.data().totalOrders || 0;
             }
             currentCount += 1;
-            transaction.set(settingsRef, { completedAppOrders: currentCount }, { merge: true });
+            transaction.set(settingsRef, { totalOrders: currentCount }, { merge: true });
             orderNumber = `A-${currentCount}`;
           });
         } catch (err) {

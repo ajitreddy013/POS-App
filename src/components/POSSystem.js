@@ -271,14 +271,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
       if (!hasSequentialNumber) {
         // Order has a temp ID (KSK... for kiosk UPI, or similar) — assign sequential number now
-        const counterField = isWebOrder ? 'completedWebOrders' : 'completedAppOrders';
         try {
           const counterRef = doc(db, 'settings', 'order_counters');
           await runTransaction(db, async (transaction) => {
             const counterDoc = await transaction.get(counterRef);
-            const currentCount = counterDoc.exists() ? (counterDoc.data()[counterField] || 0) : 0;
+            const currentCount = counterDoc.exists() ? (counterDoc.data().totalOrders || 0) : 0;
             const newCount = currentCount + 1;
-            transaction.set(counterRef, { [counterField]: newCount }, { merge: true });
+            transaction.set(counterRef, { totalOrders: newCount }, { merge: true });
             sequentialNumber = `${prefix}-${newCount}`;
           });
         } catch (err) {
@@ -515,10 +514,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         const settingsSnap = await transaction.get(settingsRef);
         let currentCount = 0;
         if (settingsSnap.exists()) {
-          currentCount = settingsSnap.data().completedAppOrders || 0;
+          currentCount = settingsSnap.data().totalOrders || 0;
         }
         currentCount += 1;
-        transaction.set(settingsRef, { completedAppOrders: currentCount }, { merge: true });
+        transaction.set(settingsRef, { totalOrders: currentCount }, { merge: true });
         orderNum = `A-${currentCount}`;
       });
     } catch (err) {

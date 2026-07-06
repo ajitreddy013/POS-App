@@ -1208,12 +1208,12 @@ app.post('/payment/cashfree/webhook', webhookRateLimit, async (req, res) => {
                 await db.runTransaction(async (transaction) => {
                   const counterSnap = await transaction.get(counterRef);
                   const currentCount = counterSnap.exists
-                    ? counterSnap.data().completedWebOrders || 0
+                    ? counterSnap.data().totalOrders || 0
                     : 0;
                   const nextCount = currentCount + 1;
                   transaction.set(
                     counterRef,
-                    { completedWebOrders: nextCount },
+                    { totalOrders: nextCount },
                     { merge: true }
                   );
                   realOrderNumber = `W-${nextCount}`;
@@ -1224,12 +1224,12 @@ app.post('/payment/cashfree/webhook', webhookRateLimit, async (req, res) => {
                 await db.runTransaction(async (transaction) => {
                   const counterSnap = await transaction.get(counterRef);
                   const currentCount = counterSnap.exists
-                    ? counterSnap.data().completedAppOrders || 0
+                    ? counterSnap.data().totalOrders || 0
                     : 0;
                   const nextCount = currentCount + 1;
                   transaction.set(
                     counterRef,
-                    { completedAppOrders: nextCount },
+                    { totalOrders: nextCount },
                     { merge: true }
                   );
                   realOrderNumber = `A-${nextCount}`;

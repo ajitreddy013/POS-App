@@ -577,32 +577,6 @@ const LiveOrdersScreen = () => {
                 >
                   <span
                     style={{
-                      padding: '2px 10px',
-                      borderRadius: '12px',
-                      fontSize: '0.75rem',
-                      fontWeight: '700',
-                      background:
-                        selectedOrder.orderStatus === 'completed'
-                          ? '#dcfce7'
-                          : selectedOrder.orderStatus === 'preparing'
-                            ? '#dbeafe'
-                            : '#fef3c7',
-                      color:
-                        selectedOrder.orderStatus === 'completed'
-                          ? '#15803d'
-                          : selectedOrder.orderStatus === 'preparing'
-                            ? '#1d4ed8'
-                            : '#b45309',
-                    }}
-                  >
-                    {selectedOrder.orderStatus === 'completed'
-                      ? 'Completed'
-                      : selectedOrder.orderStatus === 'preparing'
-                        ? 'Preparing'
-                        : 'Pending'}
-                  </span>
-                  <span
-                    style={{
                       fontSize: '0.8rem',
                       fontWeight: '700',
                       color:
@@ -659,7 +633,7 @@ const LiveOrdersScreen = () => {
                       {selectedOrder.customerName || 'Customer'}
                     </strong>
                   </div>
-                  {selectedOrder.customerPhone && (
+                  {selectedOrder.orderType === 'delivery' && selectedOrder.customerPhone && (
                     <div>
                       Phone:{' '}
                       <strong style={{ color: '#221f1a' }}>
