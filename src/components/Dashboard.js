@@ -4,7 +4,6 @@ import {
   Package,
   Activity,
   Wallet,
-  TrendingUp,
   Banknote,
 } from 'lucide-react';
 import {
@@ -20,7 +19,6 @@ const Dashboard = () => {
     todaySales: 0,
     totalRevenue: 0,
     todaySpendings: 0,
-    netIncome: 0,
     todayCash: 0,
     todayUpi: 0,
     recentSales: [],
@@ -99,7 +97,6 @@ const Dashboard = () => {
       const todaySpendings = Number(
         (await dbService.getDailySpendingTotal(todayDate)) || 0
       );
-      const netIncome = todayRevenue - todaySpendings;
 
       // Use today's sales for recent sales and sort them by date descending
       const recentSales = [...todaySales];
@@ -115,7 +112,6 @@ const Dashboard = () => {
         todaySales: todaySales.length,
         totalRevenue: Number(todayRevenue || 0),
         todaySpendings: Number(todaySpendings || 0),
-        netIncome: Number(netIncome || 0),
         todayCash: Number(todayCash || 0),
         todayUpi: Number(todayUpi || 0),
         recentSales: recentSales.slice(0, 10),
@@ -125,11 +121,6 @@ const Dashboard = () => {
       console.error('Failed to load dashboard data:', error);
     }
   };
-
-  const netProfit =
-    dashboardData.todayCash +
-    dashboardData.todayUpi -
-    dashboardData.todaySpendings;
 
   return (
     <div className="dashboard">
@@ -227,20 +218,6 @@ const Dashboard = () => {
           </div>
           <div className="value">
             ₹{(dashboardData.todayCash + dashboardData.todayUpi).toFixed(0)}
-          </div>
-        </div>
-
-        <div className="summary-card card-sunset">
-          <div className="card-header">
-            <h3>Net Profit</h3>
-            <div className="card-icon">
-              <TrendingUp size={16} />
-            </div>
-          </div>
-          <div
-            className={`value ${netProfit >= 0 ? 'positive' : 'negative'}`}
-          >
-            ₹{netProfit.toFixed(0)}
           </div>
         </div>
       </div>
