@@ -170,15 +170,11 @@ function AppContent() {
         }
       });
 
-      // Show in-app banner when push arrives while app is open
+      // Native FCM handles external banner.
+      // onSnapshot handles the in-app toast for new orders (which is better as it has full orderData).
+      // So we ignore this to avoid duplicate in-app toasts.
       PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        playIncomingOrderChime();
-        const isDelivery = notification.data?.isDelivery === 'true' || notification.data?.isDelivery === true;
-        setGlobalNotice({
-          type: isDelivery ? 'warning' : 'info',
-          message: notification.title || (isDelivery ? '🛵 New Delivery Order!' : '📦 New Order Received!'),
-        });
-        setTimeout(() => setGlobalNotice(null), 5000);
+        // Ignored.
       });
 
       PushNotifications.addListener('registrationError', (err) => {
@@ -191,10 +187,14 @@ function AppContent() {
 
   const showSystemNotification = async (orderData) => {
     const isDelivery = orderData.orderType === 'delivery';
+    const isDineIn = orderData.orderType === 'dine_in' || orderData.orderType === 'table';
     const isPaid = orderData.paymentStatus === 'paid';
-    const title = isDelivery
-      ? `🛵 Delivery Order #${orderData.orderNumber}`
-      : `📦 New Order #${orderData.orderNumber}`;
+    
+    let icon = '📦';
+    if (isDelivery) icon = '🛵';
+    else if (isDineIn) icon = '🍽️';
+
+    const title = `${icon} New Order #${orderData.orderNumber}`;
     const body = isPaid
       ? 'Payment: Paid Online'
       : isDelivery
@@ -202,21 +202,9 @@ function AppContent() {
         : 'Payment: Cash at Counter';
 
     if (Capacitor.isNativePlatform()) {
-      try {
-        await LocalNotifications.schedule({
-          notifications: [{
-            id: Math.floor(Date.now() / 1000) % 2147483647,
-            title,
-            body,
-            importance: 5,
-            smallIcon: 'ic_stat_notification',
-            autoCancel: true,
-            extra: { orderNumber: orderData.orderNumber, isDelivery },
-          }],
-        });
-      } catch (err) {
-        console.error('Local notification failed:', err);
-      }
+      // MyFirebaseMessagingService already handles native push banner via FCM data messages.
+      // Do NOT schedule a LocalNotification here, otherwise we get duplicate banners.
+      return;
     } else {
       if (!('Notification' in window) || Notification.permission !== 'granted') return;
       try {
@@ -255,7 +243,7 @@ function AppContent() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let hasNewOrder = false;
       let newOrderNumber = '';
-      let newOrderIsDelivery = false;
+      let newOrderType = '';
 
       snapshot.docChanges().forEach((change) => {
         if (change.type !== 'added' && change.type !== 'modified') return;
@@ -283,17 +271,23 @@ function AppContent() {
         notifiedOrderIdsRef.current.add(docId);
         hasNewOrder = true;
         newOrderNumber = orderData.orderNumber;
-        newOrderIsDelivery = orderData.orderType === 'delivery';
+        newOrderType = orderData.orderType;
         showSystemNotification(orderData);
       });
 
       if (hasNewOrder && newOrderNumber) {
         playIncomingOrderChime();
+        
+        const isDelivery = newOrderType === 'delivery';
+        const isDineIn = newOrderType === 'dine_in' || newOrderType === 'table';
+        
+        let icon = '📦';
+        if (isDelivery) icon = '🛵';
+        else if (isDineIn) icon = '🍽️';
+
         setGlobalNotice({
-          type: newOrderIsDelivery ? 'warning' : 'info',
-          message: newOrderIsDelivery
-            ? `🛵 Delivery Order! #${newOrderNumber}`
-            : `📦 New Order Received! #${newOrderNumber}`,
+          type: isDelivery ? 'warning' : 'info',
+          message: `${icon} New Order! #${newOrderNumber}`,
         });
 
         // Trigger custom event to notify current screen of new order if needed

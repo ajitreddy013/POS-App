@@ -1004,9 +1004,12 @@ async function sendFCMToAdmins(orderData) {
 
     const isDelivery = orderData.orderType === 'delivery';
     const isPaid = orderData.paymentStatus === 'paid';
-    const title = isDelivery
-      ? `🛵 Delivery Order #${orderData.orderNumber}`
-      : `📦 New Order #${orderData.orderNumber}`;
+    
+    let icon = '📦'; // Default Parcel
+    if (isDelivery) icon = '🛵';
+    else if (orderData.orderType === 'dine_in' || orderData.orderType === 'table') icon = '🍽️';
+
+    const title = `${icon} New Order #${orderData.orderNumber}`;
     const body = isPaid
       ? 'Payment: Paid Online'
       : isDelivery
