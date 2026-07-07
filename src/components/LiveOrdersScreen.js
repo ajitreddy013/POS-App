@@ -299,7 +299,7 @@ const LiveOrdersScreen = () => {
                                 fontWeight: '700',
                               }}
                             >
-                              {isDelivery ? '🛵 Delivery' : '📦 Parcel'}
+                              {isDelivery ? '🛵 Delivery' : 'Parcel 📦'}
                             </span>
                           )}
                           {isWeb ? (

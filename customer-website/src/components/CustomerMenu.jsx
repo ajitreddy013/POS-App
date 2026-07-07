@@ -2185,7 +2185,7 @@ const CustomerMenu = () => {
                     >
                       {isParcel && '✓'}
                     </span>
-                    📦 Parcel
+                    Parcel 📦
                   </span>
                   <span style={{ color: '#7f766a', fontWeight: '700' }}>
                     +{formatCurrency(PARCEL_CHARGE)}
