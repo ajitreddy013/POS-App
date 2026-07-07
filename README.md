@@ -323,8 +323,7 @@ src/
 │   ├── SalesReports.js
 │   └── ...
 ├── services/
-│   ├── dbService.js     # Unified Dexie IndexedDB access layer
-│   └── whatsappService.js
+│   └── dbService.js     # Unified Dexie IndexedDB access layer
 ├── pdf-service.js      # PDF generation
 ├── printer-service.js  # Printing functionality
 ├── App.css            # Styling

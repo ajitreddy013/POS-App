@@ -11,7 +11,7 @@ This repo actually contains **three separate deployable projects**, plus an Andr
 | POS app | `src/` (root `package.json`) | React 18 app, wrapped by Capacitor into an Android app. Runs on the shop's tablet/phone. |
 | Android shell | `android/` | Capacitor-generated native project. Rebuilt via `npx cap sync`, don't hand-edit generated files. |
 | Customer website | `customer-website/` (own `package.json`) | Separate Vite + React 19 app, public-facing menu/ordering site deployed to Firebase Hosting. Has its own `node_modules`, `.env`, ESLint config. |
-| WhatsApp relay | `whatsapp-relay/` (own `package.json`) | Node/Express service deployed to Render (`render.yaml`, service name `pos-app-nqsm`). Bridges WhatsApp (Baileys), Firebase Admin, and Cashfree payments. Has its own `.env`, `node_modules`. |
+| Relay backend | `whatsapp-relay/` (own `package.json`) | Node/Express service deployed to Render (`render.yaml`, service name `pos-app-nqsm`). Despite the directory name, WhatsApp messaging has been removed — it now handles staff auth, Cashfree payments, and admin push notifications via Firebase Admin. Has its own `.env`, `node_modules`. |
 
 When working on one project, `cd` into it — each has independent dependencies and its own lint/build scripts.
 
@@ -46,11 +46,11 @@ npm run lint      # eslint .
 npm run preview
 ```
 
-### WhatsApp relay (`whatsapp-relay/`)
+### Relay backend (`whatsapp-relay/`)
 ```bash
 npm start   # node index.js
 ```
-Deploys to Render on push (see [[feedback_git_push_before_render]] memory — Render only sees pushed commits). Needs `service-account.json` or `FIREBASE_PROJECT_ID`/`FIREBASE_CLIENT_EMAIL`/`FIREBASE_PRIVATE_KEY` env vars for Firebase Admin, plus WhatsApp/Cashfree secrets in `.env` (see `.env.example`).
+Deploys to Render on push (see [[feedback_git_push_before_render]] memory — Render only sees pushed commits). Needs `service-account.json` or `FIREBASE_PROJECT_ID`/`FIREBASE_CLIENT_EMAIL`/`FIREBASE_PRIVATE_KEY` env vars for Firebase Admin, plus Cashfree secrets in `.env` (see `.env.example`).
 
 ## Architecture
 
@@ -67,16 +67,17 @@ Firestore is used selectively, *within* `dbService` methods, for the pieces that
 ### Staff auth (why writes need `ensureStaffAuth()`)
 `firestore.rules` gates all staff-only writes (products, settings, sales, spendings, order status updates) behind a custom `staff` auth claim. The POS app is the only client that can obtain this claim:
 1. POS signs in anonymously to Firebase.
-2. It calls `ensureStaffAuth()` ([src/firebase.js](src/firebase.js)), which POSTs its `REACT_APP_POS_DEVICE_KEY` to the whatsapp-relay's `/auth/grant-staff` endpoint.
+2. It calls `ensureStaffAuth()` ([src/firebase.js](src/firebase.js)), which POSTs its `REACT_APP_POS_DEVICE_KEY` to the relay's `/auth/grant-staff` endpoint.
 3. The relay verifies the device key and grants the custom claim; the POS app force-refreshes its ID token to pick it up.
 
 The public customer website never gets this claim — it can only `create` orders and `read` public collections (see `firestore.rules`). If you add a new Firestore-backed feature, decide up front whether it needs staff auth and update `firestore.rules` accordingly (the relay's rules comments explain the reasoning per collection).
 
-### WhatsApp relay is a shared backend, not just messaging
-Despite the name, `whatsapp-relay/index.js` is the one persistent Node service both the POS app and customer website depend on. It also handles:
+### The relay (`whatsapp-relay/`) is a shared backend, not messaging
+The directory is a naming relic — WhatsApp (Baileys) messaging was removed entirely (it was unreliable on Render's free tier, which has no persistent disk, so the linked session was lost on every restart/redeploy, forcing a fresh QR scan each time). `whatsapp-relay/index.js` is still the one persistent Node service both the POS app and customer website depend on:
 - `/auth/grant-staff` — staff claim issuance (above).
 - `/payment/cashfree/*` — Cashfree order creation, kiosk orders, order-status polling, UPI QR, and the payment webhook.
-- `/order/reserve-number`, `/order/delete`, `/send` (WhatsApp messages via Baileys), device verification.
+- `/order/reserve-number`, `/order/delete`, device verification.
+- An FCM watcher polls Firestore for newly-completed orders and pushes admin push notifications (`sendFCMToAdmins` / `startAdminNotificationWatcher`) — this replaced the old WhatsApp receipt watcher.
 
 It's a single long-running Express process on Render's free tier (`--max-old-space-size=150`), console-log output is buffered in-memory and exposed at `GET /logs` for remote debugging since there's no persistent disk/log aggregation.
 
@@ -90,9 +91,9 @@ It's a single long-running Express process on Render's free tier (`--max-old-spa
 - Thermal printing (ESC/POS via `escpos`/`escpos-network`/`escpos-serial`/`escpos-usb`) and PDF generation (`jspdf` + `jspdf-autotable`) are used for bills/reports; printer connection type (USB/network/serial) is configured per-shop in `bar_settings`.
 
 ### Customer website structure
-Vite React 19 app under `customer-website/src/`: `CustomerMenu.jsx` (menu browsing/ordering, reads products/settings from Firestore, writes orders), `CashfreeCheckoutRedirect.jsx` (payment redirect handling), `hooks/useBarSettings.js`. Talks to Firestore directly (client SDK) and to the whatsapp-relay for payment endpoints — never to the POS app's Dexie DB.
+Vite React 19 app under `customer-website/src/`: `CustomerMenu.jsx` (menu browsing/ordering, reads products/settings from Firestore, writes orders), `CashfreeCheckoutRedirect.jsx` (payment redirect handling), `hooks/useBarSettings.js`. Talks to Firestore directly (client SDK) and to the relay for payment endpoints — never to the POS app's Dexie DB.
 
 ## Notable conventions
 - Env vars for the POS app must be prefixed `REACT_APP_` (CRA requirement) and are baked in at build time — changing `.env` requires a rebuild, not just a restart.
 - `REACT_APP_POS_DEVICE_KEY` (POS app) must match `POS_DEVICE_KEY` in `whatsapp-relay/.env` — they're the shared secret for staff-claim issuance.
-- `src/config.js` holds the deployed relay URL (`APP_CONFIG.relayUrl`); the relay must actually be deployed there for staff auth, payments, and WhatsApp sending to work end-to-end.
+- `src/config.js` holds the deployed relay URL (`APP_CONFIG.relayUrl`); the relay must actually be deployed there for staff auth and payments to work end-to-end.

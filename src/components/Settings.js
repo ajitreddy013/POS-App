@@ -331,7 +331,6 @@ const Settings = () => {
             thank_you_message: barSettings.thank_you_message || '',
             printing_enabled: barSettings.printing_enabled !== undefined ? Number(barSettings.printing_enabled) : 0,
             upi_provider: barSettings.upi_provider || 'cashfree',
-            upi_vpa: barSettings.upi_vpa || '',
             hosted_app_url: barSettings.hosted_app_url || '',
             delivery_enabled: barSettings.delivery_enabled === true,
             delivery_fee: barSettings.delivery_fee ?? 30,

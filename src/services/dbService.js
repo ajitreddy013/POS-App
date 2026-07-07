@@ -53,11 +53,6 @@ if (!isElectron) {
         address: "Food Truck Street, Lane 1",
         thank_you_message: "Thank you for visiting! Please come back soon.",
         printing_enabled: 0,
-        whatsapp_enabled: 0,
-        whatsapp_relay_url: "",
-        whatsapp_template_name: "counterflow_pos_receipt",
-        whatsapp_language_code: "en",
-        whatsapp_default_country_code: "91",
         admin_password: "123456"
       });
     }
@@ -382,9 +377,6 @@ export const dbService = {
       if (settings.upi_provider === undefined) {
         settings.upi_provider = "cashfree";
       }
-      if (settings.upi_vpa === undefined) {
-        settings.upi_vpa = "";
-      }
       if (!settings.admin_password) {
         settings.admin_password = "123456";
         await db.bar_settings.put(settings);
@@ -401,13 +393,7 @@ export const dbService = {
       address: "",
       thank_you_message: "Thank you for visiting!",
       printing_enabled: 0,
-      whatsapp_enabled: 0,
-      whatsapp_relay_url: "",
-      whatsapp_template_name: "counterflow_pos_receipt",
-      whatsapp_language_code: "en",
-      whatsapp_default_country_code: "91",
       upi_provider: "cashfree",
-      upi_vpa: "",
       admin_password: "123456",
       hosted_app_url: "https://counterflow-kiosk.web.app/"
     };
@@ -424,13 +410,7 @@ export const dbService = {
       address: settings.address,
       thank_you_message: settings.thank_you_message || settings.thankYouMessage,
       printing_enabled: settings.printing_enabled !== undefined ? Number(settings.printing_enabled) : 0,
-      whatsapp_enabled: settings.whatsapp_enabled !== undefined ? Number(settings.whatsapp_enabled) : 0,
-      whatsapp_relay_url: settings.whatsapp_relay_url || "",
-      whatsapp_template_name: settings.whatsapp_template_name || "counterflow_pos_receipt",
-      whatsapp_language_code: settings.whatsapp_language_code || "en",
-      whatsapp_default_country_code: settings.whatsapp_default_country_code || "91",
       upi_provider: settings.upi_provider || settings.upiProvider || "cashfree",
-      upi_vpa: settings.upi_vpa || settings.upiVpa || "",
       admin_password: settings.admin_password || existing.admin_password || "123456",
       hosted_app_url: settings.hosted_app_url || "",
       offer_enabled: settings.offer_enabled === true,

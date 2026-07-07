@@ -557,7 +557,6 @@ const CustomerMenu = () => {
             const cashfree = window.Cashfree({
               mode: data.environment || 'sandbox',
             });
-            // WhatsApp is sent by the Cashfree webhook on the relay — do NOT save here
             await cashfree.checkout({
               paymentSessionId: data.paymentSessionId,
               redirectTarget: '_self',
@@ -582,7 +581,6 @@ const CustomerMenu = () => {
             throw new Error(
               'No payment link received from server. Please try again.'
             );
-          // WhatsApp is sent by the Cashfree webhook on the relay — do NOT save here
           window.location.href = data.paymentLink;
         }
       } else {

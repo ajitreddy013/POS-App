@@ -45,11 +45,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const [activeTab, setActiveTab] = useState('menu'); // 'menu' or 'cart' for mobile view
   const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const noticeTimeoutRef = useRef(null);
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [paymentQrUrl, setPaymentQrUrl] = useState('');
-  const [activeQrId, setActiveQrId] = useState('');
-  const [paymentStatus, setPaymentStatus] = useState('creating');
-  const pollingIntervalRef = useRef(null);
 
   const loadTableOrder = useCallback(async () => {
     try {
@@ -76,14 +71,12 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
 
     return () => {
       if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     };
   }, [loadTableOrder]);
 
   const loadBarSettings = async () => {
     try {
       const settings = await dbService.getBarSettings();
-      // No setSendWhatsapp state exists, so we just set settings
       setBarSettings(settings);
     } catch (error) {
       // Failed to load bar settings
@@ -429,46 +422,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       }, 100);
       return;
     }
-    // Check if payment method is UPI and direct VPA configured
-    const isUpiEnabled = barSettings && !!barSettings.upi_vpa;
-    if (paymentMethod === 'upi' && isUpiEnabled) {
-      startUpiPayment();
-      return;
-    }
-
     executeSaleWrite();
-  };
-
-  const startUpiPayment = async () => {
-    setPaymentModalOpen(true);
-    setPaymentStatus('pending');
-    setPaymentQrUrl('');
-
-    try {
-      const orderId = await generateSaleNumber();
-      const amount = calculateTotal();
-
-      if (barSettings && barSettings.upi_vpa) {
-        const upiUri = `upi://pay?pa=${encodeURIComponent(barSettings.upi_vpa)}&pn=${encodeURIComponent(
-          barSettings.bar_name || ''
-        )}&am=${encodeURIComponent(Number(amount).toFixed(2))}&cu=INR&tn=${encodeURIComponent('Order ' + orderId)}`;
-        const qrImage = await QRCode.toDataURL(upiUri, { errorCorrectionLevel: 'M', margin: 2, scale: 6 });
-        setPaymentQrUrl(qrImage);
-      } else {
-        throw new Error("No Merchant UPI VPA is configured.");
-      }
-    } catch (err) {
-      setPaymentStatus('error');
-      showNotice(
-        'error',
-        `Failed to generate local QR: ${err.message}`,
-        6000
-      );
-    }
-  };
-
-  const cancelUpiPayment = () => {
-    setPaymentModalOpen(false);
   };
 
   const printBill = async (billData) => {
@@ -1149,185 +1103,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
             </div>
           )}
         </div>
-
-        {paymentModalOpen && (
-          <div
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.6)',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              zIndex: 9999,
-              padding: '20px',
-            }}
-          >
-            <div
-              style={{
-                background: 'white',
-                padding: '30px',
-                borderRadius: '12px',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                textAlign: 'center',
-                maxWidth: '400px',
-                width: '100%',
-              }}
-            >
-              <h3
-                style={{
-                  margin: '0 0 15px 0',
-                  fontSize: '1.3rem',
-                  color: '#333',
-                }}
-              >
-                UPI Payment Verification
-              </h3>
-              <p
-                style={{
-                  fontSize: '1.1rem',
-                  fontWeight: 'bold',
-                  margin: '0 0 20px 0',
-                  color: '#333',
-                }}
-              >
-                Amount: ₹{calculateTotal().toFixed(2)}
-              </p>
-
-              {paymentStatus === 'creating' && (
-                <div style={{ padding: '40px 0' }}>
-                  <div
-                    className="spinning"
-                    style={{
-                      border: '4px solid #f3f3f3',
-                      borderTop: '4px solid #3498db',
-                      borderRadius: '50%',
-                      width: '40px',
-                      height: '40px',
-                      margin: '0 auto 15px auto',
-                    }}
-                  ></div>
-                  <p style={{ margin: 0, color: '#666' }}>
-                    Generating dynamic UPI QR code...
-                  </p>
-                </div>
-              )}
-
-              {paymentStatus === 'pending' && paymentQrUrl && (
-                <div>
-                  <p
-                    style={{
-                      fontSize: '0.9rem',
-                      color: '#666',
-                      margin: '0 0 15px 0',
-                    }}
-                  >
-                    Scan this QR code using GPay, PhonePe, Paytm, or any UPI
-                    app:
-                  </p>
-                  <img
-                    src={paymentQrUrl}
-                    alt="UPI QR"
-                    style={{
-                      width: '200px',
-                      height: '200px',
-                      border: '1px solid #ddd',
-                      borderRadius: '6px',
-                      margin: '0 auto 15px auto',
-                      display: 'block',
-                    }}
-                  />
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      color: '#f57c00',
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    <div
-                      className="spinning"
-                      style={{
-                        border: '2px solid #f3f3f3',
-                        borderTop: '2px solid #f57c00',
-                        borderRadius: '50%',
-                        width: '16px',
-                        height: '16px',
-                      }}
-                    ></div>
-                    Waiting for customer payment...
-                  </div>
-                </div>
-              )}
-
-              {paymentStatus === 'success' && (
-                <div style={{ padding: '40px 0', color: '#2e7d32' }}>
-                  <div style={{ fontSize: '3rem', margin: '0 0 15px 0' }}>
-                    ✓
-                  </div>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontWeight: 'bold',
-                      fontSize: '1.2rem',
-                     }}
-                  >
-                    Payment Successful!
-                  </p>
-                  <p style={{ margin: '5px 0 0 0', color: '#666' }}>
-                    Completing checkout...
-                  </p>
-                </div>
-              )}
-
-              {paymentStatus === 'error' && (
-                <div style={{ padding: '40px 0', color: '#d32f2f' }}>
-                  <div style={{ fontSize: '3rem', margin: '0 0 15px 0' }}>
-                    ✗
-                  </div>
-                  <p style={{ margin: 0, fontWeight: 'bold' }}>
-                    Payment Failed
-                  </p>
-                  <p style={{ margin: '10px 0 0 0' }}>
-                    <button
-                      onClick={() => startUpiPayment()}
-                      className="btn btn-secondary"
-                      style={{ padding: '8px 15px' }}
-                    >
-                      Retry QR Code
-                    </button>
-                  </p>
-                </div>
-              )}
-
-              <div
-                style={{
-                  marginTop: '25px',
-                  borderTop: '1px solid #eee',
-                  paddingTop: '20px',
-                }}
-              >
-                <button
-                  onClick={cancelUpiPayment}
-                  className="btn btn-secondary"
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    borderColor: '#d32f2f',
-                    color: '#d32f2f',
-                  }}
-                >
-                  Cancel Checkout
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

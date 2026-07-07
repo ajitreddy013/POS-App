@@ -1,6 +1,5 @@
 require('dotenv').config();
 const path = require('path');
-process.env.PUPPETEER_CACHE_DIR = path.join(__dirname, '.cache/puppeteer');
 
 // Intercept console logs to expose them via endpoint for easy debugging on Render
 const logEntries = [];
@@ -42,14 +41,6 @@ process.on('unhandledRejection', (reason, promise) => {
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-} = require('@whiskeysockets/baileys');
-const pino = require('pino');
-const QRCode = require('qrcode');
 const fs = require('fs');
 const https = require('https');
 
@@ -131,9 +122,6 @@ app.use(cors({
 app.use(express.json());
 
 // Global State
-let connectionStatus = 'INITIALIZING'; // INITIALIZING, QR_READY, CONNECTED, DISCONNECTED
-let activeQrCode = null; // Store QR code data URI
-let sock = null;
 const processedWebhookOrders = new Set();
 
 function isFirestoreUnauthenticatedError(err) {
@@ -154,324 +142,8 @@ function disableFirestoreIntegration(reason) {
   }
   if (!firestoreAuthDisabledNotified) {
     firestoreAuthDisabledNotified = true;
-    console.warn(`[WA Watcher] Firestore integration disabled: ${reason}`);
+    console.warn(`[Firestore] Integration disabled: ${reason}`);
   }
-}
-
-// Initialize WhatsApp Client (Baileys)
-async function initializeClient() {
-  console.log('Initializing WhatsApp Client (Baileys)...');
-  connectionStatus = 'INITIALIZING';
-  activeQrCode = null;
-
-  try {
-    const { state, saveCreds } = await useMultiFileAuthState(
-      path.join(__dirname, '.auth_info_baileys')
-    );
-    const { version } = await fetchLatestBaileysVersion();
-
-    sock = makeWASocket({
-      version,
-      printQRInTerminal: false,
-      auth: state,
-      logger: pino({ level: 'silent' }), // Prevent huge memory logs
-      browser: ['CounterFlow POS', 'MacOS', '1.0.0'], // Identify as MacOS device
-      syncFullHistory: false, // Reduce memory footprint further
-    });
-
-    // Save credentials whenever they are updated
-    sock.ev.on('creds.update', saveCreds);
-
-    // Handle connection updates
-    sock.ev.on('connection.update', async (update) => {
-      const { connection, lastDisconnect, qr } = update;
-
-      if (qr) {
-        console.log('QR Code received, converting to Data URI...');
-        try {
-          activeQrCode = await QRCode.toDataURL(qr);
-          connectionStatus = 'QR_READY';
-        } catch (err) {
-          console.error('Failed to generate QR Data URI:', err);
-        }
-      }
-
-      if (connection === 'close') {
-        const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-
-        console.log(
-          'WhatsApp connection closed. Reason:',
-          statusCode,
-          'Reconnect:',
-          shouldReconnect
-        );
-
-        connectionStatus = 'DISCONNECTED';
-        activeQrCode = null;
-
-        if (shouldReconnect) {
-          console.log('Reconnecting in 3 seconds...');
-          setTimeout(initializeClient, 3000);
-        } else {
-          console.log('User logged out. Session is invalid.');
-          cleanupSession();
-        }
-      } else if (connection === 'open') {
-        console.log('WhatsApp Client is READY and CONNECTED!');
-        connectionStatus = 'CONNECTED';
-        activeQrCode = null;
-      }
-    });
-  } catch (err) {
-    console.error('Error during Baileys initialization:', err);
-    connectionStatus = 'DISCONNECTED';
-  }
-}
-
-// Helper to destroy client and delete local auth files
-async function cleanupSession() {
-  connectionStatus = 'DISCONNECTED';
-  activeQrCode = null;
-
-  if (sock) {
-    try {
-      sock.ev.removeAllListeners();
-      sock = null;
-    } catch (err) {
-      console.error('Error destroying client:', err);
-    }
-  }
-
-  // Delete auth folder to ensure a fresh scan next time
-  const authPath = path.join(__dirname, '.auth_info_baileys');
-  if (fs.existsSync(authPath)) {
-    try {
-      fs.rmSync(authPath, { recursive: true, force: true });
-      console.log('Deleted .auth_info_baileys session folder.');
-    } catch (err) {
-      console.error('Failed to delete session folder:', err);
-    }
-  }
-
-  // Re-initialize client to generate a new QR code
-  setTimeout(() => {
-    initializeClient();
-  }, 3000);
-}
-
-// Helper to format phone number to WhatsApp format (e.g. 919876543210@s.whatsapp.net)
-function formatWhatsAppNumber(phone) {
-  if (!phone) return '';
-  let clean = phone.replace(/\D/g, '');
-  // If it's exactly 10 digits, assume it's an Indian number and prepend country code 91
-  if (clean.length === 10) {
-    clean = `91${clean}`;
-  }
-  // Ensure it ends with @s.whatsapp.net suffix
-  if (!clean.endsWith('@s.whatsapp.net')) {
-    clean = `${clean}@s.whatsapp.net`;
-  }
-  return clean;
-}
-
-// Helper to retrieve settings dynamically from Firestore (cached for 5 minutes)
-let cachedSettings = null;
-let cachedSettingsAt = 0;
-const SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000;
-
-async function getShopSettings() {
-  if (cachedSettings && Date.now() - cachedSettingsAt < SETTINGS_CACHE_TTL_MS) {
-    return cachedSettings;
-  }
-  let settings = {
-    bar_name: 'Malabar Waffle',
-    address: '',
-    contact_number: '',
-    gst_number: '',
-    thank_you_message: 'Thank you for visiting! Please visit again.',
-  };
-  if (firebaseInitialized) {
-    try {
-      const db = getFirestore();
-      const settingsDoc = await db
-        .collection('settings')
-        .doc('bar_settings')
-        .get();
-      if (settingsDoc.exists) {
-        const data = settingsDoc.data();
-        settings.bar_name = data.bar_name || settings.bar_name;
-        settings.address = data.address || '';
-        settings.contact_number = data.contact_number || '';
-        settings.gst_number = data.gst_number || '';
-        settings.thank_you_message =
-          data.thank_you_message || settings.thank_you_message;
-      }
-    } catch (err) {
-      console.warn('Failed to load shop settings:', err.message);
-    }
-  }
-  cachedSettings = settings;
-  cachedSettingsAt = Date.now();
-  return settings;
-}
-
-// Unified template formatting builder
-function buildUnifiedReceiptMessage(shopName, settings, orderData) {
-  const {
-    orderNumber,
-    customerName,
-    customerPhone,
-    tableNumber,
-    totalAmount,
-    paymentMethod,
-    paymentStatus,
-    items = [],
-    subtotal = 0,
-    discountAmount = 0,
-    taxAmount = 0,
-    deliveryFee = 0,
-    parcelCharge = 0,
-    orderType = 'dine_in',
-    deliveryAddress = null,
-  } = orderData;
-
-  const name = customerName || 'Customer';
-  const isDelivery = orderType === 'delivery';
-
-  // Status Header
-  const isPaid = paymentStatus === 'paid' || paymentMethod === 'upi';
-  let statusHeader;
-  if (isDelivery) {
-    statusHeader = isPaid
-      ? `*🟢 DELIVERY ORDER — PAID ONLINE*`
-      : `*🔴 DELIVERY ORDER — CASH ON DELIVERY*`;
-  } else {
-    statusHeader = isPaid
-      ? `*🟢 PAID VIA UPI (ONLINE)*`
-      : `*🔴 CASH PAYMENT - PAY AT COUNTER*`;
-  }
-
-  // Personalized greeting
-  const hasTable =
-    tableNumber &&
-    tableNumber !== 'Parcel' &&
-    tableNumber !== 'Takeaway' &&
-    tableNumber !== 'Kiosk' &&
-    tableNumber !== 'Website' &&
-    tableNumber !== 'Online';
-  const tableSuffix = hasTable ? ` for *Table ${tableNumber}*` : '';
-  const greeting = `Hi *${name}*,\nWe have received your ${isPaid ? 'payment & ' : ''}order *#${orderNumber}*${tableSuffix}.`;
-
-  // Store info header
-  let storeHeader = `*${shopName}*`;
-  if (settings.address) {
-    storeHeader += `\n${settings.address}`;
-  }
-  if (settings.contact_number) {
-    storeHeader += `\n${settings.contact_number}`;
-  }
-  if (settings.gst_number) {
-    storeHeader += `\nGSTIN: ${settings.gst_number}`;
-  }
-
-  // Receipt details
-  const divider = `------------------------------------`;
-  const dateStr = `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-
-  // Items list monospaced table (if items are available)
-  let receiptTable = '';
-  if (items && items.length > 0) {
-    // All rows = 24 chars: name(12) + qty(3) + amt(9)
-    // amt = '₹X.XX' right-aligned in 9 chars — same column for items AND summary
-    const fmtAmt = (val, sign = '') =>
-      (sign + Number(Math.abs(val)).toFixed(2)).padStart(9);
-    const itemsHeader = `${'Item'.padEnd(12)}${'Qty'.padEnd(3)}${'Amt'.padStart(9)}`;
-    const itemsList = items
-      .map((item) => {
-        const nameStr = (item.name || '').substring(0, 12).padEnd(12);
-        const qtyStr = ('x' + (item.quantity || 1)).padEnd(3);
-        const amtStr = fmtAmt(
-          item.totalPrice || item.unitPrice * item.quantity || 0
-        );
-        return `${nameStr}${qtyStr}${amtStr}`;
-      })
-      .join('\n');
-
-    const calcSubtotal =
-      subtotal ||
-      items.reduce(
-        (sum, item) =>
-          sum + (item.totalPrice || item.unitPrice * item.quantity || 0),
-        0
-      );
-    const dividerRow = '-'.repeat(24);
-
-    let summaryList = `${dividerRow}\n`;
-    summaryList += 'Subtotal'.padEnd(15) + fmtAmt(calcSubtotal);
-    if (discountAmount > 0) {
-      summaryList += '\n' + 'Discount'.padEnd(15) + fmtAmt(discountAmount, '-');
-    }
-    if (taxAmount > 0) {
-      summaryList += '\n' + 'Tax'.padEnd(15) + fmtAmt(taxAmount);
-    }
-    if (deliveryFee > 0) {
-      summaryList += '\n' + 'Delivery'.padEnd(15) + fmtAmt(deliveryFee);
-    }
-    if (parcelCharge > 0) {
-      summaryList += '\n' + 'Parcel'.padEnd(15) + fmtAmt(parcelCharge);
-    }
-    summaryList +=
-      `\n${dividerRow}\n` + 'TOTAL'.padEnd(15) + fmtAmt(totalAmount, '₹');
-
-    receiptTable =
-      '\n```\n' +
-      itemsHeader +
-      '\n' +
-      dividerRow +
-      '\n' +
-      itemsList +
-      '\n' +
-      summaryList +
-      '\n```\n';
-  } else {
-    receiptTable = `\nTotal Amount: *₹${Number(totalAmount).toFixed(2)}*\n`;
-  }
-
-  // Footer instruction
-  let footerInstruction;
-  if (isDelivery) {
-    footerInstruction = isPaid
-      ? `Our delivery team will contact you and bring your order to your address! 🛵`
-      : `*Please keep cash ready for our delivery agent!* 🛵`;
-  } else {
-    footerInstruction = isPaid
-      ? `Please wait while the kitchen prepares your delicious order! 😋`
-      : `*Please pay Cash at the counter* while the kitchen prepares your delicious order! 😋`;
-  }
-
-  const footerText =
-    settings.thank_you_message || 'Thank you for visiting! Please visit again.';
-
-  // Delivery address block
-  let deliveryBlock = '';
-  if (isDelivery && deliveryAddress) {
-    deliveryBlock = `\n*Deliver to:*\n${deliveryAddress.address || ''}${deliveryAddress.landmark ? ', ' + deliveryAddress.landmark : ''}\nPincode: ${deliveryAddress.pincode || ''}\n`;
-  }
-
-  // Assemble the message
-  return `${statusHeader}
-
-${greeting}
-${deliveryBlock}
-${storeHeader}
-${divider}
-Order No: ${orderNumber}
-${dateStr}
-${receiptTable}
-${divider}
-${footerInstruction}
-${footerText}`;
 }
 
 // --- EXPRESS ENDPOINTS ---
@@ -482,14 +154,6 @@ app.get('/health', (req, res) => {
     success: true,
     service: 'whatsapp-relay',
     version: relayVersion,
-  });
-});
-
-// Check Status
-app.get('/status', (req, res) => {
-  res.json({
-    status: connectionStatus,
-    qrCode: activeQrCode,
   });
 });
 
@@ -535,14 +199,6 @@ app.get('/logs', (req, res) => {
   }
   res.setHeader('Content-Type', 'text/plain');
   res.send(logEntries.join('\n'));
-});
-
-const sendRateLimit = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 30,             // max 30 messages per minute per IP
-  message: { success: false, error: 'Too many requests. Please slow down.' },
-  standardHeaders: true,
-  legacyHeaders: false,
 });
 
 const grantStaffRateLimit = rateLimit({
@@ -626,66 +282,6 @@ app.post('/order/delete', deleteOrderRateLimit, async (req, res) => {
   } catch (err) {
     console.error('Failed to delete order:', err.message);
     res.status(500).json({ success: false, error: err.message || 'Failed to delete order.' });
-  }
-});
-
-// Send WhatsApp Receipt
-app.post('/send', sendRateLimit, async (req, res) => {
-  const { to, message } = req.body;
-
-  if (connectionStatus !== 'CONNECTED') {
-    return res.status(400).json({
-      success: false,
-      error: 'WhatsApp Client is not connected. Scan the QR code in settings.',
-    });
-  }
-
-  if (!to || !message) {
-    return res.status(400).json({
-      success: false,
-      error: "Missing fields: 'to' and 'message' are required.",
-    });
-  }
-
-  if (typeof message !== 'string' || message.length > 4000) {
-    return res.status(400).json({
-      success: false,
-      error: 'Message must be a string under 4000 characters.',
-    });
-  }
-
-  // Format phone number to WhatsApp format
-  const cleanNumber = formatWhatsAppNumber(to);
-
-  try {
-    console.log(`Sending message to: ${cleanNumber}`);
-    const response = await sock.sendMessage(cleanNumber, { text: message });
-    res.json({
-      success: true,
-      messageId: response?.key?.id,
-    });
-  } catch (err) {
-    console.error(`Failed to send message to ${cleanNumber}:`, err);
-    res.status(500).json({
-      success: false,
-      error: err.message || 'Failed to send message.',
-    });
-  }
-});
-
-// Logout / Disconnect WhatsApp Link
-app.post('/logout', async (req, res) => {
-  console.log('Logging out and unlinking WhatsApp...');
-  try {
-    if (sock && connectionStatus === 'CONNECTED') {
-      await sock.logout();
-    }
-    cleanupSession();
-    res.json({ success: true, message: 'Logged out successfully' });
-  } catch (err) {
-    console.error('Error during logout:', err);
-    cleanupSession();
-    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -1278,8 +874,8 @@ app.post('/payment/cashfree/webhook', webhookRateLimit, async (req, res) => {
             // the next iteration — forEach does not await async callbacks.
             for (const doc of snapshot.docs) {
               const orderData = doc.data();
-              if (orderData.paymentStatus === 'paid' || orderData.whatsappSent) {
-                console.log(`[Webhook] Order #${orderNumber} already marked paid/sent in database. Skipping.`);
+              if (orderData.paymentStatus === 'paid') {
+                console.log(`[Webhook] Order #${orderNumber} already marked paid in database. Skipping.`);
                 continue;
               }
 
@@ -1315,7 +911,6 @@ app.post('/payment/cashfree/webhook', webhookRateLimit, async (req, res) => {
                   transaction.update(orderRef, {
                     paymentStatus: 'paid',
                     orderStatus: 'completed',
-                    whatsappSent: true,
                     orderNumber: `${prefix}-${nextCount}`,
                   });
 
@@ -1332,7 +927,6 @@ app.post('/payment/cashfree/webhook', webhookRateLimit, async (req, res) => {
                 await doc.ref.update({
                   paymentStatus: 'paid',
                   orderStatus: 'completed',
-                  whatsappSent: true,
                   orderNumber: realOrderNumber,
                 });
               }
@@ -1340,34 +934,6 @@ app.post('/payment/cashfree/webhook', webhookRateLimit, async (req, res) => {
               console.log(
                 `Updated Firestore Order ID: ${doc.id} paymentStatus to "paid", orderStatus to "completed", orderNumber to "${realOrderNumber}"`
               );
-
-              if (connectionStatus === 'CONNECTED' && sock) {
-                const phone = orderData.customerPhone;
-                if (phone) {
-                  const cleanNumber = formatWhatsAppNumber(phone);
-                  const settings = await getShopSettings();
-                  const messageText = buildUnifiedReceiptMessage(
-                    settings.bar_name,
-                    settings,
-                    {
-                      ...orderData,
-                      orderNumber: realOrderNumber,
-                      paymentStatus: 'paid',
-                    }
-                  );
-
-                  try {
-                    await sock.sendMessage(cleanNumber, { text: messageText });
-                    console.log(
-                      `Sent Cashfree payment confirmation WhatsApp for Order #${realOrderNumber} to: ${cleanNumber}`
-                    );
-                  } catch (waErr) {
-                    console.error(`Failed to send WhatsApp confirmation:`, waErr);
-                  }
-                }
-              } else {
-                console.warn('WhatsApp Client is not connected. Cannot send payment confirmation.');
-              }
             }
           }
         } else {
@@ -1419,94 +985,7 @@ app.post('/device/verify', (req, res) => {
   res.json({ authorized });
 });
 
-// Send Order Confirmation message on WhatsApp
-app.post('/payment/send-confirmation', async (req, res) => {
-  const {
-    phone,
-    name,
-    orderNumber,
-    tableNumber,
-    totalAmount,
-    paymentMethod,
-    paymentStatus,
-    items,
-    subtotal,
-    discountAmount,
-    taxAmount,
-    deliveryFee,
-    parcelCharge,
-    orderType,
-    deliveryAddress,
-  } = req.body;
-
-  if (!phone || !orderNumber) {
-    return res.status(400).json({
-      success: false,
-      error: 'Missing required fields: phone and orderNumber.',
-    });
-  }
-
-  if (connectionStatus !== 'CONNECTED' || !sock) {
-    // If WhatsApp is disconnected, return success: false but don't crash
-    return res.json({
-      success: false,
-      error: 'WhatsApp client not connected.',
-    });
-  }
-
-  const cleanNumber = formatWhatsAppNumber(phone);
-  try {
-    const settings = await getShopSettings();
-    const messageText = buildUnifiedReceiptMessage(
-      settings.bar_name,
-      settings,
-      {
-        orderNumber,
-        customerName: name,
-        customerPhone: phone,
-        tableNumber,
-        totalAmount,
-        paymentMethod,
-        paymentStatus:
-          paymentStatus || (paymentMethod === 'upi' ? 'paid' : 'pending'),
-        items,
-        subtotal,
-        discountAmount,
-        taxAmount,
-        deliveryFee: deliveryFee || 0,
-        parcelCharge: parcelCharge || 0,
-        orderType: orderType || 'dine_in',
-        deliveryAddress: deliveryAddress || null,
-      }
-    );
-
-    console.log(`Sending order confirmation WhatsApp to: ${cleanNumber}`);
-    await sock.sendMessage(cleanNumber, { text: messageText });
-
-    if (firebaseInitialized && firestoreIntegrationEnabled) {
-      try {
-        const db = getFirestore();
-        const snap = await db.collection('orders')
-          .where('orderNumber', '==', orderNumber)
-          .limit(1)
-          .get();
-        if (!snap.empty) {
-          await snap.docs[0].ref.update({ whatsappSent: true });
-        }
-      } catch (fsErr) {
-        console.warn(`[send-confirmation] Could not mark whatsappSent for #${orderNumber}:`, fsErr.message);
-      }
-    }
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error(`Failed to send order confirmation to ${cleanNumber}:`, err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// ─── Local WhatsApp Order Notifier ───────────────────────────────────────────
-// Watches Firestore for orders that need a WhatsApp receipt and sends them from
+// ─── Admin Push Notifier ─────────────────────────────────────────────────────
 // Send FCM push notification to all registered admin devices
 async function sendFCMToAdmins(orderData) {
   if (!firebaseInitialized || !firestoreIntegrationEnabled) return;
@@ -1580,20 +1059,20 @@ async function sendFCMToAdmins(orderData) {
   }
 }
 
-// this relay (which has WhatsApp connected). Covers both UPI paid orders (set
-// by the Cashfree webhook on Render) and COD orders placed via the customer site.
-function startOrderWhatsAppWatcher() {
+// Polls Firestore for newly-completed orders (UPI paid via the Cashfree
+// webhook, or COD placed via the customer site) and pushes an FCM
+// notification to registered admin devices for each one.
+function startAdminNotificationWatcher() {
   if (!firebaseInitialized || !firestoreIntegrationEnabled) {
     console.warn(
-      '[WA Watcher] Firebase not initialized — skipping order watcher.'
+      '[Admin Watcher] Firebase not initialized — skipping order watcher.'
     );
     return;
   }
   const db = getFirestore();
-  const processedIds = new Set(); // in-memory guard against double-sends
-  const fcmProcessedIds = new Set(); // separate guard for FCM
+  const fcmProcessedIds = new Set(); // in-memory guard against double-sends
 
-  const scanForPendingReceipts = async () => {
+  const scanForPendingNotifications = async () => {
     try {
       const since = Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
       const snapshot = await db.collection('orders')
@@ -1603,7 +1082,7 @@ function startOrderWhatsAppWatcher() {
         const data = doc.data();
         const docId = doc.id;
 
-        // FCM: notify admin for any new order (cash or paid UPI)
+        // Notify admin for any new order (cash or paid UPI)
         const needsFCM =
           !data.fcmSent &&
           !fcmProcessedIds.has(docId) &&
@@ -1618,80 +1097,29 @@ function startOrderWhatsAppWatcher() {
             await sendFCMToAdmins(data);
           })();
         }
-
-        if (data.whatsappSent || processedIds.has(docId)) return;
-
-        const needsWhatsApp =
-          data.paymentStatus === 'paid' ||
-          (data.orderStatus === 'completed' &&
-            data.paymentMethod !== 'upi');
-
-        if (!needsWhatsApp || !data.customerPhone) return;
-
-        processedIds.add(docId);
-
-        (async () => {
-          try {
-            await doc.ref.update({ whatsappSent: true });
-          } catch (_) {
-            /* non-fatal */
-          }
-
-          if (connectionStatus !== 'CONNECTED' || !sock) {
-            console.warn(
-              `[WA Watcher] WA not connected — cannot send for order #${data.orderNumber}`
-            );
-            return;
-          }
-
-          try {
-            const settings = await getShopSettings();
-            const messageText = buildUnifiedReceiptMessage(
-              settings.bar_name,
-              settings,
-              {
-                ...data,
-                orderNumber: data.orderNumber,
-                paymentStatus: data.paymentStatus || 'pending',
-              }
-            );
-            const cleanNumber = formatWhatsAppNumber(data.customerPhone);
-            await sock.sendMessage(cleanNumber, { text: messageText });
-            console.log(
-              `[WA Watcher] Sent WhatsApp receipt for order #${data.orderNumber} to ${cleanNumber}`
-            );
-          } catch (err) {
-            console.error(
-              `[WA Watcher] Failed to send WhatsApp for order #${data.orderNumber}:`,
-              err.message
-            );
-            processedIds.delete(docId); // allow retry on next poll
-          }
-        })();
       });
     } catch (err) {
       if (isFirestoreUnauthenticatedError(err)) {
         disableFirestoreIntegration(err.message);
         return;
       }
-      console.error('[WA Watcher] Polling error:', err.message);
+      console.error('[Admin Watcher] Polling error:', err.message);
     }
   };
 
-  scanForPendingReceipts();
-  firestoreWatcherInterval = setInterval(scanForPendingReceipts, 15000);
+  scanForPendingNotifications();
+  firestoreWatcherInterval = setInterval(scanForPendingNotifications, 15000);
 
   console.log(
-    '[WA Watcher] Polling Firestore for orders that need WhatsApp receipts...'
+    '[Admin Watcher] Polling Firestore for orders that need admin notifications...'
   );
 }
 
 // Start Server
 app.listen(port, () => {
-  console.log(`WhatsApp Cloud-Relay Server running on port ${port}`);
+  console.log(`Relay Server running on port ${port}`);
   console.log(`Relay version: ${relayVersion}`);
-  initializeClient();
-  startOrderWhatsAppWatcher();
+  startAdminNotificationWatcher();
 
   // Self-ping every 8 minutes to prevent Render free-tier cold starts.
   // RENDER_EXTERNAL_URL is set automatically by Render; absent locally so this is a no-op there.
