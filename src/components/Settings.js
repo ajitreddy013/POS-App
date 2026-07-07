@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Lock, CloudLightning, QrCode, Truck, Tag, ChevronLeft, ChevronRight, Bell } from 'lucide-react';
+import { Settings as SettingsIcon, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Info, HelpCircle, MessageCircle, Lock, CloudLightning, QrCode, Truck, Tag, ChevronLeft, ChevronRight, Bell, Package } from 'lucide-react';
 import { dbService } from '../services/dbService';
 import { getFirebaseDb } from '../firebase';
 import { doc, writeBatch, setDoc, getDocs, getDoc, collection } from 'firebase/firestore';
@@ -595,6 +595,7 @@ const Settings = () => {
   ];
 
   const renderGeneralTab = () => (
+    <>
     <div className="cfg-card">
       <div className="cfg-card-hdr">
         <div className="cfg-card-hdr-left">
@@ -652,6 +653,45 @@ const Settings = () => {
         )}
       </div>
     </div>
+
+    <div className="cfg-card" style={{ marginTop: '20px' }}>
+      <div className="cfg-card-hdr">
+        <div className="cfg-card-hdr-left">
+          <div className="cfg-card-icon" style={{ background: '#fdf1ef' }}>
+            <Package size={16} color="#b6412c" />
+          </div>
+          <div>
+            <h2>Parcel</h2>
+            <p>Takeaway charge for dine-in orders ticked as Parcel (website &amp; kiosk)</p>
+          </div>
+        </div>
+      </div>
+      <div className="cfg-card-body">
+        <div style={{ maxWidth: '480px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="cfg-field-group">
+            <label className="cfg-label">Parcel Charge (₹)</label>
+            <input
+              type="number"
+              className="cfg-input"
+              style={{ maxWidth: '140px' }}
+              value={barSettings.parcel_charge ?? ''}
+              min={0}
+              onFocus={e => e.target.select()}
+              onChange={e => handleBarSettingsChange('parcel_charge', e.target.value === '' ? '' : Number(e.target.value))}
+              onBlur={e => { if (e.target.value === '') handleBarSettingsChange('parcel_charge', 0); }}
+            />
+            <p className="cfg-hint">Added to the bill when a dine-in order is ticked as Parcel.</p>
+          </div>
+          <div>
+            <button onClick={saveBarSettings} disabled={loading} className="cfg-btn cfg-btn-primary">
+              <Save size={14} />
+              {loading ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    </>
   );
 
 
@@ -911,20 +951,6 @@ const Settings = () => {
               </div>
             </>
           )}
-          <div className="cfg-field-group">
-            <label className="cfg-label">Parcel Charge (₹)</label>
-            <input
-              type="number"
-              className="cfg-input"
-              style={{ maxWidth: '140px' }}
-              value={barSettings.parcel_charge ?? ''}
-              min={0}
-              onFocus={e => e.target.select()}
-              onChange={e => handleBarSettingsChange('parcel_charge', e.target.value === '' ? '' : Number(e.target.value))}
-              onBlur={e => { if (e.target.value === '') handleBarSettingsChange('parcel_charge', 0); }}
-            />
-            <p className="cfg-hint">Added when a dine-in order is ticked as Parcel (website &amp; kiosk).</p>
-          </div>
           <div>
             <button onClick={saveBarSettings} disabled={loading} className="cfg-btn cfg-btn-primary">
               <Save size={14} />
