@@ -36,6 +36,7 @@ const Settings = () => {
     enabled: false
   });
   const [activeTab, setActiveTab] = useState('general');
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [isEditingBarInfo, setIsEditingBarInfo] = useState(false);
   const [isEditingEmailInfo, setIsEditingEmailInfo] = useState(false);
   const [isEditingSecurity, setIsEditingSecurity] = useState(false);
@@ -228,6 +229,8 @@ const Settings = () => {
       setBarSettings(settings);
     } catch (error) {
       // Failed to load bar settings
+    } finally {
+      setSettingsLoaded(true);
     }
   };
 
@@ -1706,13 +1709,23 @@ const Settings = () => {
 
         {/* ── Panel ── */}
         <div className="cfg-panel">
-          {activeTab === 'general'      && renderGeneralTab()}
-          {activeTab === 'offers'       && renderOffersTab()}
-          {activeTab === 'delivery'     && renderDeliveryTab()}
-          {activeTab === 'menu-qr'      && renderMenuQrTab()}
-          {activeTab === 'security'     && renderSecurityTab()}
-          {activeTab === 'sync'         && renderSyncTab()}
-          {activeTab === 'system'       && renderSystemTab()}
+          {!settingsLoaded ? (
+            <div className="cfg-card">
+              <div className="cfg-card-body" style={{ textAlign: 'center', padding: '48px 20px', color: '#94a3b8' }}>
+                Loading settings…
+              </div>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'general'      && renderGeneralTab()}
+              {activeTab === 'offers'       && renderOffersTab()}
+              {activeTab === 'delivery'     && renderDeliveryTab()}
+              {activeTab === 'menu-qr'      && renderMenuQrTab()}
+              {activeTab === 'security'     && renderSecurityTab()}
+              {activeTab === 'sync'         && renderSyncTab()}
+              {activeTab === 'system'       && renderSystemTab()}
+            </>
+          )}
         </div>
       </div>
     </div>
