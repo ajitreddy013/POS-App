@@ -21,6 +21,9 @@ if (!isElectron) {
     daily_transfers: "++id, transfer_date",
     bar_settings: "id"
   });
+  db.version(3).stores({
+    sales: "++id, saleNumber, saleType, tableNumber, customerName, customerPhone, subtotal, taxAmount, discountAmount, totalAmount, paymentMethod, saleDate, total_cost_price, profit",
+  });
 
   // Seed sample tables and default bar settings if the browser database is empty
   db.on("ready", async () => {
@@ -83,6 +86,7 @@ export const dbService = {
         ...(numId > 0 ? { id: numId } : {}),
         name: data.name || '',
         price: Number(data.price) || 0,
+        cost: Number(data.cost) || 0,
         category: data.category || 'General',
         image: data.image || '',
         description: data.description || '',
@@ -250,6 +254,20 @@ export const dbService = {
         }
         // Delete sale
         await db.sales.delete(sale.id);
+
+        // Delete the Firestore mirror and the matching order doc
+        try {
+          const firestoreDb = getFirebaseDb();
+          if (firestoreDb) {
+            await deleteDoc(doc(firestoreDb, 'sales', String(saleNumber))).catch(() => {});
+
+            const orderSnap = await getDocs(query(collection(firestoreDb, 'orders'), where('orderNumber', '==', saleNumber)));
+            for (const orderDoc of orderSnap.docs) {
+              await deleteDoc(orderDoc.ref);
+            }
+          }
+        } catch (e) { console.warn('Firestore sale/order delete failed:', e); }
+
         return { success: true };
       }
     } catch (err) {

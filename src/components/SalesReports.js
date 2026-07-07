@@ -6,7 +6,7 @@ import autoTable from "jspdf-autotable";
 import { Capacitor } from "@capacitor/core";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { FileOpener } from "@capawesome-team/capacitor-file-opener";
-import { FileText, X, Download, Eye, ChevronDown } from "lucide-react";
+import { FileText, X, Download, Eye, ChevronDown, Trash2 } from "lucide-react";
 import { 
   getLocalDateString,
   formatDateForDisplay,
@@ -76,7 +76,12 @@ const SalesReports = () => {
   const [selectedBill, setSelectedBill] = useState(null);
   const [showBillModal, setShowBillModal] = useState(false);
   const [billGenerating, setBillGenerating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletePasswordInput, setDeletePasswordInput] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
   const [openSections, setOpenSections] = useState({
+    profit: true,
     sales: true,
   });
 
@@ -84,7 +89,7 @@ const SalesReports = () => {
     if (!salesList) return [];
     return salesList.map(sale => {
       const saleNumber = sale.saleNumber || sale.sale_number || "";
-      const saleType = sale.saleType || sale.sale_type || "parcel";
+      const saleType = sale.saleType || sale.sale_type || "dine_in";
       const tableNumber = sale.tableNumber || sale.table_number || null;
       const customerName = sale.customerName || sale.customer_name || "Walk-in Customer";
       const customerPhone = sale.customerPhone || sale.customer_phone || "";
@@ -351,6 +356,10 @@ const SalesReports = () => {
   
   const totalTransactions = sales.length;
 
+  const totalCost = sales.reduce((sum, s) => sum + (s.total_cost_price || 0), 0);
+  const totalProfit = sales.reduce((sum, s) => sum + (s.profit || 0), 0);
+  const profitMargin = totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100).toFixed(1) : '0.0';
+
   // Handle viewing individual bill
   const handleViewBill = async (sale) => {
     try {
@@ -372,7 +381,7 @@ const SalesReports = () => {
 
       // Normalize fields — DB stores camelCase on web, snake_case via Electron
       const saleNumber   = saleWithItems.saleNumber   || saleWithItems.sale_number   || sale.saleNumber   || sale.sale_number || '';
-      const saleType     = saleWithItems.saleType     || saleWithItems.sale_type     || sale.saleType     || sale.sale_type || 'parcel';
+      const saleType     = saleWithItems.saleType     || saleWithItems.sale_type     || sale.saleType     || sale.sale_type || 'dine_in';
       const tableNumber  = saleWithItems.tableNumber  || saleWithItems.table_number  || sale.tableNumber  || sale.table_number || null;
       const customerName = saleWithItems.customerName || saleWithItems.customer_name || sale.customerName || sale.customer_name || 'Walk-in Customer';
       const customerPhone= saleWithItems.customerPhone|| saleWithItems.customer_phone|| sale.customerPhone|| sale.customer_phone|| '';
@@ -387,6 +396,7 @@ const SalesReports = () => {
       const items        = saleWithItems.items || sale.items || [];
       
       const deliveryAddress = saleWithItems.deliveryAddress || saleWithItems.delivery_address || sale.deliveryAddress || sale.delivery_address || null;
+      const parcelCharge = saleWithItems.parcelCharge ?? saleWithItems.parcel_charge ?? sale.parcelCharge ?? sale.parcel_charge ?? 0;
 
       const billData = {
         saleNumber,
@@ -395,6 +405,7 @@ const SalesReports = () => {
         customerName,
         customerPhone,
         deliveryAddress,
+        parcelCharge,
         items,
         subtotal,
         taxAmount,
@@ -436,6 +447,36 @@ const SalesReports = () => {
   const closeBillModal = () => {
     setSelectedBill(null);
     setShowBillModal(false);
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteTarget(null);
+    setDeletePasswordInput("");
+    setDeleteError("");
+  };
+
+  const confirmDeleteSale = async () => {
+    const actualPassword = barSettings?.admin_password || "123456";
+    if (deletePasswordInput.trim() !== String(actualPassword).trim()) {
+      setDeleteError("Incorrect password");
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const saleNumber = deleteTarget.saleNumber || deleteTarget.sale_number;
+      const result = await dbService.deleteSaleByNumber(saleNumber);
+      if (result?.success) {
+        closeDeleteModal();
+        await loadData();
+      } else {
+        setDeleteError("Failed to delete sale");
+      }
+    } catch (err) {
+      setDeleteError(err.message || "Failed to delete sale");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const toggleSection = (section) => {
@@ -524,6 +565,11 @@ const SalesReports = () => {
         .rpt-summary-value.green { color: #1b7543; }
         .rpt-summary-value.blue { color: #5a64c4; }
         .rpt-summary-value.dark { color: #221f1a; }
+        .rpt-summary-value.red { color: #b6412c; }
+        .rpt-summary-value.purple { color: #7c3aed; }
+        .rpt-profit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .rpt-profit-full { grid-column: 1 / -1; }
+        .rpt-profit-note { font-size: 0.7rem; color: #94837a; padding: 8px 12px 12px; text-align: center; }
         .rpt-summary-sub { font-size: 0.68rem; color: #94837a; font-weight: 600; }
 
         /* ── Section panel ── */
@@ -566,6 +612,9 @@ const SalesReports = () => {
           display: flex; align-items: center; justify-content: center;
           width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
           border: 1.5px solid #e6ded3; background: #fdfbf7; color: #57504a; cursor: pointer;
+        }
+        .rpt-delete-btn {
+          border-color: #f3d4ce; background: #fef6f4; color: #b6412c;
         }
 
         /* ── Pay chip ── */
@@ -636,6 +685,44 @@ const SalesReports = () => {
           </div>
         </div>
 
+        {/* Profit panel */}
+        <div className="rpt-panel">
+          <button className="rpt-panel-hdr" onClick={() => toggleSection('profit')}>
+            <div className="rpt-panel-hdr-left">
+              <span className="rpt-panel-title">Profit</span>
+              <span className="rpt-panel-count">Gross profit for this period</span>
+            </div>
+            <ChevronDown className={`rpt-chev ${openSections.profit ? 'open' : ''}`} size={18} />
+          </button>
+
+          {openSections.profit && (
+            <>
+              <div style={{ padding: '0 12px 12px' }}>
+                <div className="rpt-profit-grid">
+                  <div className="rpt-summary-card">
+                    <div className="rpt-summary-label">Revenue</div>
+                    <div className="rpt-summary-value dark">₹{totalRevenue.toFixed(0)}</div>
+                    <div className="rpt-summary-sub">{totalTransactions} orders</div>
+                  </div>
+                  <div className="rpt-summary-card">
+                    <div className="rpt-summary-label">Total Cost</div>
+                    <div className="rpt-summary-value red">₹{totalCost.toFixed(0)}</div>
+                    <div className="rpt-summary-sub">cost of goods</div>
+                  </div>
+                  <div className="rpt-summary-card rpt-profit-full">
+                    <div className="rpt-summary-label">Gross Profit</div>
+                    <div className="rpt-summary-value purple">₹{totalProfit.toFixed(0)}</div>
+                    <div className="rpt-summary-sub">Margin: {profitMargin}%</div>
+                  </div>
+                </div>
+              </div>
+              <div className="rpt-profit-note">
+                Items without a cost price set show ₹0 cost — profit equals full revenue for those items.
+              </div>
+            </>
+          )}
+        </div>
+
         {/* Sales list */}
         <div className="rpt-panel">
           <button className="rpt-panel-hdr" onClick={() => toggleSection('sales')}>
@@ -685,6 +772,9 @@ const SalesReports = () => {
                     </div>
                     <button onClick={() => handleViewBill(sale)} className="rpt-bill-btn" aria-label="View Bill">
                       <Eye size={14} />
+                    </button>
+                    <button onClick={() => setDeleteTarget(sale)} className="rpt-bill-btn rpt-delete-btn" aria-label="Delete Sale">
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 );
@@ -758,7 +848,13 @@ const SalesReports = () => {
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: "#7f766a" }}>Type:</span>
                     <strong style={{ color: "#221f1a" }}>
-                      {selectedBill.saleType === 'table' ? 'Table' : 'Parcel'}
+                      {selectedBill.saleType === 'table'
+                        ? 'Table'
+                        : selectedBill.saleType === 'delivery'
+                        ? 'Delivery'
+                        : selectedBill.saleType === 'parcel'
+                        ? 'Parcel'
+                        : 'Dine In'}
                       {selectedBill.tableNumber && ` - T${selectedBill.tableNumber}`}
                     </strong>
                   </div>
@@ -839,7 +935,14 @@ const SalesReports = () => {
                       <span style={{ fontWeight: "600", color: "#221f1a" }}>₹{Number(selectedBill.taxAmount || 0).toFixed(2)}</span>
                     </div>
                   )}
-                  
+
+                  {selectedBill.parcelCharge > 0 && (
+                    <div className="summary-row" style={{ display: "flex", justifyContent: "space-between", margin: "4px 0", color: "#7f766a" }}>
+                      <span>Parcel Charge</span>
+                      <span style={{ fontWeight: "600", color: "#b45309" }}>₹{Number(selectedBill.parcelCharge || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+
                   <div className="summary-row total" style={{ display: "flex", justifyContent: "space-between", margin: "10px 0 0 0", paddingTop: "10px", borderTop: "1.5px solid #e6ded3", fontSize: "1.15rem", fontWeight: "900", color: "#b6412c" }}>
                     <span>Total</span>
                     <span>₹{Number(selectedBill.totalAmount || 0).toFixed(2)}</span>
@@ -864,6 +967,64 @@ const SalesReports = () => {
               >
                 <Download size={16} />
                 {billGenerating ? 'Generating...' : 'Save as PDF'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Sale Modal — requires admin password */}
+      {deleteTarget && (
+        <div className="modal-overlay" onClick={closeDeleteModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "360px" }}>
+            <div className="modal-header">
+              <h3>
+                <Trash2 size={18} />
+                Delete Sale #{deleteTarget.saleNumber || deleteTarget.sale_number}
+              </h3>
+              <button onClick={closeDeleteModal} className="close-btn">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-content" style={{ padding: "16px" }}>
+              <p style={{ margin: "0 0 12px 0", fontSize: "0.88rem", color: "#57504a" }}>
+                This will permanently delete the sale, restock its items, and remove the matching order. Enter the admin password to confirm.
+              </p>
+              <input
+                type="password"
+                inputMode="numeric"
+                autoFocus
+                value={deletePasswordInput}
+                onChange={(e) => {
+                  setDeletePasswordInput(e.target.value);
+                  setDeleteError("");
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') confirmDeleteSale(); }}
+                placeholder="Admin password"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: "8px",
+                  border: deleteError ? "1.5px solid #dc2626" : "1.5px solid #e6ded3",
+                  fontSize: "0.95rem",
+                  boxSizing: "border-box",
+                }}
+              />
+              {deleteError && (
+                <p style={{ margin: "8px 0 0 0", fontSize: "0.8rem", color: "#dc2626" }}>{deleteError}</p>
+              )}
+            </div>
+            <div className="modal-actions">
+              <button onClick={closeDeleteModal} className="btn btn-secondary">
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteSale}
+                disabled={isDeleting || !deletePasswordInput}
+                className="btn btn-primary"
+                style={{ background: "#b6412c" }}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Sale'}
               </button>
             </div>
           </div>

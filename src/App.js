@@ -97,7 +97,6 @@ function AppContent() {
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [unlockPassword, setUnlockPassword] = useState("");
   const [unlockError, setUnlockError] = useState("");
-  const [activeOrdersCount, setActiveOrdersCount] = useState(0);
 
   // Router state
   const location = useLocation();
@@ -244,9 +243,12 @@ function AppContent() {
     const db = getFirebaseDb();
     if (!db) return;
 
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
     const q = query(
       collection(db, 'orders'),
-      where('orderStatus', 'in', ['pending_acceptance', 'preparing'])
+      where('createdAt', '>=', startOfToday)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -293,42 +295,6 @@ function AppContent() {
     return () => unsubscribe();
   }, [isAdminUnlocked]);
 
-  // Real-time listener for today's active (unticked) orders count
-  useEffect(() => {
-    if (!isAdminUnlocked) return;
-
-    const db = getFirebaseDb();
-    if (!db) return;
-
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-
-    const q = query(
-      collection(db, 'orders'),
-      where('createdAt', '>=', startOfToday)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      let count = 0;
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.orderStatus === 'cancelled' || data.orderStatus === 'completed') return;
-        
-        // Filter: Only count Cash orders or PAID UPI orders (same as kitchen display filters)
-        const isCash = data.paymentMethod === 'cash';
-        const isPaidUPI = data.paymentMethod === 'upi' && data.paymentStatus === 'paid';
-        if (isCash || isPaidUPI) {
-          count++;
-        }
-      });
-      setActiveOrdersCount(count);
-    }, (error) => {
-      console.error('Active orders count listener error:', error);
-    });
-
-    return () => unsubscribe();
-  }, [isAdminUnlocked]);
-
   // Real-time Firestore sync of active/completed orders to local Dexie database for dashboard/reports
   useEffect(() => {
     if (!isAdminUnlocked) return;
@@ -350,64 +316,54 @@ function AppContent() {
       for (const change of snapshot.docChanges()) {
         if (change.type === 'added' || change.type === 'modified') {
           const order = { id: change.doc.id, ...change.doc.data() };
-          
-          if (order.orderStatus === 'cancelled') {
+
+          const isCash = order.paymentMethod === 'cash';
+          const isPaidUPI = order.paymentMethod === 'upi' && order.paymentStatus === 'paid';
+          if (isCash || isPaidUPI) {
+            let orderDateObj = new Date();
+            if (order.createdAt) {
+              const parsed = order.createdAt.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
+              if (parsed && !isNaN(parsed.getTime())) {
+                orderDateObj = parsed;
+              }
+            }
+            const saleDate = formatDateTimeToString(orderDateObj);
+
+            const saleType = order.orderType === 'delivery'
+              ? 'delivery'
+              : (order.orderType === 'parcel' ? 'parcel' : 'dine_in');
+
+            const saleData = {
+              saleNumber: order.orderNumber,
+              saleType,
+              parcelCharge: order.parcelCharge || 0,
+              tableNumber: order.tableNumber || null,
+              customerName: order.customerName || 'Online Customer',
+              customerPhone: order.customerPhone || '',
+              items: order.items.map((item) => ({
+                productId: Number(item.productId),
+                name: item.name,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                totalPrice: item.totalPrice,
+              })),
+              subtotal: order.totalAmount,
+              taxAmount: 0,
+              discountAmount: 0,
+              totalAmount: order.totalAmount,
+              paymentMethod: order.paymentMethod,
+              saleDate: saleDate,
+              barSettings: null, // Dexie mode fallback
+            };
+
             try {
-              const res = await dbService.deleteSaleByNumber(order.orderNumber);
-              if (res && res.success) {
+              const result = await dbService.createSale(saleData);
+              if (result && !result.alreadyExisted) {
                 hasNewSale = true;
-                console.log(`Removed cancelled order #${order.orderNumber} from local sales database.`);
+                console.log(`Synced order #${order.orderNumber} to local sales database.`);
               }
             } catch (err) {
-              console.error(`Failed to delete cancelled order #${order.orderNumber}:`, err);
-            }
-          } else if (order.orderStatus === 'completed') {
-            // Completed orders: sequential order number was assigned and Dexie updated
-            // by handleCompleteOnlineOrder. Skip here to avoid stock double-deduction.
-          } else {
-            const isCash = order.paymentMethod === 'cash';
-            const isPaidUPI = order.paymentMethod === 'upi' && order.paymentStatus === 'paid';
-            if (isCash || isPaidUPI) {
-              let orderDateObj = new Date();
-              if (order.createdAt) {
-                const parsed = order.createdAt.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
-                if (parsed && !isNaN(parsed.getTime())) {
-                  orderDateObj = parsed;
-                }
-              }
-              const saleDate = formatDateTimeToString(orderDateObj);
-
-              const saleData = {
-                saleNumber: order.orderNumber,
-                saleType: 'parcel',
-                tableNumber: order.tableNumber || null,
-                customerName: order.customerName || 'Online Customer',
-                customerPhone: order.customerPhone || '',
-                items: order.items.map((item) => ({
-                  productId: Number(item.productId),
-                  name: item.name,
-                  quantity: item.quantity,
-                  unitPrice: item.unitPrice,
-                  totalPrice: item.totalPrice,
-                })),
-                subtotal: order.totalAmount,
-                taxAmount: 0,
-                discountAmount: 0,
-                totalAmount: order.totalAmount,
-                paymentMethod: order.paymentMethod,
-                saleDate: saleDate,
-                barSettings: null, // Dexie mode fallback
-              };
-
-              try {
-                const result = await dbService.createSale(saleData);
-                if (result && !result.alreadyExisted) {
-                  hasNewSale = true;
-                  console.log(`Synced order #${order.orderNumber} to local sales database.`);
-                }
-              } catch (err) {
-                console.error(`Failed to sync order #${order.orderNumber} to Dexie:`, err);
-              }
+              console.error(`Failed to sync order #${order.orderNumber} to Dexie:`, err);
             }
           }
         }
@@ -629,22 +585,6 @@ function AppContent() {
                 <ActiveIcon size={18} />
                 {activeMenuItem.name}
               </strong>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {isAdminUnlocked && location.pathname === '/orders' && activeOrdersCount > 0 && (
-                <span style={{ 
-                  color: 'white', 
-                  fontWeight: '800', 
-                  fontSize: '0.9rem',
-                  fontFamily: 'Outfit, sans-serif',
-                  background: '#b6412c',
-                  padding: '4px 10px',
-                  borderRadius: '20px',
-                  boxShadow: '0 2px 8px rgba(182, 65, 44, 0.2)'
-                }}>
-                  {activeOrdersCount}
-                </span>
-              )}
             </div>
           </header>
         )}

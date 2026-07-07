@@ -140,6 +140,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
           id: product.id,
           name: product.name,
           price: product.price,
+          cost: product.cost || 0,
           quantity: 1,
           maxStock: product.counter_stock,
         },
@@ -358,6 +359,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
           name: item.name,
           quantity: item.quantity,
           unitPrice: item.price,
+          costPrice: item.cost || 0,
           totalPrice: item.price * item.quantity,
         })),
         subtotal: calculateSubtotal(),
@@ -369,6 +371,8 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         saleDate: getLocalDateTimeString(),
         barSettings,
       };
+      saleData.total_cost_price = saleData.items.reduce((sum, i) => sum + (i.costPrice * i.quantity), 0);
+      saleData.profit = saleData.totalAmount - saleData.total_cost_price;
 
       await dbService.createSale(saleData);
 

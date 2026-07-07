@@ -8,10 +8,7 @@ import {
   Lock,
   ArrowRight,
   Package,
-  Smartphone,
-  Check,
   X,
-  Bell,
   ChevronLeft,
   ChevronUp,
   Bookmark,
@@ -33,14 +30,11 @@ import malabarLogo from '../assets/malabar-waffle-logo.png';
 import {
   playSuccessFeedback,
   playErrorFeedback,
-  playIncomingOrderChime,
 } from '../utils/feedbackUtils';
 import { getFirebaseDb, getStaffIdToken } from '../firebase';
 import {
   collection,
   addDoc,
-  query,
-  where,
   onSnapshot,
   doc,
   updateDoc,
@@ -76,6 +70,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('upi');
+  const [isParcel, setIsParcel] = useState(false); // ticked = takeaway w/ packing charge; unticked = dine-in
   const [discount, setDiscount] = useState(0);
   const [showDiscountInput, setShowDiscountInput] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -100,10 +95,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const [upiQrPayment, setUpiQrPayment] = useState(null);
   const [upiQrStatus, setUpiQrStatus] = useState('');
   const [cashConfirm, setCashConfirm] = useState(null); // kiosk cash confirmation modal
-
-  // Online Orders State
-  const [onlineOrders, setOnlineOrders] = useState([]);
-  const [showOnlineOrdersModal, setShowOnlineOrdersModal] = useState(false);
   const qrPaymentPendingRef = useRef(false);
 
   // Handle Android Back Button
@@ -126,44 +117,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       }
     };
   }, [activeTab]);
-
-  useEffect(() => {
-    if (isKiosk || !barSettings) return;
-
-    const db = getFirebaseDb();
-    if (!db) return;
-
-    const q = query(
-      collection(db, 'orders'),
-      where('orderStatus', 'in', ['pending_acceptance', 'preparing'])
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (querySnapshot) => {
-        const ordersList = [];
-
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          const order = { id: doc.id, ...data };
-          ordersList.push(order);
-        });
-
-        // Play chime ONLY if the number of orders increased
-        setOnlineOrders((prev) => {
-          if (ordersList.length > prev.length) {
-            playIncomingOrderChime();
-          }
-          return ordersList;
-        });
-      },
-      (error) => {
-        console.error('Error listening to online orders:', error);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [isKiosk, barSettings]);
 
   useEffect(() => {
     loadProducts();
@@ -225,115 +178,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       setProducts(productList);
     } catch (error) {
       setProducts([]);
-    }
-  };
-
-  const handleCancelOnlineOrder = async (order) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to reject and cancel Order #${order.orderNumber}?`
-      )
-    ) {
-      return;
-    }
-    try {
-      const db = getFirebaseDb();
-      if (!db) return;
-
-      const orderRef = doc(db, 'orders', order.id);
-      await updateDoc(orderRef, {
-        orderStatus: 'cancelled',
-      });
-
-      showNotice('warning', `Cancelled Order #${order.orderNumber}.`);
-    } catch (err) {
-      console.error('Failed to cancel online order:', err);
-      alert(`Error cancelling order: ${err.message || err}`);
-    }
-  };
-
-  const handleCompleteOnlineOrder = async (order) => {
-    try {
-      const db = getFirebaseDb();
-      if (!db) return;
-
-      // Guard against double-completion (webhook retry + manual tap at same time)
-      const liveSnap = await getDoc(doc(db, 'orders', order.id));
-      if (liveSnap.data()?.orderStatus === 'completed') return;
-
-      // Assign sequential order number at completion if not already sequential
-      const isWebOrder = order.source === 'web' || (!order.source && order.orderNumber?.startsWith('W-'));
-      const prefix = isWebOrder ? 'W' : 'A';
-      
-      // Matches W-N or A-N — sequential number assigned at completion to avoid skipping on cancellations
-      const hasSequentialNumber = /^[WA]-\d+$/.test(order.orderNumber);
-      let sequentialNumber = order.orderNumber;
-
-      if (!hasSequentialNumber) {
-        // Order has a temp ID (KSK... for kiosk UPI, or similar) — assign sequential number now
-        try {
-          const counterRef = doc(db, 'settings', 'order_counters');
-          await runTransaction(db, async (transaction) => {
-            const counterDoc = await transaction.get(counterRef);
-            const currentCount = counterDoc.exists() ? (counterDoc.data().totalOrders || 0) : 0;
-            const newCount = currentCount + 1;
-            transaction.set(counterRef, { totalOrders: newCount }, { merge: true });
-            sequentialNumber = `${prefix}-${newCount}`;
-          });
-        } catch (err) {
-          console.error('Failed to generate sequential order number:', err);
-          sequentialNumber = `${prefix}-${Date.now().toString().slice(-4)}`;
-        }
-      }
-
-      // Record sale in Dexie for POS reports.
-      // Online orders are never written to Dexie at placement time, so we create
-      // the record here. If a Dexie sale already exists under the old order number
-      // (e.g. a kiosk UPI order) we just rename it; otherwise we create it fresh.
-      try {
-        const updateResult = await dbService.updateSaleNumber(order.orderNumber, sequentialNumber);
-        if (!updateResult?.success) {
-          await dbService.createSale({
-            saleNumber: sequentialNumber,
-            saleType: order.orderType === 'delivery' ? 'delivery' : 'parcel',
-            tableNumber: order.tableNumber || null,
-            customerName: order.customerName || '',
-            customerPhone: order.customerPhone || '',
-            items: (order.items || []).map((item) => ({
-              productId: item.productId,
-              name: item.name,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              totalPrice: item.totalPrice,
-            })),
-            subtotal: order.subtotal || order.totalAmount,
-            taxAmount: 0,
-            discountAmount: order.discountAmount || 0,
-            totalAmount: order.totalAmount,
-            paymentMethod: order.paymentMethod,
-            saleDate: getLocalDateTimeString(),
-            barSettings,
-          });
-        }
-      } catch (err) {
-        console.warn('Failed to record completed order in Dexie:', err);
-      }
-
-      // Update Firestore order to completed with the sequential order number
-      const orderRef = doc(db, 'orders', order.id);
-      await updateDoc(orderRef, {
-        orderStatus: 'completed',
-        orderNumber: sequentialNumber,
-        paymentStatus: 'paid',
-      });
-
-      showNotice(
-        'success',
-        `Completed Order #${sequentialNumber}.`
-      );
-    } catch (err) {
-      console.error('Failed to complete online order:', err);
-      alert(`Error completing order: ${err.message || err}`);
     }
   };
 
@@ -435,6 +279,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           id: product.id,
           name: product.name,
           price: product.price,
+          cost: product.cost || 0,
           image: product.image || '',
           quantity: 1,
           maxStock: product.counter_stock,
@@ -493,9 +338,12 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     return (totalCartItems + 1) / 2;
   }, [isOfferCartOdd, totalCartItems]);
 
+  const PARCEL_CHARGE = barSettings?.parcel_charge ?? 10;
+  const parcelChargeAmount = isParcel ? PARCEL_CHARGE : 0;
+
   const cartTotal = useMemo(() => {
-    return Math.max(0, cartSubtotal - cartDiscountAmount - offerDiscount);
-  }, [cartSubtotal, cartDiscountAmount, offerDiscount]);
+    return Math.max(0, cartSubtotal - cartDiscountAmount - offerDiscount + parcelChargeAmount);
+  }, [cartSubtotal, cartDiscountAmount, offerDiscount, parcelChargeAmount]);
 
   const calculateSubtotal = () => cartSubtotal;
   const calculateDiscountAmount = () => cartDiscountAmount;
@@ -530,12 +378,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     return orderNum;
   };
 
-  const executeSaleWrite = async (selectedMethod, precomputedSaleNumber = null) => {
+  const executeSaleWrite = async (selectedMethod, precomputedSaleNumber = null, overrides = {}) => {
     setLoading(true);
     try {
       const saleData = {
         saleNumber: precomputedSaleNumber || await generateSaleNumber(),
-        saleType: 'parcel',
+        saleType: overrides.saleType ?? (isParcel ? 'parcel' : 'dine_in'),
+        parcelCharge: overrides.parcelCharge ?? parcelChargeAmount,
         tableNumber: null,
         customerName: customerName.trim() || (isKiosk ? 'Kiosk Customer' : 'Walk-in Customer'),
         items: cart.map((item) => ({
@@ -543,6 +392,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           name: item.name,
           quantity: item.quantity,
           unitPrice: item.price,
+          costPrice: item.cost || 0,
           totalPrice: item.price * item.quantity,
         })),
         subtotal: calculateSubtotal(),
@@ -553,6 +403,8 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
         saleDate: getLocalDateTimeString(),
         barSettings,
       };
+      saleData.total_cost_price = saleData.items.reduce((sum, i) => sum + (i.costPrice * i.quantity), 0);
+      saleData.profit = saleData.totalAmount - saleData.total_cost_price;
 
       // Save sale to database
       await dbService.createSale(saleData);
@@ -568,10 +420,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               orderNumber: saleData.saleNumber,
               amount: saleData.totalAmount,
               totalAmount: saleData.totalAmount,
+              subtotal: saleData.subtotal,
               customerName: saleData.customerName,
+              orderType: saleData.saleType,
+              parcelCharge: saleData.parcelCharge,
               paymentStatus: 'paid', // Cash/manual UPI is considered paid immediately
               paymentMethod: saleData.paymentMethod,
-              orderStatus: 'preparing',
+              orderStatus: 'completed',
               createdAt: new Date(),
               source: isKiosk ? 'kiosk' : 'pos',
               items: saleData.items.map((item) => ({
@@ -591,6 +446,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       // Clear cart and customer info
       setCart([]);
       setCustomerName('');
+      setIsParcel(false);
       setDiscount(0);
       setShowDiscountInput(false);
       setActiveTab('menu');
@@ -664,8 +520,8 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     const relayUrl = APP_CONFIG.relayUrl;
     try {
       // Use a timestamp-based tracking ID for the Cashfree API (must be unique per transaction).
-      // The sequential A-N bill number is assigned only when the kitchen COMPLETES the order
-      // in handleCompleteOnlineOrder — this way numbers are never skipped on cancelled payments.
+      // The sequential A-N bill number is assigned only once payment is confirmed
+      // (in completeCashfreePayment below, or by the webhook) — never wasted on abandoned QR codes.
       const cfTrackingId = `KSK${Date.now().toString().slice(-8)}`;
       const amount = calculateTotal();
       setLoading(true);
@@ -734,7 +590,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           cfTrackingId: cfTrackingId,   // Kept for reference
           amount,
           totalAmount: amount,
+          subtotal: calculateSubtotal(),
           customerName: customerName.trim() || 'Kiosk Customer',
+          orderType: isParcel ? 'parcel' : 'dine_in',
+          parcelCharge: parcelChargeAmount,
           paymentStatus: 'pending',
           paymentMethod: 'upi',
           createdAt: new Date(),
@@ -810,14 +669,22 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
       // Check if the webhook already assigned the A-N sequential number
       let billNumber = null;
+      // Persisted at QR-creation time — read back so the Dexie sale matches the
+      // Firestore order even if isParcel was toggled again while payment was pending.
+      let saleOverrides = {};
       try {
         const orderDocRef = cfOrderDocRefRef.current;
         let latestOrderNumber = null;
-        
+
         if (orderDocRef) {
           const latestSnap = await getDoc(orderDocRef);
           if (latestSnap.exists()) {
-            latestOrderNumber = latestSnap.data().orderNumber;
+            const latestData = latestSnap.data();
+            latestOrderNumber = latestData.orderNumber;
+            saleOverrides = {
+              saleType: latestData.orderType,
+              parcelCharge: latestData.parcelCharge,
+            };
           }
         }
 
@@ -831,7 +698,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
             await updateDoc(orderDocRef, {
               orderNumber: billNumber,
               paymentStatus: 'paid',
-              orderStatus: 'preparing',
+              orderStatus: 'completed',
             });
             cfOrderDocRefRef.current = null;
           }
@@ -844,7 +711,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
 
       // Write the local Dexie sale using the same A-N number so records match
       const saleWriter = executeSaleWriteRef.current || executeSaleWrite;
-      await saleWriter('upi', billNumber);
+      await saleWriter('upi', billNumber, saleOverrides);
     }, 1000);
   };
 
@@ -1016,46 +883,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   </span>
                 )}
               </div>
-
-              {!isKiosk && getFirebaseDb() && (
-                <button
-                  onClick={() => setShowOnlineOrdersModal(true)}
-                  style={{
-                    background: onlineOrders.length > 0 ? '#ea580c' : '#1C5C3A',
-                    color: 'white',
-                    padding: '6px 12px',
-                    borderRadius: '999px',
-                    border: 'none',
-                    fontWeight: '700',
-                    fontSize: '0.75rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 10px rgba(0,0,0,0.08)',
-                    transition: 'all 0.2s ease',
-                    flexShrink: 0,
-                  }}
-                >
-                  <Smartphone size={14} />
-                  <span
-                    style={{
-                      background: 'white',
-                      color: onlineOrders.length > 0 ? '#ea580c' : '#1C5C3A',
-                      borderRadius: '50%',
-                      width: '16px',
-                      height: '16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '0.65rem',
-                      fontWeight: '800',
-                    }}
-                  >
-                    {onlineOrders.length}
-                  </span>
-                </button>
-              )}
 
               <button
                 type="button"
@@ -1747,6 +1574,45 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 </div>
               )}
               <div
+                className="summary-line cart-summary-row"
+                onClick={() => setIsParcel((prev) => !prev)}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: '8px',
+                  paddingTop: '8px',
+                  borderTop: '1px solid #e6ded3',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#221f1a', fontWeight: '600' }}>
+                  <span
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '4px',
+                      border: isParcel ? 'none' : '1.5px solid #d1d5db',
+                      background: isParcel ? '#b6412c' : '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ffffff',
+                      fontSize: '0.65rem',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {isParcel && '✓'}
+                  </span>
+                  📦 Parcel
+                </span>
+                <span style={{ color: '#7f766a', fontWeight: '700' }}>
+                  +{formatCurrency(PARCEL_CHARGE)}
+                </span>
+              </div>
+              <div
                 className="summary-line total cart-summary-total"
                 style={{
                   marginTop: '8px',
@@ -2051,316 +1917,6 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 onClick={() => setCashConfirm(null)}
               >
                 Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Online Orders Live Modal */}
-      {showOnlineOrdersModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-          }}
-        >
-          <div
-            style={{
-              background: 'white',
-              borderRadius: '16px',
-              width: '650px',
-              maxWidth: '90%',
-              maxHeight: '85vh',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 15px 30px rgba(0,0,0,0.15)',
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                padding: '20px',
-                borderBottom: '1px solid #e2e8f0',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                background: '#1C5C3A',
-                color: 'white',
-              }}
-            >
-              <h3
-                style={{
-                  margin: 0,
-                  fontSize: '1.2rem',
-                  fontWeight: '700',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <Bell size={20} />
-                Live Online Orders ({onlineOrders.length})
-              </h3>
-              <button
-                onClick={() => setShowOnlineOrdersModal(false)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'white',
-                  fontSize: '1.5rem',
-                  cursor: 'pointer',
-                  lineHeight: 1,
-                }}
-              >
-                &times;
-              </button>
-            </div>
-
-            <div
-              style={{
-                padding: '20px',
-                overflowY: 'auto',
-                flex: 1,
-                background: '#f8fafc',
-              }}
-            >
-              {onlineOrders.length === 0 ? (
-                <div
-                  style={{
-                    textAlign: 'center',
-                    padding: '40px 20px',
-                    color: '#64748b',
-                  }}
-                >
-                  <Smartphone
-                    size={48}
-                    style={{ margin: '0 auto 12px auto', opacity: 0.5 }}
-                  />
-                  <p style={{ margin: 0, fontWeight: '600' }}>
-                    No active online orders
-                  </p>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem' }}>
-                    Orders placed by customers from their mobile browsers will
-                    show up here.
-                  </p>
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '16px',
-                  }}
-                >
-                  {onlineOrders.map((order) => (
-                    <div
-                      key={order.id}
-                      style={{
-                        background: 'white',
-                        borderRadius: '12px',
-                        border: '1px solid #e2e8f0',
-                        padding: '16px',
-                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)',
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginBottom: '12px',
-                          borderBottom: '1px solid #f1f5f9',
-                          paddingBottom: '10px',
-                        }}
-                      >
-                        <div>
-                          <strong
-                            style={{ fontSize: '1.05rem', color: '#1e293b' }}
-                          >
-                            Order #{order.orderNumber}
-                          </strong>
-                          <span
-                            style={{
-                              marginLeft: '10px',
-                              padding: '2px 8px',
-                              borderRadius: '12px',
-                              fontSize: '0.75rem',
-                              fontWeight: '600',
-                              background: '#dcfce7',
-                              color: '#15803d',
-                            }}
-                          >
-                            Preparing
-                          </span>
-                        </div>
-                        <span
-                          style={{
-                            fontSize: '0.85rem',
-                            color: '#64748b',
-                            fontWeight: '500',
-                          }}
-                        >
-                          Table:{' '}
-                          <strong style={{ color: '#1C5C3A' }}>
-                            {order.tableNumber}
-                          </strong>
-                        </span>
-                      </div>
-
-                      <div style={{ marginBottom: '12px' }}>
-                        <span
-                          style={{
-                            fontSize: '0.85rem',
-                            color: '#64748b',
-                            display: 'block',
-                          }}
-                        >
-                          Customer: <strong>{order.customerName}</strong>
-                        </span>
-                      </div>
-
-                      <div style={{ marginBottom: '16px' }}>
-                        <strong
-                          style={{
-                            fontSize: '0.9rem',
-                            color: '#475569',
-                            display: 'block',
-                            marginBottom: '6px',
-                          }}
-                        >
-                          Items:
-                        </strong>
-                        <div
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '4px',
-                            paddingLeft: '8px',
-                          }}
-                        >
-                          {order.items.map((item, idx) => (
-                            <div
-                              key={idx}
-                              style={{
-                                fontSize: '0.9rem',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                              }}
-                            >
-                              <span>
-                                {item.name}{' '}
-                                <span style={{ color: '#64748b' }}>
-                                  x{item.quantity}
-                                </span>
-                              </span>
-                              <strong>{formatCurrency(item.totalPrice || (item.unitPrice * item.quantity) || 0)}</strong>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          borderTop: '1px solid #f1f5f9',
-                          paddingTop: '12px',
-                        }}
-                      >
-                        <div>
-                          <span
-                            style={{ fontSize: '0.85rem', color: '#64748b' }}
-                          >
-                            Total Paid via {order.paymentMethod.toUpperCase()}
-                            :{' '}
-                          </span>
-                          <strong
-                            style={{ fontSize: '1.1rem', color: '#1C5C3A' }}
-                          >
-                            {formatCurrency(order.totalAmount || order.amount || 0)}
-                          </strong>
-                          <span
-                            style={{
-                              marginLeft: '8px',
-                              fontSize: '0.75rem',
-                              fontWeight: 'bold',
-                              color:
-                                order.paymentStatus === 'paid'
-                                  ? '#16a34a'
-                                  : '#dc2626',
-                            }}
-                          >
-                            (
-                            {order.paymentStatus === 'paid'
-                              ? 'Paid Online'
-                              : 'Pay Cash'}
-                            )
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                            onClick={() => handleCancelOnlineOrder(order)}
-                            className="btn btn-sm btn-danger"
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              padding: '6px 12px',
-                              fontSize: '0.8rem',
-                            }}
-                          >
-                            <X size={14} /> Cancel
-                          </button>
-                          <button
-                            onClick={() => handleCompleteOnlineOrder(order)}
-                            className="btn btn-sm btn-primary"
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              padding: '6px 16px',
-                              fontSize: '0.8rem',
-                              background: '#EAB308',
-                              color: '#1e293b',
-                            }}
-                          >
-                            <Check size={14} /> Complete Order
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div
-              style={{
-                padding: '15px 20px',
-                borderTop: '1px solid #e2e8f0',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                background: '#f1f5f9',
-              }}
-            >
-              <button
-                onClick={() => setShowOnlineOrdersModal(false)}
-                className="btn btn-secondary"
-                style={{ padding: '8px 20px' }}
-              >
-                Close Window
               </button>
             </div>
           </div>

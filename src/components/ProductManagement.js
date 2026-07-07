@@ -60,6 +60,7 @@ const ProductManagement = () => {
           dietary_type: p.dietary_type || "veg",
           available: true,
           out_of_stock: p.out_of_stock || false,
+          cost: Number(p.cost) || 0,
         });
       });
 
@@ -105,6 +106,7 @@ const ProductManagement = () => {
     const [formData, setFormData] = useState({
       name: product?.name || '',
       price: product?.price || '',
+      cost: product?.cost ?? '',
       image: product?.image || '',
       category: product?.category || '',
       description: product?.description || '',
@@ -163,7 +165,7 @@ const ProductManagement = () => {
         const productData = {
           ...formData,
           sku: product?.sku || `PROD-${Date.now()}`,
-          cost: product?.cost !== undefined ? product.cost : 0,
+          cost: parseFloat(formData.cost) >= 0 ? parseFloat(formData.cost) : 0,
           unit: product?.unit || 'pcs',
           variant: product?.variant || '',
           category: formData.category || 'General',
@@ -551,7 +553,42 @@ const ProductManagement = () => {
                 </div>
               </div>
 
-              {/* 4. Description */}
+              {/* 4. Cost Price */}
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '4px',
+                    fontWeight: '600',
+                    fontSize: '0.85rem',
+                    color: '#344054',
+                  }}
+                >
+                  Cost Price (₹)
+                </label>
+                <input
+                  type="number"
+                  value={formData.cost}
+                  onChange={(e) => handleInputChange('cost', e.target.value)}
+                  min="0"
+                  step="0.01"
+                  placeholder="0 — leave blank if unknown"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #d0d5dd',
+                    fontSize: '0.95rem',
+                    background: 'white',
+                    transition: 'border-color 0.2s',
+                  }}
+                />
+                <div style={{ fontSize: '0.73rem', color: '#94837a', marginTop: '3px' }}>
+                  Used for profit calculations in Reports. Not shown to customers.
+                </div>
+              </div>
+
+              {/* 5. Description */}
               <div className="form-group" style={{ marginBottom: '12px' }}>
                 <label
                   style={{

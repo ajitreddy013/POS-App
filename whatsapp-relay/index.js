@@ -331,6 +331,7 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
     discountAmount = 0,
     taxAmount = 0,
     deliveryFee = 0,
+    parcelCharge = 0,
     orderType = 'dine_in',
     deliveryAddress = null,
   } = orderData;
@@ -416,6 +417,9 @@ function buildUnifiedReceiptMessage(shopName, settings, orderData) {
     }
     if (deliveryFee > 0) {
       summaryList += '\n' + 'Delivery'.padEnd(15) + fmtAmt(deliveryFee);
+    }
+    if (parcelCharge > 0) {
+      summaryList += '\n' + 'Parcel'.padEnd(15) + fmtAmt(parcelCharge);
     }
     summaryList +=
       `\n${dividerRow}\n` + 'TOTAL'.padEnd(15) + fmtAmt(totalAmount, '₹');
@@ -749,7 +753,10 @@ async function computeAuthoritativeOrderAmount(db, orderData) {
   );
   const subtotal = prices.reduce((sum, lineTotal) => sum + lineTotal, 0);
   const total =
-    subtotal + Number(orderData.deliveryFee || 0) - Number(orderData.discountAmount || 0);
+    subtotal +
+    Number(orderData.deliveryFee || 0) +
+    Number(orderData.parcelCharge || 0) -
+    Number(orderData.discountAmount || 0);
   return Math.max(Number(total.toFixed(2)), 0);
 }
 
@@ -1267,7 +1274,7 @@ app.post('/payment/cashfree/webhook', webhookRateLimit, async (req, res) => {
                   transaction.set(counterRef, { totalOrders: nextCount }, { merge: true });
                   transaction.update(orderRef, {
                     paymentStatus: 'paid',
-                    orderStatus: 'pending_acceptance',
+                    orderStatus: 'completed',
                     whatsappSent: true,
                     orderNumber: `${prefix}-${nextCount}`,
                   });
@@ -1284,14 +1291,14 @@ app.post('/payment/cashfree/webhook', webhookRateLimit, async (req, res) => {
                 // Already has a sequential number — just mark it paid.
                 await doc.ref.update({
                   paymentStatus: 'paid',
-                  orderStatus: 'pending_acceptance',
+                  orderStatus: 'completed',
                   whatsappSent: true,
                   orderNumber: realOrderNumber,
                 });
               }
 
               console.log(
-                `Updated Firestore Order ID: ${doc.id} paymentStatus to "paid", orderStatus to "pending_acceptance", orderNumber to "${realOrderNumber}"`
+                `Updated Firestore Order ID: ${doc.id} paymentStatus to "paid", orderStatus to "completed", orderNumber to "${realOrderNumber}"`
               );
 
               if (connectionStatus === 'CONNECTED' && sock) {
@@ -1387,6 +1394,7 @@ app.post('/payment/send-confirmation', async (req, res) => {
     discountAmount,
     taxAmount,
     deliveryFee,
+    parcelCharge,
     orderType,
     deliveryAddress,
   } = req.body;
@@ -1426,6 +1434,7 @@ app.post('/payment/send-confirmation', async (req, res) => {
         discountAmount,
         taxAmount,
         deliveryFee: deliveryFee || 0,
+        parcelCharge: parcelCharge || 0,
         orderType: orderType || 'dine_in',
         deliveryAddress: deliveryAddress || null,
       }
@@ -1558,8 +1567,7 @@ function startOrderWhatsAppWatcher() {
         const needsFCM =
           !data.fcmSent &&
           !fcmProcessedIds.has(docId) &&
-          (data.orderStatus === 'pending_acceptance' || data.orderStatus === 'preparing') &&
-          (data.paymentMethod !== 'upi' || data.paymentStatus === 'paid');
+          data.orderStatus === 'completed';
 
         if (needsFCM) {
           fcmProcessedIds.add(docId);
@@ -1575,7 +1583,7 @@ function startOrderWhatsAppWatcher() {
 
         const needsWhatsApp =
           data.paymentStatus === 'paid' ||
-          (data.orderStatus === 'pending_acceptance' &&
+          (data.orderStatus === 'completed' &&
             data.paymentMethod !== 'upi');
 
         if (!needsWhatsApp || !data.customerPhone) return;

@@ -28,6 +28,50 @@ const getElapsedString = (createdAt) => {
   return `${diffMins} mins ago`;
 };
 
+// Single source of truth for order-type theming — add a new order type here
+// rather than threading a new ternary branch through every color/border below.
+const ORDER_TYPE_THEME = {
+  delivery: {
+    cardBg: '#faf5ff',
+    cardBorder: '1.5px solid #d8b4fe',
+    cardBorderSelected: '2.5px solid #7e22ce',
+    shadowSelected: '0 4px 10px rgba(126,34,206,0.12)',
+    accent: '#7e22ce',
+    boxBorder: '#e9d5ff',
+    boxBg: '#f3e8ff',
+    badgeBg: '#f3e8ff',
+    badgeColor: '#7e22ce',
+    statusBar: '#7e22ce',
+  },
+  parcel: {
+    cardBg: '#fffbeb',
+    cardBorder: '1.5px solid #fde68a',
+    cardBorderSelected: '2.5px solid #b45309',
+    shadowSelected: '0 4px 10px rgba(180,83,9,0.12)',
+    accent: '#b45309',
+    boxBorder: '#fde68a',
+    boxBg: '#fef3c7',
+    badgeBg: '#fef3c7',
+    badgeColor: '#b45309',
+    statusBar: '#b45309',
+  },
+  default: {
+    cardBg: '#ffffff',
+    cardBorder: '1.5px solid #e6ded3',
+    cardBorderSelected: '2.5px solid #b6412c',
+    shadowSelected: '0 4px 10px rgba(182,65,44,0.08)',
+    accent: '#b6412c',
+    boxBorder: '#f2e7db',
+    boxBg: '#fbf7f4',
+    badgeBg: null,
+    badgeColor: null,
+    statusBar: '#1c8d3c',
+  },
+};
+
+const getOrderTypeTheme = (orderType) =>
+  ORDER_TYPE_THEME[orderType] || ORDER_TYPE_THEME.default;
+
 const LiveOrdersScreen = () => {
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -95,7 +139,6 @@ const LiveOrdersScreen = () => {
         const list = [];
         querySnapshot.forEach((doc) => {
           const data = doc.data();
-          if (data.orderStatus === 'cancelled') return;
 
           // Client-side date guard — reject any order not from today
           const createdMs = data.createdAt?.toMillis
@@ -202,38 +245,22 @@ const LiveOrdersScreen = () => {
               {orders.map((order) => {
                 const isSelected = selectedOrder?.id === order.id;
                 const isDelivery = order.orderType === 'delivery';
+                const isParcel = order.orderType === 'parcel';
                 const isWeb = order.source === 'web' || (!order.source && order.orderNumber?.startsWith('W-'));
-                const isCompleted = order.orderStatus === 'completed';
-                // Auto-tick completed orders; manual ticks also count
-                const isTicked = tickedOrders.has(order.id) || isCompleted;
+                const isTicked = tickedOrders.has(order.id);
+                const theme = getOrderTypeTheme(order.orderType);
 
                 return (
                   <div key={order.id} style={{ position: 'relative' }}>
                     <div
                       onClick={() => setSelectedOrder(order)}
                       style={{
-                        background: isDelivery
-                          ? '#faf5ff'
-                          : isCompleted
-                            ? '#f3f4f6'
-                            : '#ffffff',
+                        background: theme.cardBg,
                         borderRadius: '10px',
-                        border: isSelected
-                          ? isDelivery
-                            ? '2.5px solid #7e22ce'
-                            : '2.5px solid #b6412c'
-                          : isDelivery
-                            ? '1.5px solid #d8b4fe'
-                            : isCompleted
-                              ? '1.5px dashed #ccc'
-                              : '1.5px solid #e6ded3',
+                        border: isSelected ? theme.cardBorderSelected : theme.cardBorder,
                         padding: '10px 44px 10px 10px',
                         cursor: 'pointer',
-                        boxShadow: isSelected
-                          ? isDelivery
-                            ? '0 4px 10px rgba(126,34,206,0.12)'
-                            : '0 4px 10px rgba(182,65,44,0.08)'
-                          : '0 2px 6px rgba(0,0,0,0.01)',
+                        boxShadow: isSelected ? theme.shadowSelected : '0 2px 6px rgba(0,0,0,0.01)',
                         transition: 'all 0.25s',
                         position: 'relative',
                         filter: isTicked ? 'blur(2px)' : 'none',
@@ -258,21 +285,21 @@ const LiveOrdersScreen = () => {
                             gap: '6px',
                           }}
                         >
-                          {isDelivery && (
+                          {(isDelivery || isParcel) && (
                             <span
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '2px',
-                                background: '#f3e8ff',
-                                color: '#7e22ce',
+                                background: theme.badgeBg,
+                                color: theme.badgeColor,
                                 padding: '1px 6px',
                                 borderRadius: '4px',
                                 fontSize: '0.65rem',
                                 fontWeight: '700',
                               }}
                             >
-                              🛵 Delivery
+                              {isDelivery ? '🛵 Delivery' : '📦 Parcel'}
                             </span>
                           )}
                           {isWeb ? (
@@ -344,20 +371,6 @@ const LiveOrdersScreen = () => {
                             alignItems: 'center',
                           }}
                         >
-                          {isCompleted && (
-                            <span
-                              style={{
-                                background: '#dcfce7',
-                                color: '#15803d',
-                                padding: '1px 4px',
-                                borderRadius: '3px',
-                                fontSize: '0.6rem',
-                                fontWeight: '700',
-                              }}
-                            >
-                              DONE
-                            </span>
-                          )}
                           <strong
                             style={{
                               color:
@@ -377,23 +390,19 @@ const LiveOrdersScreen = () => {
                         style={{
                           fontSize: '0.8rem',
                           color: '#221f1a',
-                          background: isDelivery
-                            ? '#f3e8ff'
-                            : isCompleted
-                              ? '#e9ecef'
-                              : '#fbf7f4',
+                          background: theme.boxBg,
                           padding: '6px 8px',
                           borderRadius: '6px',
-                          border: `1px solid ${isDelivery ? '#e9d5ff' : '#f2e7db'}`,
+                          border: `1px solid ${theme.boxBorder}`,
                         }}
                       >
                         <div
                           style={{
                             fontWeight: '700',
                             fontSize: '0.75rem',
-                            color: isDelivery ? '#7e22ce' : '#7f766a',
+                            color: isDelivery || isParcel ? theme.accent : '#7f766a',
                             marginBottom: '4px',
-                            borderBottom: `1px solid ${isDelivery ? '#e9d5ff' : '#f2e7db'}`,
+                            borderBottom: `1px solid ${theme.boxBorder}`,
                             paddingBottom: '2px',
                           }}
                         >
@@ -424,7 +433,7 @@ const LiveOrdersScreen = () => {
                         ))}
                         <div
                           style={{
-                            borderTop: `1px solid ${isDelivery ? '#e9d5ff' : '#f2e7db'}`,
+                            borderTop: `1px solid ${theme.boxBorder}`,
                             marginTop: '4px',
                             paddingTop: '4px',
                             display: 'flex',
@@ -434,11 +443,7 @@ const LiveOrdersScreen = () => {
                           }}
                         >
                           <span>Total:</span>
-                          <span
-                            style={{
-                              color: isDelivery ? '#7e22ce' : '#b6412c',
-                            }}
-                          >
+                          <span style={{ color: theme.accent }}>
                             {formatCurrency(order.totalAmount || order.amount || 0)}
                           </span>
                         </div>
@@ -454,13 +459,7 @@ const LiveOrdersScreen = () => {
                           width: '4px',
                           borderTopLeftRadius: '10px',
                           borderBottomLeftRadius: '10px',
-                          background: isDelivery
-                            ? '#7e22ce'
-                            : isCompleted
-                              ? '#7f766a'
-                              : order.orderStatus === 'pending_acceptance'
-                                ? '#e2a106'
-                                : '#1c8d3c',
+                          background: theme.statusBar,
                         }}
                       />
                     </div>
@@ -512,7 +511,7 @@ const LiveOrdersScreen = () => {
               style={{
                 background: '#ffffff',
                 borderRadius: '12px',
-                border: `1.5px solid ${selectedOrder.orderType === 'delivery' ? '#d8b4fe' : '#e6ded3'}`,
+                border: getOrderTypeTheme(selectedOrder.orderType).cardBorder,
                 padding: '16px',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
                 maxHeight: 'calc(100dvh - 140px)',
@@ -631,6 +630,16 @@ const LiveOrdersScreen = () => {
                     Name:{' '}
                     <strong style={{ color: '#221f1a' }}>
                       {selectedOrder.customerName || 'Customer'}
+                    </strong>
+                  </div>
+                  <div>
+                    Type:{' '}
+                    <strong style={{ color: '#221f1a' }}>
+                      {selectedOrder.orderType === 'delivery'
+                        ? 'Delivery'
+                        : selectedOrder.orderType === 'parcel'
+                        ? 'Parcel'
+                        : 'Dine In'}
                     </strong>
                   </div>
                   {selectedOrder.orderType === 'delivery' && selectedOrder.customerPhone && (
@@ -824,6 +833,43 @@ const LiveOrdersScreen = () => {
                       {selectedOrder.deliveryFee === 0
                         ? 'Free'
                         : formatCurrency(selectedOrder.deliveryFee)}
+                    </span>
+                  </div>
+                )}
+                {selectedOrder.orderType === 'parcel' &&
+                  selectedOrder.parcelCharge > 0 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: '0.85rem',
+                        color: '#7f766a',
+                        marginBottom: '4px',
+                      }}
+                    >
+                      <span>Subtotal</span>
+                      <span>
+                        {formatCurrency(
+                          selectedOrder.subtotal ||
+                            (selectedOrder.totalAmount || selectedOrder.amount || 0) -
+                              (selectedOrder.parcelCharge || 0)
+                        )}
+                      </span>
+                    </div>
+                  )}
+                {selectedOrder.orderType === 'parcel' && selectedOrder.parcelCharge > 0 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '0.85rem',
+                      color: '#7f766a',
+                      marginBottom: '6px',
+                    }}
+                  >
+                    <span>Parcel charge</span>
+                    <span style={{ color: '#b45309', fontWeight: '700' }}>
+                      {formatCurrency(selectedOrder.parcelCharge)}
                     </span>
                   </div>
                 )}

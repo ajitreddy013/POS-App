@@ -22,6 +22,7 @@ const Settings = () => {
     delivery_min_order: 300,
     delivery_start_time: '16:00',
     delivery_end_time: '22:00',
+    parcel_charge: 10,
     offer_enabled: false,
     offer_dates: [],
   });
@@ -334,6 +335,7 @@ const Settings = () => {
             delivery_free_above: barSettings.delivery_min_order ?? 300,
             delivery_start_time: barSettings.delivery_start_time || '16:00',
             delivery_end_time: barSettings.delivery_end_time || '22:00',
+            parcel_charge: barSettings.parcel_charge ?? 10,
             offer_enabled: barSettings.offer_enabled || false,
             offer_dates: barSettings.offer_dates || [],
           }, { merge: true });
@@ -909,6 +911,20 @@ const Settings = () => {
               </div>
             </>
           )}
+          <div className="cfg-field-group">
+            <label className="cfg-label">Parcel Charge (₹)</label>
+            <input
+              type="number"
+              className="cfg-input"
+              style={{ maxWidth: '140px' }}
+              value={barSettings.parcel_charge ?? ''}
+              min={0}
+              onFocus={e => e.target.select()}
+              onChange={e => handleBarSettingsChange('parcel_charge', e.target.value === '' ? '' : Number(e.target.value))}
+              onBlur={e => { if (e.target.value === '') handleBarSettingsChange('parcel_charge', 0); }}
+            />
+            <p className="cfg-hint">Added when a dine-in order is ticked as Parcel (website &amp; kiosk).</p>
+          </div>
           <div>
             <button onClick={saveBarSettings} disabled={loading} className="cfg-btn cfg-btn-primary">
               <Save size={14} />
