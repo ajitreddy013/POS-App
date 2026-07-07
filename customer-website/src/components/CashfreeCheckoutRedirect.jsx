@@ -16,7 +16,7 @@ const CashfreeCheckoutRedirect = () => {
       return;
     }
 
-    const triggerCheckout = () => {
+    const triggerCheckout = async () => {
       if (!window.Cashfree) {
         setError('Cashfree payment gateway SDK failed to load. Please refresh the page.');
         setLoading(false);
@@ -27,10 +27,15 @@ const CashfreeCheckoutRedirect = () => {
         const cashfree = window.Cashfree({
           mode: env
         });
-        cashfree.checkout({
+        const result = await cashfree.checkout({
           paymentSessionId: sessionId,
           redirectTarget: '_self'
         });
+        // redirectTarget: '_self' normally navigates away before this resolves;
+        // reaching here with an error means Cashfree rejected the session instead.
+        if (result?.error) {
+          throw new Error(result.error.message || 'Cashfree rejected the payment session.');
+        }
       } catch (err) {
         console.error('Cashfree SDK initiation failed:', err);
         setError(err.message || 'Failed to launch payment checkout.');
