@@ -285,13 +285,15 @@ const SalesReports = () => {
       cursorY += boxHeight + 10;
 
       // ── Sales table ──
-      const tableColumn = ["Sale #", "Customer", "Date", "Payment", "Amount"];
+      const tableColumn = ["Sale #", "Customer", "Date", "Payment", "Cost Price", "Sale Price", "Profit"];
       const tableRows = sales.map((sale) => [
         sale.sale_number || sale.saleNumber,
         sale.customer_name || sale.customerName || "Walk-in",
         formatDateForDisplay(sale.sale_date || sale.saleDate),
         (sale.payment_method || sale.paymentMethod || "").toUpperCase(),
+        parseFloat(sale.total_cost_price || 0).toFixed(2),
         parseFloat(sale.total_amount || sale.totalAmount || 0).toFixed(2),
+        parseFloat(sale.profit || 0).toFixed(2),
       ]);
 
       const drawFooter = () => {
@@ -310,8 +312,14 @@ const SalesReports = () => {
         styles: { fontSize: 9, cellPadding: 3, textColor: [51, 65, 85], lineColor: [241, 245, 249], lineWidth: 0.15 },
         headStyles: { fillColor: BRAND, textColor: 255, fontStyle: "bold", fontSize: 9 },
         alternateRowStyles: { fillColor: [253, 251, 247] },
-        columnStyles: { 4: { halign: "right" } },
-        foot: [["", "", "", { content: "Total Revenue", styles: { halign: "right" } }, { content: `Rs ${totalRevenue.toFixed(2)}`, styles: { halign: "right" } }]],
+        columnStyles: { 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" } },
+        foot: [[
+          "", "", "",
+          { content: "Total", styles: { halign: "right" } },
+          { content: `Rs ${totalCost.toFixed(2)}`, styles: { halign: "right" } },
+          { content: `Rs ${totalRevenue.toFixed(2)}`, styles: { halign: "right" } },
+          { content: `Rs ${totalProfit.toFixed(2)}`, styles: { halign: "right" } },
+        ]],
         footStyles: { fillColor: [248, 250, 252], textColor: [15, 23, 42], fontStyle: "bold", fontSize: 9.5, lineWidth: 0.15, lineColor: [226, 232, 240] },
         didDrawPage: drawFooter,
       });
@@ -567,8 +575,7 @@ const SalesReports = () => {
         .rpt-summary-value.dark { color: #221f1a; }
         .rpt-summary-value.red { color: #b6412c; }
         .rpt-summary-value.purple { color: #7c3aed; }
-        .rpt-profit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .rpt-profit-full { grid-column: 1 / -1; }
+        .rpt-profit-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
         .rpt-profit-note { font-size: 0.7rem; color: #94837a; padding: 8px 12px 12px; text-align: center; }
         .rpt-summary-sub { font-size: 0.68rem; color: #94837a; font-weight: 600; }
 
@@ -700,17 +707,17 @@ const SalesReports = () => {
               <div style={{ padding: '0 12px 12px' }}>
                 <div className="rpt-profit-grid">
                   <div className="rpt-summary-card">
-                    <div className="rpt-summary-label">Revenue</div>
+                    <div className="rpt-summary-label">Cost Price</div>
+                    <div className="rpt-summary-value red">₹{totalCost.toFixed(0)}</div>
+                    <div className="rpt-summary-sub">cost of goods</div>
+                  </div>
+                  <div className="rpt-summary-card">
+                    <div className="rpt-summary-label">Selling Price</div>
                     <div className="rpt-summary-value dark">₹{totalRevenue.toFixed(0)}</div>
                     <div className="rpt-summary-sub">{totalTransactions} orders</div>
                   </div>
                   <div className="rpt-summary-card">
-                    <div className="rpt-summary-label">Total Cost</div>
-                    <div className="rpt-summary-value red">₹{totalCost.toFixed(0)}</div>
-                    <div className="rpt-summary-sub">cost of goods</div>
-                  </div>
-                  <div className="rpt-summary-card rpt-profit-full">
-                    <div className="rpt-summary-label">Gross Profit</div>
+                    <div className="rpt-summary-label">Profit</div>
                     <div className="rpt-summary-value purple">₹{totalProfit.toFixed(0)}</div>
                     <div className="rpt-summary-sub">Margin: {profitMargin}%</div>
                   </div>
