@@ -34,7 +34,7 @@
  */
 
 // React core imports
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { HashRouter as Router, Routes, Route, Link, useLocation, Navigate, useNavigate } from "react-router-dom";
 import { getFirebaseDb, ensureStaffAuth } from "./firebase";
 import { collection, query, where, onSnapshot, serverTimestamp } from "firebase/firestore";
@@ -103,6 +103,7 @@ function AppContent() {
   const navigate = useNavigate();
 
   const [globalNotice, setGlobalNotice] = useState(null);
+  const notifiedOrderIdsRef = useRef(new Set());
 
   // Register service worker once on mount
   useEffect(() => {
@@ -257,19 +258,33 @@ function AppContent() {
       let newOrderIsDelivery = false;
 
       snapshot.docChanges().forEach((change) => {
+        if (change.type !== 'added' && change.type !== 'modified') return;
+
+        const orderData = change.doc.data();
+
+        // Skip pre-payment placeholders (T- ticket, awaiting_payment) — only
+        // notify once an order is actually placed (paid, or cash/COD).
+        if (orderData.orderStatus !== 'completed') return;
+
+        const docId = change.doc.id;
+        if (notifiedOrderIdsRef.current.has(docId)) return;
+
+        // 'added' fires for the whole existing result set on first attach/reconnect,
+        // not just genuinely new docs — use recency to filter out that backlog.
+        // 'modified' only ever fires for a real change while subscribed (e.g. a UPI
+        // order's webhook flipping it to completed, possibly minutes after creation),
+        // so it's always safe to notify on regardless of createdAt.
         if (change.type === 'added') {
-          const orderData = change.doc.data();
           const createdAt = orderData.createdAt?.toDate ? orderData.createdAt.toDate() : new Date(orderData.createdAt);
           const diffMs = Date.now() - createdAt.getTime();
-
-          // Only notify for orders placed in the last 2 minutes to prevent spamming on reload/reconnect
-          if (diffMs < 120000) {
-            hasNewOrder = true;
-            newOrderNumber = orderData.orderNumber;
-            newOrderIsDelivery = orderData.orderType === 'delivery';
-            showSystemNotification(orderData);
-          }
+          if (diffMs >= 120000) return;
         }
+
+        notifiedOrderIdsRef.current.add(docId);
+        hasNewOrder = true;
+        newOrderNumber = orderData.orderNumber;
+        newOrderIsDelivery = orderData.orderType === 'delivery';
+        showSystemNotification(orderData);
       });
 
       if (hasNewOrder && newOrderNumber) {
