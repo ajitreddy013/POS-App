@@ -589,6 +589,46 @@ app.post('/auth/grant-staff', grantStaffRateLimit, async (req, res) => {
   }
 });
 
+const deleteOrderRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,             // an admin-only, deliberately infrequent action
+  message: { success: false, error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Deletes the Firestore order doc matching an orderNumber. firestore.rules
+// hard-blocks client-side order deletes ("allow delete: if false") to protect
+// order history — this uses the Admin SDK, which bypasses rules entirely, so
+// it's gated by the same POS_DEVICE_KEY as /auth/grant-staff instead. The POS
+// app only calls this after its own admin-password confirmation modal.
+app.post('/order/delete', deleteOrderRateLimit, async (req, res) => {
+  const { orderNumber, deviceKey } = req.body;
+  const expectedKey = process.env.POS_DEVICE_KEY;
+
+  if (!orderNumber || !deviceKey) {
+    return res.status(400).json({ success: false, error: 'Missing orderNumber or deviceKey.' });
+  }
+  if (!expectedKey || deviceKey !== expectedKey) {
+    return res.status(401).json({ success: false, error: 'Invalid device key.' });
+  }
+  if (!firebaseInitialized) {
+    return res.status(503).json({ success: false, error: 'Firebase Admin not initialized.' });
+  }
+
+  try {
+    const db = getFirestore();
+    const snap = await db.collection('orders').where('orderNumber', '==', orderNumber).get();
+    const batch = db.batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    res.json({ success: true, deletedCount: snap.size });
+  } catch (err) {
+    console.error('Failed to delete order:', err.message);
+    res.status(500).json({ success: false, error: err.message || 'Failed to delete order.' });
+  }
+});
+
 // Send WhatsApp Receipt
 app.post('/send', sendRateLimit, async (req, res) => {
   const { to, message } = req.body;

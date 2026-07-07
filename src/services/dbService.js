@@ -2,6 +2,7 @@ import Dexie from "dexie";
 import { getLocalDateTimeString } from "../utils/dateUtils";
 import { getFirebaseDb, ensureStaffAuth } from "../firebase";
 import { collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, updateDoc } from "firebase/firestore";
+import { APP_CONFIG } from "../config";
 
 // Check if running inside Electron
 const isElectron = typeof window !== "undefined" && !!window.electronAPI;
@@ -255,18 +256,26 @@ export const dbService = {
         // Delete sale
         await db.sales.delete(sale.id);
 
-        // Delete the Firestore mirror and the matching order doc
+        // Delete the Firestore sales mirror (client SDK — allowed by rules for staff)
         try {
           const firestoreDb = getFirebaseDb();
           if (firestoreDb) {
             await deleteDoc(doc(firestoreDb, 'sales', String(saleNumber))).catch(() => {});
-
-            const orderSnap = await getDocs(query(collection(firestoreDb, 'orders'), where('orderNumber', '==', saleNumber)));
-            for (const orderDoc of orderSnap.docs) {
-              await deleteDoc(orderDoc.ref);
-            }
           }
-        } catch (e) { console.warn('Firestore sale/order delete failed:', e); }
+        } catch (e) { console.warn('Firestore sale delete failed:', e); }
+
+        // Delete the matching order doc via the relay's Admin SDK — firestore.rules
+        // hard-blocks client-side order deletes, so this can't go through the client SDK.
+        try {
+          const deviceKey = process.env.REACT_APP_POS_DEVICE_KEY;
+          if (deviceKey) {
+            await fetch(`${APP_CONFIG.relayUrl}/order/delete`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orderNumber: saleNumber, deviceKey }),
+            });
+          }
+        } catch (e) { console.warn('Relay order delete failed:', e); }
 
         return { success: true };
       }
