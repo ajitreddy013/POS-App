@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS = {
   delivery_enabled: false,
   delivery_fee: 30,
   delivery_free_above: 300,
+  parcel_charge: 10,
   offer_enabled: false,
   offer_dates: [],
 };

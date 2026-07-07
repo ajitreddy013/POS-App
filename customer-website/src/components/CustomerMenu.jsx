@@ -120,6 +120,8 @@ const CustomerMenu = () => {
 
   // Delivery state
   const [orderType, setOrderType] = useState('dine_in'); // 'dine_in' | 'delivery'
+  // Parcel — only relevant when orderType is 'dine_in'; ticked = takeaway w/ packing charge
+  const [isParcel, setIsParcel] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState({
     address: '',
     pincode: '',
@@ -391,16 +393,23 @@ const CustomerMenu = () => {
 
   const DELIVERY_FEE = barSettings?.delivery_fee ?? 30;
   const DELIVERY_FREE_ABOVE = barSettings?.delivery_free_above ?? 300;
+  const PARCEL_CHARGE = barSettings?.parcel_charge ?? 10;
 
   const deliveryFeeAmount = useMemo(() => {
     if (orderType !== 'delivery') return 0;
     return totalAmount >= DELIVERY_FREE_ABOVE ? 0 : DELIVERY_FEE;
   }, [orderType, totalAmount, DELIVERY_FEE, DELIVERY_FREE_ABOVE]);
 
+  const parcelChargeAmount = useMemo(() => {
+    return orderType !== 'delivery' && isParcel ? PARCEL_CHARGE : 0;
+  }, [orderType, isParcel, PARCEL_CHARGE]);
+
+  const finalOrderType = orderType === 'delivery' ? 'delivery' : (isParcel ? 'parcel' : 'dine_in');
+
   const finalTotal = useMemo(
     () =>
-      Math.max(0, totalAmount + deliveryFeeAmount - offerResult.discountAmount),
-    [totalAmount, deliveryFeeAmount, offerResult]
+      Math.max(0, totalAmount + deliveryFeeAmount + parcelChargeAmount - offerResult.discountAmount),
+    [totalAmount, deliveryFeeAmount, parcelChargeAmount, offerResult]
   );
 
   useEffect(() => {
@@ -506,9 +515,10 @@ const CustomerMenu = () => {
           })),
           subtotal: totalAmount,
           deliveryFee: deliveryFeeAmount,
+          parcelCharge: parcelChargeAmount,
           totalAmount: finalTotal,
           discountAmount: offerResult.discountAmount,
-          orderType,
+          orderType: finalOrderType,
           ...(orderType === 'delivery' && { deliveryAddress }),
           paymentMethod,
           paymentStatus: 'pending',
@@ -609,18 +619,20 @@ const CustomerMenu = () => {
           })),
           subtotal: totalAmount,
           deliveryFee: deliveryFeeAmount,
+          parcelCharge: parcelChargeAmount,
           totalAmount: finalTotal,
           discountAmount: offerResult.discountAmount,
-          orderType,
+          orderType: finalOrderType,
           ...(orderType === 'delivery' && { deliveryAddress }),
           paymentMethod,
           paymentStatus: 'pending',
-          orderStatus: 'preparing',
+          orderStatus: 'completed',
           createdAt: serverTimestamp(),
         };
         await addDoc(collection(db, 'orders'), orderData);
 
         setCart({});
+        setIsParcel(false);
         setOrderSuccess(orderNumber);
         setActiveTab('menu');
         window.history.replaceState({ appTab: 'menu' }, '');
@@ -750,6 +762,7 @@ const CustomerMenu = () => {
           className="success-button-anim"
           onClick={() => {
             setOrderSuccess(null);
+            setIsParcel(false);
             window.history.replaceState({}, '', window.location.pathname);
           }}
           style={{
@@ -1630,7 +1643,7 @@ const CustomerMenu = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setOrderType('delivery'); setAddressWarning(''); }}
+                      onClick={() => { setOrderType('delivery'); setIsParcel(false); setAddressWarning(''); }}
                       style={{
                         padding: '10px 8px',
                         borderRadius: '12px',
@@ -2128,6 +2141,54 @@ const CustomerMenu = () => {
                   >
                     Add 1 more item to get {offerAddMoreCount} item
                     {offerAddMoreCount > 1 ? 's' : ''} free!
+                  </span>
+                </div>
+              )}
+              {orderType !== 'delivery' && (
+                <div
+                  onClick={() => setIsParcel((prev) => !prev)}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginTop: '10px',
+                    paddingTop: '8px',
+                    borderTop: '1px solid #f6f3ee',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      color: '#221f1a',
+                      fontWeight: '600',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        borderRadius: '5px',
+                        border: isParcel ? 'none' : '1.5px solid #d1d5db',
+                        background: isParcel ? '#b6412c' : '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#ffffff',
+                        fontSize: '0.7rem',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {isParcel && '✓'}
+                    </span>
+                    📦 Parcel
+                  </span>
+                  <span style={{ color: '#7f766a', fontWeight: '700' }}>
+                    +{formatCurrency(PARCEL_CHARGE)}
                   </span>
                 </div>
               )}

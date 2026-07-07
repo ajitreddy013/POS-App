@@ -313,8 +313,7 @@ const CustomerMenu = () => {
       }
       // Use finalTotal (after 1+1 offer discount) for actual payment
 
-      // Fallback uses a format that won't match the /^[WA]-\d+$/ regex so
-      // handleCompleteOnlineOrder will correctly re-assign a sequential A-N.
+      // Fallback if the counter transaction below never runs (e.g. db unavailable).
       let orderNumber = `PENDING-${Date.now()}`;
       if (db) {
         try {
@@ -351,7 +350,7 @@ const CustomerMenu = () => {
         discountAmount: offerResult.discountAmount,
         paymentMethod,
         paymentStatus: payStatus,
-        orderStatus: 'preparing',
+        orderStatus: 'completed',
         createdAt: serverTimestamp(),
       };
 
