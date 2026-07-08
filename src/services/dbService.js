@@ -395,7 +395,7 @@ export const dbService = {
       printing_enabled: 0,
       upi_provider: "cashfree",
       admin_password: "123456",
-      hosted_app_url: "https://counterflow-kiosk.web.app/"
+      hosted_app_url: "https://malabar-waffle.web.app/"
     };
   },
 

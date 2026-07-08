@@ -3,6 +3,7 @@
     "rules": "firestore.rules"
   },
   "hosting": {
+    "site": "malabar-waffle",
     "public": "customer-website/dist",
     "ignore": [
       "firebase.json",

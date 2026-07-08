@@ -103,6 +103,8 @@ const port = process.env.PORT || 8080;
 const relayVersion = '2026-07-06-unified-counter-v3';
 
 const ALLOWED_ORIGINS = [
+  'https://malabar-waffle.web.app',
+  'https://malabar-waffle.firebaseapp.com',
   'https://counterflow-kiosk.web.app',
   'https://counterflow-kiosk.firebaseapp.com',
   'capacitor://localhost',  // Android APK (Capacitor)
@@ -478,7 +480,7 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
         return_url: isKiosk
           ? 'https://pos-app-nqsm.onrender.com/payment-done'
           : req.body.returnUrl ||
-            `${req.headers.origin || 'https://counterflow-kiosk.web.app'}/?payment=success&orderId=${orderId}`,
+            `${req.headers.origin || 'https://malabar-waffle.web.app'}/?payment=success&orderId=${orderId}`,
         notify_url:
           'https://pos-app-nqsm.onrender.com/payment/cashfree/webhook',
       },
@@ -524,10 +526,10 @@ app.post('/payment/cashfree/create-order', async (req, res) => {
     // Construct the checkout redirect link pointing to our customer website's SDK checkout page
     // For kiosk, always use the customer website base so the CF SDK checkout page loads correctly
     const webBase = isKiosk
-      ? 'https://counterflow-kiosk.web.app'
+      ? 'https://malabar-waffle.web.app'
       : req.body.returnUrl
         ? new URL(req.body.returnUrl).origin
-        : req.headers.origin || 'https://counterflow-kiosk.web.app';
+        : req.headers.origin || 'https://malabar-waffle.web.app';
     const paymentLink = `${webBase}/#/checkout?sessionId=${response.payment_session_id}&env=${isProd ? 'production' : 'sandbox'}`;
 
     console.log(
