@@ -92,7 +92,6 @@ import { formatDateTimeToString } from "./utils/dateUtils";
 function AppContent() {
   // Global App State
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentUser] = useState("Admin");
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [unlockPassword, setUnlockPassword] = useState("");
@@ -521,8 +520,7 @@ function AppContent() {
                 className="sidebar-logo-img"
               />
               <div className="sidebar-brand-copy">
-                <strong>Admin Console</strong>
-                <span>{currentUser}</span>
+                <strong>Admin</strong>
               </div>
             </div>
             <button onClick={toggleSidebar} className="toggle-btn" aria-label="Close navigation menu">
