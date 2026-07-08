@@ -1129,7 +1129,7 @@ const Settings = () => {
           <h3><Info size={15} color="#3b82f6" /> App Info</h3>
           <table>
             <tbody>
-              <tr><td>Version</td><td>2.0.0</td></tr>
+              <tr><td>Version</td><td>3.0.0</td></tr>
               <tr><td>Database</td><td>{typeof window !== 'undefined' && !!window.electronAPI ? 'SQLite' : 'IndexedDB'}</td></tr>
               <tr><td>Platform</td><td>{typeof window !== 'undefined' && !!window.electronAPI ? 'Electron' : 'Android / Web'}</td></tr>
             </tbody>
