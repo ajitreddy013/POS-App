@@ -381,6 +381,10 @@ export const dbService = {
         settings.admin_password = "123456";
         await db.bar_settings.put(settings);
       }
+      if (settings.hosted_app_url === "https://counterflow-kiosk.web.app/") {
+        settings.hosted_app_url = "https://malabar-waffle.web.app/";
+        await db.bar_settings.put(settings);
+      }
       if (settings.offer_enabled === undefined) settings.offer_enabled = false;
       if (!Array.isArray(settings.offer_dates)) settings.offer_dates = [];
       if (settings.delivery_enabled === undefined) settings.delivery_enabled = false;
