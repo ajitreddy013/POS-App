@@ -458,6 +458,7 @@ const CustomerMenu = () => {
 
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     if (cartItemsList.length === 0) return;
     if (isOfferCartOdd) return;
 
