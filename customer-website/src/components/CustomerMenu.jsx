@@ -490,6 +490,17 @@ const CustomerMenu = () => {
     setSubmitting(true);
 
     try {
+      const orderItems = cartItemsList.map((item) => ({
+        productId: String(item.id),
+        name: item.name,
+        quantity: item.quantity,
+        unitPrice: item.price,
+        costPrice: item.cost || 0,
+        totalPrice: item.price * item.quantity,
+      }));
+      const totalCostPrice = orderItems.reduce((sum, i) => sum + (i.costPrice * i.quantity), 0);
+      const profit = finalTotal - totalCostPrice;
+
       if (paymentMethod === 'upi') {
         // ── UPI PAYMENT: Save order → get Cashfree link → redirect ──
         // The real sequential W-N number is only assigned once the Cashfree
@@ -507,17 +518,13 @@ const CustomerMenu = () => {
           customerName: name,
           customerPhone: phone || '9999999999',
           tableNumber,
-          items: cartItemsList.map((item) => ({
-            productId: String(item.id),
-            name: item.name,
-            quantity: item.quantity,
-            unitPrice: item.price,
-            totalPrice: item.price * item.quantity,
-          })),
+          items: orderItems,
           subtotal: totalAmount,
           deliveryFee: deliveryFeeAmount,
           parcelCharge: parcelChargeAmount,
           totalAmount: finalTotal,
+          total_cost_price: totalCostPrice,
+          profit: profit,
           discountAmount: offerResult.discountAmount,
           orderType: finalOrderType,
           ...(orderType === 'delivery' && { deliveryAddress }),
@@ -609,17 +616,13 @@ const CustomerMenu = () => {
           customerName: name,
           customerPhone: phone || '9999999999',
           tableNumber,
-          items: cartItemsList.map((item) => ({
-            productId: String(item.id),
-            name: item.name,
-            quantity: item.quantity,
-            unitPrice: item.price,
-            totalPrice: item.price * item.quantity,
-          })),
+          items: orderItems,
           subtotal: totalAmount,
           deliveryFee: deliveryFeeAmount,
           parcelCharge: parcelChargeAmount,
           totalAmount: finalTotal,
+          total_cost_price: totalCostPrice,
+          profit: profit,
           discountAmount: offerResult.discountAmount,
           orderType: finalOrderType,
           ...(orderType === 'delivery' && { deliveryAddress }),
