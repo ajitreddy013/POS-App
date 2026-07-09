@@ -334,19 +334,26 @@ const CustomerMenu = () => {
       }
 
       // Save order to Firestore
+      const orderItems = cartItemsList.map((item) => ({
+        productId: String(item.id),
+        name: item.name,
+        quantity: item.quantity,
+        unitPrice: item.price,
+        costPrice: item.cost || 0,
+        totalPrice: item.price * item.quantity,
+      }));
+      const totalCostPrice = orderItems.reduce((sum, i) => sum + (i.costPrice * i.quantity), 0);
+      const profit = finalTotal - totalCostPrice;
+
       const orderData = {
         orderNumber,
         source: 'app',
         customerName: name,
         tableNumber,
-        items: cartItemsList.map((item) => ({
-          productId: String(item.id),
-          name: item.name,
-          quantity: item.quantity,
-          unitPrice: item.price,
-          totalPrice: item.price * item.quantity,
-        })),
+        items: orderItems,
         totalAmount: finalTotal,
+        total_cost_price: totalCostPrice,
+        profit: profit,
         discountAmount: offerResult.discountAmount,
         paymentMethod,
         paymentStatus: payStatus,

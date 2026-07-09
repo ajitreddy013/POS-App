@@ -353,6 +353,7 @@ function AppContent() {
                 name: item.name,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
+                costPrice: item.costPrice || 0,
                 totalPrice: item.totalPrice,
               })),
               subtotal: order.totalAmount,
@@ -363,6 +364,8 @@ function AppContent() {
               saleDate: saleDate,
               barSettings: null, // Dexie mode fallback
             };
+            saleData.total_cost_price = saleData.items.reduce((sum, i) => sum + (i.costPrice * i.quantity), 0);
+            saleData.profit = saleData.totalAmount - saleData.total_cost_price;
 
             try {
               const result = await dbService.createSale(saleData);
