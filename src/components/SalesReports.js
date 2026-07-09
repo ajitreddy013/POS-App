@@ -331,6 +331,7 @@ const SalesReports = () => {
           { content: `Rs ${totalProfit.toFixed(2)}`, styles: { halign: "right" } },
         ]],
         footStyles: { fillColor: [248, 250, 252], textColor: [15, 23, 42], fontStyle: "bold", fontSize: 9.5, lineWidth: 0.15, lineColor: [226, 232, 240] },
+        showFoot: "lastPage",
         didDrawPage: drawFooter,
       });
 
