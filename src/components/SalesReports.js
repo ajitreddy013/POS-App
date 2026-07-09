@@ -242,22 +242,25 @@ const SalesReports = () => {
 
       let cursorY = drawShopHeader();
 
-      // ── Summary boxes ──
+      // ── Summary boxes ── (mirrors the on-screen Reports cards: label / value / sub)
       const boxGap = 5;
       const boxWidth = (contentWidth - boxGap * 2) / 3;
-      const boxHeight = 20;
+      const boxHeight = 25;
       const rowGap = 5;
 
+      const cashCount = sales.filter(s => (s.payment_method || s.paymentMethod || '').toLowerCase() === 'cash').length;
+      const upiCount = sales.filter(s => (s.payment_method || s.paymentMethod || '').toLowerCase() === 'upi').length;
+
       const summaryItemsRow1 = [
-        { label: "CASH", value: `Rs ${cashRevenue.toFixed(2)}`, color: [27, 117, 67] },
-        { label: "UPI", value: `Rs ${upiRevenue.toFixed(2)}`, color: [90, 100, 196] },
-        { label: "TOTAL", value: `Rs ${totalRevenue.toFixed(2)}`, color: [34, 31, 26] },
+        { label: "CASH", value: `Rs ${cashRevenue.toFixed(2)}`, sub: `${cashCount} orders`, color: [27, 117, 67] },
+        { label: "UPI", value: `Rs ${upiRevenue.toFixed(2)}`, sub: `${upiCount} orders`, color: [90, 100, 196] },
+        { label: "TOTAL", value: `Rs ${totalRevenue.toFixed(2)}`, sub: `${totalTransactions} orders`, color: [34, 31, 26] },
       ];
 
       const summaryItemsRow2 = [
-        { label: "COST PRICE", value: `Rs ${totalCost.toFixed(2)}`, color: [182, 65, 44] },
-        { label: "SELLING PRICE", value: `Rs ${totalRevenue.toFixed(2)}`, color: [34, 31, 26] },
-        { label: "PROFIT", value: `Rs ${totalProfit.toFixed(2)}`, color: [124, 58, 237] },
+        { label: "COST PRICE", value: `Rs ${totalCost.toFixed(2)}`, sub: "cost of goods", color: [182, 65, 44] },
+        { label: "SELLING PRICE", value: `Rs ${totalRevenue.toFixed(2)}`, sub: `${totalTransactions} orders`, color: [34, 31, 26] },
+        { label: "PROFIT", value: `Rs ${totalProfit.toFixed(2)}`, sub: `Margin: ${profitMargin}%`, color: [124, 58, 237] },
       ];
 
       const renderSummaryRow = (items, yPos) => {
@@ -277,6 +280,11 @@ const SalesReports = () => {
           doc.setFontSize(12.5);
           doc.setTextColor(...item.color);
           doc.text(item.value, x + 4, yPos + 16);
+
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7);
+          doc.setTextColor(148, 131, 122);
+          doc.text(item.sub, x + 4, yPos + 21.5);
         });
       };
 
