@@ -244,18 +244,20 @@ const SalesReports = () => {
 
       // ── Summary boxes ──
       const boxGap = 5;
-      const boxWidth = (contentWidth - boxGap) / 2;
+      const boxWidth = (contentWidth - boxGap * 2) / 3;
       const boxHeight = 20;
       const rowGap = 5;
 
       const summaryItemsRow1 = [
-        { label: "CASH SALES", value: `Rs ${cashRevenue.toFixed(2)}`, color: [43, 108, 176] },
-        { label: "UPI SALES", value: `Rs ${upiRevenue.toFixed(2)}`, color: [128, 90, 213] },
+        { label: "CASH", value: `Rs ${cashRevenue.toFixed(2)}`, color: [27, 117, 67] },
+        { label: "UPI", value: `Rs ${upiRevenue.toFixed(2)}`, color: [90, 100, 196] },
+        { label: "TOTAL", value: `Rs ${totalRevenue.toFixed(2)}`, color: [34, 31, 26] },
       ];
 
       const summaryItemsRow2 = [
-        { label: "TOTAL SALES", value: `Rs ${totalRevenue.toFixed(2)}`, color: [27, 117, 67] },
-        { label: "TOTAL TRANSACTIONS", value: `${totalTransactions}`, color: [182, 65, 44] },
+        { label: "COST PRICE", value: `Rs ${totalCost.toFixed(2)}`, color: [182, 65, 44] },
+        { label: "SELLING PRICE", value: `Rs ${totalRevenue.toFixed(2)}`, color: [34, 31, 26] },
+        { label: "PROFIT", value: `Rs ${totalProfit.toFixed(2)}`, color: [124, 58, 237] },
       ];
 
       const renderSummaryRow = (items, yPos) => {
