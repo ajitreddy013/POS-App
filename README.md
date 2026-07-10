@@ -41,8 +41,6 @@ This project is divided into two main components:
   - Comprehensive Sales Reports & Analytics
   - Expense (Spendings) tracking
   - Table Management & POS billing
-  - Thermal Printer (ESC/POS) support
-  - Automated PDF report generation & Emailing (Node-cron & Nodemailer)
 
 ### 2. Customer Website (Online Ordering)
 - **Framework:** React 19 & Vite (`/customer-website`)
