@@ -40,9 +40,12 @@ const Spendings = () => {
     const yst = getPreviousDay(today);
     const now = new Date();
     const firstThisMonth = formatDateToYMD(new Date(now.getFullYear(), now.getMonth(), 1));
+    const firstLastMonth = formatDateToYMD(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    const lastDayLastMonth = formatDateToYMD(new Date(now.getFullYear(), now.getMonth(), 0));
     if (startDate === today && endDate === today) return "today";
     if (startDate === yst && endDate === yst) return "yesterday";
     if (startDate === firstThisMonth && endDate === today) return "thisMonth";
+    if (startDate === firstLastMonth && endDate === lastDayLastMonth) return "lastMonth";
     return "custom";
   };
 
@@ -56,6 +59,9 @@ const Spendings = () => {
     } else if (preset === "thisMonth") {
       setStartDate(formatDateToYMD(new Date(now.getFullYear(), now.getMonth(), 1)));
       setEndDate(today);
+    } else if (preset === "lastMonth") {
+      setStartDate(formatDateToYMD(new Date(now.getFullYear(), now.getMonth() - 1, 1)));
+      setEndDate(formatDateToYMD(new Date(now.getFullYear(), now.getMonth(), 0)));
     }
   };
 
@@ -63,7 +69,8 @@ const Spendings = () => {
     try {
       setLoading(true);
       const data = await dbService.getSpendings({ startDate, endDate });
-      setSpendings(data || []);
+      const sorted = (data || []).sort((a, b) => new Date(b.spending_date) - new Date(a.spending_date));
+      setSpendings(sorted);
     } catch (_e) { /* silent */ } finally { setLoading(false); }
   }, [startDate, endDate]);
 
@@ -132,6 +139,8 @@ const Spendings = () => {
   };
 
   const totalSpending = spendings.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const cashSpending = spendings.filter(s => (s.payment_method || '').toLowerCase() === 'cash').reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const upiSpending = spendings.filter(s => (s.payment_method || '').toLowerCase() === 'upi').reduce((s, x) => s + (Number(x.amount) || 0), 0);
   const activePreset = getActivePreset();
 
   const payLabel = (m) => ({ cash: "Cash", upi: "UPI", card: "Card", bank_transfer: "Bank" }[m] || m);
@@ -204,7 +213,9 @@ const Spendings = () => {
         .spd-body { padding: 14px 14px 0; display: flex; flex-direction: column; gap: 12px; }
 
         /* ── Summary cards ── */
-        .spd-sum-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .spd-sum-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .spd-sum-value.green { color: #1b7543; }
+        .spd-sum-value.blue  { color: #5a64c4; }
         .spd-sum-card {
           background: #fff; border: 1px solid #e6ded3; border-radius: 16px;
           padding: 14px 14px 12px;
@@ -420,9 +431,10 @@ const Spendings = () => {
         </div>
         <div className="spd-pills">
           {[
-            { key: "today",     label: "Today" },
             { key: "yesterday", label: "Yesterday" },
+            { key: "today",     label: "Today" },
             { key: "thisMonth", label: "This Month" },
+            { key: "lastMonth", label: "Last Month" },
           ].map((p) => (
             <button
               key={p.key}
@@ -453,16 +465,19 @@ const Spendings = () => {
         {/* ── Summary ── */}
         <div className="spd-sum-grid">
           <div className="spd-sum-card">
-            <div className="spd-sum-label">Total Spent</div>
-            <div className="spd-sum-value red">₹{totalSpending.toFixed(0)}</div>
-            <div className="spd-sum-sub">{spendings.length} entries</div>
+            <div className="spd-sum-label">Cash</div>
+            <div className="spd-sum-value green">₹{cashSpending.toFixed(0)}</div>
+            <div className="spd-sum-sub">{spendings.filter(s => (s.payment_method || '').toLowerCase() === 'cash').length} entries</div>
           </div>
           <div className="spd-sum-card">
-            <div className="spd-sum-label">Average</div>
-            <div className="spd-sum-value dark">
-              ₹{spendings.length > 0 ? (totalSpending / spendings.length).toFixed(0) : "0"}
-            </div>
-            <div className="spd-sum-sub">per entry</div>
+            <div className="spd-sum-label">UPI</div>
+            <div className="spd-sum-value blue">₹{upiSpending.toFixed(0)}</div>
+            <div className="spd-sum-sub">{spendings.filter(s => (s.payment_method || '').toLowerCase() === 'upi').length} entries</div>
+          </div>
+          <div className="spd-sum-card">
+            <div className="spd-sum-label">Total</div>
+            <div className="spd-sum-value red">₹{totalSpending.toFixed(0)}</div>
+            <div className="spd-sum-sub">{spendings.length} entries</div>
           </div>
         </div>
 
