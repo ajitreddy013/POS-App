@@ -5,6 +5,7 @@ import {
   Activity,
   Wallet,
   Banknote,
+  Receipt,
 } from 'lucide-react';
 import {
   getLocalDateString,
@@ -19,6 +20,7 @@ const Dashboard = () => {
     todaySales: 0,
     totalRevenue: 0,
     todaySpendings: 0,
+    todayCostPrice: 0,
     todayCash: 0,
     todayUpi: 0,
     recentSales: [],
@@ -98,6 +100,11 @@ const Dashboard = () => {
         (await dbService.getDailySpendingTotal(todayDate)) || 0
       );
 
+      const todayCostPrice = todaySales.reduce(
+        (sum, sale) => sum + Number(sale.total_cost_price || sale.totalCostPrice || 0),
+        0
+      );
+
       // Use today's sales for recent sales and sort them by date descending
       const recentSales = [...todaySales];
       recentSales.sort(
@@ -112,6 +119,7 @@ const Dashboard = () => {
         todaySales: todaySales.length,
         totalRevenue: Number(todayRevenue || 0),
         todaySpendings: Number(todaySpendings || 0),
+        todayCostPrice: Number(todayCostPrice || 0),
         todayCash: Number(todayCash || 0),
         todayUpi: Number(todayUpi || 0),
         recentSales: recentSales.slice(0, 10),
@@ -126,16 +134,6 @@ const Dashboard = () => {
     <div className="dashboard">
       {/* Summary Cards */}
       <div className="summary-cards">
-        <div className="summary-card card-teal">
-          <div className="card-header">
-            <h3>Today&apos;s Sales</h3>
-            <div className="card-icon">
-              <Activity size={16} />
-            </div>
-          </div>
-          <div className="value">{dashboardData.todaySales}</div>
-        </div>
-
         <div className="summary-card card-blue">
           <div className="card-header">
             <h3>Total Products</h3>
@@ -144,6 +142,16 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="value">{dashboardData.totalProducts}</div>
+        </div>
+
+        <div className="summary-card card-teal">
+          <div className="card-header">
+            <h3>Total Orders</h3>
+            <div className="card-icon">
+              <Activity size={16} />
+            </div>
+          </div>
+          <div className="value">{dashboardData.todaySales}</div>
         </div>
 
         <div className="summary-card card-mauve">
@@ -158,7 +166,17 @@ const Dashboard = () => {
           </div>
         </div>
 
-
+        <div className="summary-card card-coral">
+          <div className="card-header">
+            <h3>Cost Price</h3>
+            <div className="card-icon">
+              <Receipt size={16} />
+            </div>
+          </div>
+          <div className="value">
+            ₹{dashboardData.todayCostPrice.toFixed(0)}
+          </div>
+        </div>
 
         <div className="summary-card card-purple">
           <div className="card-header">
