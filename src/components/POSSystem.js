@@ -44,6 +44,25 @@ import {
 
 const formatCurrency = (value) => `₹${Number(value || 0).toFixed(2)}`;
 
+// Mirrors customer-website/CustomerMenu.jsx's checkDeliveryOpen exactly, so kiosk
+// respects the same delivery_start_time/delivery_end_time window as the website.
+const checkDeliveryOpen = (settings) => {
+  const start = settings?.delivery_start_time;
+  const end = settings?.delivery_end_time;
+  if (!start || !end) return true;
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  const startMins = sh * 60 + sm;
+  const endMins = eh * 60 + em;
+  if (startMins > endMins) {
+    // overnight range e.g. 4 PM – 7 AM: open if after start OR before end
+    return nowMins >= startMins || nowMins < endMins;
+  }
+  return nowMins >= startMins && nowMins < endMins;
+};
+
 const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const [products, setProducts] = useState([]);
   const [longPressActive, setLongPressActive] = useState(false);
@@ -345,6 +364,19 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const DELIVERY_FEE = barSettings?.delivery_fee ?? 30;
   const DELIVERY_FREE_ABOVE = barSettings?.delivery_free_above ?? 300;
   const deliveryFeeAmount = isDelivery ? (cartSubtotal >= DELIVERY_FREE_ABOVE ? 0 : DELIVERY_FEE) : 0;
+
+  const [deliveryOpen, setDeliveryOpen] = useState(() => checkDeliveryOpen(barSettings));
+
+  useEffect(() => {
+    const recheck = () => setDeliveryOpen(checkDeliveryOpen(barSettings));
+    recheck();
+    const interval = setInterval(recheck, 30000);
+    return () => clearInterval(interval);
+  }, [barSettings?.delivery_start_time, barSettings?.delivery_end_time]);
+
+  useEffect(() => {
+    if (!deliveryOpen && isDelivery) setIsDelivery(false);
+  }, [deliveryOpen, isDelivery]);
 
   const cartTotal = useMemo(() => {
     return Math.max(0, cartSubtotal - cartDiscountAmount - offerDiscount + parcelChargeAmount + deliveryFeeAmount);
@@ -1625,7 +1657,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   +{formatCurrency(PARCEL_CHARGE)}
                 </span>
               </div>
-              {isKiosk && barSettings?.delivery_enabled && (
+              {isKiosk && barSettings?.delivery_enabled && deliveryOpen && (
                 <>
                   <div
                     className="summary-line cart-summary-row"
