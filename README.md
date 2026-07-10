@@ -10,17 +10,21 @@ A comprehensive, production-ready business management solution built specificall
 |:---:|:---:|:---:|
 | <img src="screenshots/malabar-waffle/admin-dashboard.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-live-orders.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-spendings.jpg" width="250"/> |
 
-| Menu Management (Products) | Sales Reports | Settings |
-|:---:|:---:|:---:|
-| <img src="screenshots/malabar-waffle/admin-products.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-inventory.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-reports.jpg" width="250"/> |
+| Menu Management (Products) | Sales Reports |
+|:---:|:---:|
+| <img src="screenshots/malabar-waffle/admin-products.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-reports.jpg" width="250"/> |
+
+| Settings | App Navigation |
+|:---:|:---:|
+| <img src="screenshots/malabar-waffle/admin-settings.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-hamburger-menu.jpg" width="250"/> |
 
 ### 🌐 Customer Web App (Online Ordering)
 
 Seamlessly integrated with the POS, the customer web app allows real-time orders directly into the kitchen's live order queue. Features Cashfree payment integration for secure online transactions.
 
-| Order for Pickup/Dine-In | Order for Home Delivery |
-|:---:|:---:|
-| <img src="screenshots/malabar-waffle/website-order-pickup.jpg" width="250"/> | <img src="screenshots/malabar-waffle/website-order-delivery.jpg" width="250"/> |
+| Order for Pickup/Dine-In | Order for Home Delivery | Payment Integration |
+|:---:|:---:|:---:|
+| <img src="screenshots/malabar-waffle/website-order-pickup.jpg" width="250"/> | <img src="screenshots/malabar-waffle/website-order-delivery.jpg" width="250"/> | <img src="screenshots/malabar-waffle/website-payment-integration.jpg" width="250"/> |
 
 ## ✨ Architecture & Tech Stack
 
