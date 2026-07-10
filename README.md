@@ -18,39 +18,28 @@ CounterFlow POS is a comprehensive, production-ready business management solutio
 ![Rebranded](https://img.shields.io/badge/rebrand-2025-yellow)
 ![License](https://img.shields.io/badge/license-Proprietary-red)
 
-## 📸 Screenshots
+## 🌟 Real-World Showcase: Malabar Waffle
 
-### Dashboard
-![Dashboard](screenshots/dashboard.png)
-*Main dashboard showing business overview, key metrics, and quick access to all modules*
+CounterFlow POS powers active, real-world businesses with custom-branded deployments. Here is a look at **Malabar Waffle**, showcasing both our powerful administrative Android POS app and the integrated customer-facing ordering web application.
 
-### POS System
-![POS System](screenshots/pos-system.png)
-*Point of sale interface with product selection, cart management, and billing*
+### 📱 Admin Application (POS & Management)
 
-### Inventory Management
-![Inventory Management](screenshots/inventory-management.png)
-*Stock management with godown and counter stock tracking*
+| Dashboard & Overview | Live Order Tracking | Spendings & Expenses |
+|:---:|:---:|:---:|
+| <img src="screenshots/malabar-waffle/admin-dashboard.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-live-orders.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-spendings.jpg" width="250"/> |
 
-### Product Management
-![Product Management](screenshots/product-management.png)
-*Product catalog management with variants and pricing*
+| Inventory & Stock | POS & Cart System | Business Reports |
+|:---:|:---:|:---:|
+| <img src="screenshots/malabar-waffle/admin-inventory.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-pos-1.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-reports.jpg" width="250"/> |
 
-### Daily Transfer
-![Daily Transfer](screenshots/daily-transfer.png)
-*Stock transfer interface from godown to counter*
+### 🌐 Customer Web App (Online Ordering)
 
-### Sales Reports
-![Sales Reports](screenshots/sales-reports.png)
-*Comprehensive sales analytics and reporting*
+Seamlessly integrated with the POS, the customer web app pushes real-time orders directly into the kitchen's live order queue.
 
-### Table Management
-![Table Management](screenshots/table-management.png)
-*Restaurant table layout and order management*
+| Order for Pickup/Dine-In | Order for Home Delivery |
+|:---:|:---:|
+| <img src="screenshots/malabar-waffle/website-order-pickup.jpg" width="250"/> | <img src="screenshots/malabar-waffle/website-order-delivery.jpg" width="250"/> |
 
-### Settings
-![Settings](screenshots/settings.png)
-*Application configuration and system settings*
 
 ## ✨ Key Highlights
 
@@ -177,7 +166,7 @@ The system generates professional bills with dynamic formatting:
 
 ```
 ================================
-          AJIT WINES
+          MALABAR WAFFLE
       [Address & Contact]
       GST: [GST Number]
 ================================
@@ -361,11 +350,11 @@ For technical support or feature requests, please contact the development team.
 
 ## License
 
-This software is proprietary and developed specifically for Ajit Wines.
+This software is a proprietary implementation of CounterFlow POS.
 See the [LICENSE](LICENSE) file for detailed terms and restrictions.
 
 ---
 
-**Built with ❤️ for Ajit Wines | Powered by CounterFlow POS**
+**Built with ❤️ for real-world businesses | Powered by CounterFlow POS**
 
 *Last updated: June 18, 2026*
