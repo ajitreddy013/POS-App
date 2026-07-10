@@ -71,6 +71,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const [customerName, setCustomerName] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [isParcel, setIsParcel] = useState(false); // ticked = takeaway w/ packing charge; unticked = dine-in
+  const [isDelivery, setIsDelivery] = useState(false); // ticked = delivery w/ delivery fee; mutually exclusive with isParcel
   const [discount, setDiscount] = useState(0);
   const [showDiscountInput, setShowDiscountInput] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -341,9 +342,13 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
   const PARCEL_CHARGE = barSettings?.parcel_charge ?? 10;
   const parcelChargeAmount = isParcel ? PARCEL_CHARGE : 0;
 
+  const DELIVERY_FEE = barSettings?.delivery_fee ?? 30;
+  const DELIVERY_FREE_ABOVE = barSettings?.delivery_free_above ?? 300;
+  const deliveryFeeAmount = isDelivery ? (cartSubtotal >= DELIVERY_FREE_ABOVE ? 0 : DELIVERY_FEE) : 0;
+
   const cartTotal = useMemo(() => {
-    return Math.max(0, cartSubtotal - cartDiscountAmount - offerDiscount + parcelChargeAmount);
-  }, [cartSubtotal, cartDiscountAmount, offerDiscount, parcelChargeAmount]);
+    return Math.max(0, cartSubtotal - cartDiscountAmount - offerDiscount + parcelChargeAmount + deliveryFeeAmount);
+  }, [cartSubtotal, cartDiscountAmount, offerDiscount, parcelChargeAmount, deliveryFeeAmount]);
 
   const calculateSubtotal = () => cartSubtotal;
   const calculateDiscountAmount = () => cartDiscountAmount;
@@ -383,8 +388,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
     try {
       const saleData = {
         saleNumber: precomputedSaleNumber || await generateSaleNumber(),
-        saleType: overrides.saleType ?? (isParcel ? 'parcel' : 'dine_in'),
+        saleType: overrides.saleType ?? (isDelivery ? 'delivery' : isParcel ? 'parcel' : 'dine_in'),
         parcelCharge: overrides.parcelCharge ?? parcelChargeAmount,
+        deliveryFee: overrides.deliveryFee ?? deliveryFeeAmount,
         tableNumber: null,
         customerName: customerName.trim() || (isKiosk ? 'Kiosk Customer' : 'Walk-in Customer'),
         items: cart.map((item) => ({
@@ -424,6 +430,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               customerName: saleData.customerName,
               orderType: saleData.saleType,
               parcelCharge: saleData.parcelCharge,
+              deliveryFee: saleData.deliveryFee,
               paymentStatus: 'paid', // Cash/manual UPI is considered paid immediately
               paymentMethod: saleData.paymentMethod,
               orderStatus: 'completed',
@@ -447,6 +454,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       setCart([]);
       setCustomerName('');
       setIsParcel(false);
+      setIsDelivery(false);
       setDiscount(0);
       setShowDiscountInput(false);
       setActiveTab('menu');
@@ -592,8 +600,9 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           totalAmount: amount,
           subtotal: calculateSubtotal(),
           customerName: customerName.trim() || 'Kiosk Customer',
-          orderType: isParcel ? 'parcel' : 'dine_in',
+          orderType: isDelivery ? 'delivery' : isParcel ? 'parcel' : 'dine_in',
           parcelCharge: parcelChargeAmount,
+          deliveryFee: deliveryFeeAmount,
           paymentStatus: 'pending',
           paymentMethod: 'upi',
           createdAt: new Date(),
@@ -684,6 +693,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
             saleOverrides = {
               saleType: latestData.orderType,
               parcelCharge: latestData.parcelCharge,
+              deliveryFee: latestData.deliveryFee,
             };
           }
         }
@@ -1575,7 +1585,10 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
               )}
               <div
                 className="summary-line cart-summary-row"
-                onClick={() => setIsParcel((prev) => !prev)}
+                onClick={() => {
+                  setIsParcel((prev) => !prev);
+                  setIsDelivery(false);
+                }}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -1612,6 +1625,67 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                   +{formatCurrency(PARCEL_CHARGE)}
                 </span>
               </div>
+              {isKiosk && barSettings?.delivery_enabled && (
+                <>
+                  <div
+                    className="summary-line cart-summary-row"
+                    onClick={() => {
+                      setIsDelivery((prev) => !prev);
+                      setIsParcel(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginTop: '8px',
+                      paddingTop: '8px',
+                      borderTop: '1px solid #e6ded3',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#221f1a', fontWeight: '600' }}>
+                      <span
+                        style={{
+                          width: '16px',
+                          height: '16px',
+                          borderRadius: '4px',
+                          border: isDelivery ? 'none' : '1.5px solid #d1d5db',
+                          background: isDelivery ? '#b6412c' : '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#ffffff',
+                          fontSize: '0.65rem',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {isDelivery && '✓'}
+                      </span>
+                      Delivery 🛵
+                    </span>
+                    {cartSubtotal >= DELIVERY_FREE_ABOVE ? (
+                      <span style={{ color: '#1c8d3c', fontWeight: '700' }}>Free</span>
+                    ) : (
+                      <span style={{ color: '#7f766a', fontWeight: '700' }}>
+                        +{formatCurrency(DELIVERY_FEE)}
+                      </span>
+                    )}
+                  </div>
+                  {isDelivery && (
+                    deliveryFeeAmount > 0 ? (
+                      <div style={{ marginTop: '4px', fontSize: '0.78rem', color: '#92400e', fontWeight: '600' }}>
+                        Add items worth ₹{Math.ceil(DELIVERY_FREE_ABOVE - cartSubtotal)} more for free delivery!
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: '4px', fontSize: '0.78rem', color: '#1c8d3c', fontWeight: '600' }}>
+                        Free delivery on orders above ₹{DELIVERY_FREE_ABOVE}
+                      </div>
+                    )
+                  )}
+                </>
+              )}
               <div
                 className="summary-line total cart-summary-total"
                 style={{
