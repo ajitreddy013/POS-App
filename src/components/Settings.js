@@ -573,7 +573,7 @@ const Settings = () => {
       const result = await dbService.closeSellAndGenerateReports();
       
       if (result.success) {
-        const message = `Close Sell completed successfully!\n\n📁 Reports ZIP: ${result.zipPath}\n\n💾 Database Backup: ${result.databaseBackupPath || 'Failed to create'}\n\n📊 Reports Backup: ${result.reportsBackupPath || 'Failed to create'}\n\n📧 Email sent to owner: ${result.emailSent ? 'Yes' : 'No'}\n\n✅ All data has been safely backed up to your local machine!`;
+        const message = `Close Sell completed successfully!\n\n📁 Reports ZIP: ${result.zipPath}\n\n💾 Database Backup: ${result.databaseBackupPath || 'Failed to create'}\n\n📊 Reports Backup: ${result.reportsBackupPath || 'Failed to create'}\n\n✅ All data has been safely backed up to your local machine!`;
         alert(message);
       } else {
         alert(`Failed to complete Close Sell: ${result.error}`);
@@ -1108,13 +1108,13 @@ const Settings = () => {
             </div>
             <div>
               <h2>End of Day</h2>
-              <p>Close sell, generate reports and email backup</p>
+              <p>Close sell, generate reports and create backup</p>
             </div>
           </div>
         </div>
         <div className="cfg-card-body">
           <p style={{ margin: '0 0 16px', fontSize: '0.88rem', color: '#64748b', lineHeight: '1.6', maxWidth: '480px' }}>
-            Closes the current shift, creates a ZIP of all reports, backs up the database, and emails everything to the owner.
+            Closes the current shift, creates a ZIP of all reports, and backs up the database.
           </p>
           <button onClick={handleCloseSell} disabled={closeSellLoading} className="cfg-btn cfg-btn-ghost">
             <RotateCcw size={14} />
