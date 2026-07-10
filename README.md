@@ -86,6 +86,11 @@ This project is divided into two main components:
    npm run dev
    ```
 
+## 📞 Contact & Support
+- **Author:** Ajit Reddy
+- **Email:** [ajitreddy013@gmail.com](mailto:ajitreddy013@gmail.com)
+- **Phone:** +91 7517323121
+
 ## ⚠️ Legal Notice
 
 This software is a proprietary implementation of CounterFlow POS.

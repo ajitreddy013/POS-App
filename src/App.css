@@ -11585,7 +11585,7 @@ body, .app, .app.admin-unlocked, .app.kiosk-locked {
   }
 
   .app.admin-unlocked .settings .bar-settings-display > div,
-  .app.admin-unlocked .settings .whatsapp-settings-display > div,
+  .app.admin-unlocked .settings .social-settings-display > div,
   .app.admin-unlocked .settings .bar-settings-form .form-row,
   .app.admin-unlocked .settings .razorpay-settings-display > div,
   .app.admin-unlocked .settings .cloud-settings-display > div {
