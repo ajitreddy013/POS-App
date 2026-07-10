@@ -187,14 +187,14 @@ function AppContent() {
   const showSystemNotification = async (orderData) => {
     const isDelivery = orderData.orderType === 'delivery';
     const isDineIn = orderData.orderType === 'dine_in' || orderData.orderType === 'table';
-    const isPaid = orderData.paymentStatus === 'paid';
-    
+    const isPaidOnline = orderData.paymentMethod === 'upi' && orderData.paymentStatus === 'paid';
+
     let icon = '📦';
     if (isDelivery) icon = '🛵';
     else if (isDineIn) icon = '🍽️';
 
     const title = `${icon} New Order #${orderData.orderNumber}`;
-    const body = isPaid
+    const body = isPaidOnline
       ? 'Payment: Paid Online'
       : isDelivery
         ? 'Payment: Cash on Delivery'

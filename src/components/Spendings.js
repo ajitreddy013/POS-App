@@ -487,7 +487,7 @@ const Spendings = () => {
             ) : (
               spendings.map((s) => (
                 <div key={s.id} className="spd-card">
-                  <div className="spd-card-icon">💸</div>
+                  <div className="spd-card-icon">{s.payment_method === 'upi' ? '💳' : '💵'}</div>
                   <div className="spd-card-main">
                     <div className="spd-card-desc">{s.description || "—"}</div>
                     <div className="spd-card-meta">
