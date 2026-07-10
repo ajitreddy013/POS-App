@@ -28,9 +28,9 @@ CounterFlow POS powers active, real-world businesses with custom-branded deploym
 |:---:|:---:|:---:|
 | <img src="screenshots/malabar-waffle/admin-dashboard.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-live-orders.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-spendings.jpg" width="250"/> |
 
-| Inventory & Stock | POS & Cart System | Business Reports |
-|:---:|:---:|:---:|
-| <img src="screenshots/malabar-waffle/admin-inventory.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-pos-1.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-reports.jpg" width="250"/> |
+| Sales Reports | Settings |
+|:---:|:---:|
+| <img src="screenshots/malabar-waffle/admin-inventory.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-reports.jpg" width="250"/> |
 
 ### 🌐 Customer Web App (Online Ordering)
 
