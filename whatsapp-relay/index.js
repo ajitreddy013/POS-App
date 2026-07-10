@@ -54,7 +54,7 @@ const serviceAccountPath = path.join(__dirname, 'service-account.json');
 // Use a flag instead of admin.apps.length which is unreliable in firebase-admin v14+
 let firebaseInitialized = false;
 let firestoreIntegrationEnabled = false;
-let firestoreWatcherInterval = null;
+let firestoreWatcherUnsubscribe = null;
 let firestoreAuthDisabledNotified = false;
 
 if (fs.existsSync(serviceAccountPath)) {
@@ -138,9 +138,9 @@ function disableFirestoreIntegration(reason) {
   if (!firestoreIntegrationEnabled) return;
   firestoreIntegrationEnabled = false;
   firebaseInitialized = false;
-  if (firestoreWatcherInterval) {
-    clearInterval(firestoreWatcherInterval);
-    firestoreWatcherInterval = null;
+  if (firestoreWatcherUnsubscribe) {
+    firestoreWatcherUnsubscribe();
+    firestoreWatcherUnsubscribe = null;
   }
   if (!firestoreAuthDisabledNotified) {
     firestoreAuthDisabledNotified = true;
@@ -1064,9 +1064,13 @@ async function sendFCMToAdmins(orderData) {
   }
 }
 
-// Polls Firestore for newly-completed orders (UPI paid via the Cashfree
+// Watches Firestore for newly-completed orders (UPI paid via the Cashfree
 // webhook, or COD placed via the customer site) and pushes an FCM
-// notification to registered admin devices for each one.
+// notification to registered admin devices for each one. Uses a persistent
+// onSnapshot listener rather than polling with .get() on a timer — Firestore
+// only bills for the initial matching set once, then only for documents
+// that actually change afterward, instead of re-reading the whole rolling
+// 24h order window over and over regardless of whether anything changed.
 function startAdminNotificationWatcher() {
   if (!firebaseInitialized || !firestoreIntegrationEnabled) {
     console.warn(
@@ -1077,46 +1081,46 @@ function startAdminNotificationWatcher() {
   const db = getFirestore();
   const fcmProcessedIds = new Set(); // in-memory guard against double-sends
 
-  const scanForPendingNotifications = async () => {
-    try {
-      const since = Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
-      const snapshot = await db.collection('orders')
-        .where('createdAt', '>=', since)
-        .get();
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        const docId = doc.id;
+  const since = Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
+  firestoreWatcherUnsubscribe = db.collection('orders')
+    .where('createdAt', '>=', since)
+    .onSnapshot(
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type !== 'added' && change.type !== 'modified') return;
 
-        // Notify admin for any new order (cash or paid UPI)
-        const needsFCM =
-          !data.fcmSent &&
-          !fcmProcessedIds.has(docId) &&
-          data.orderStatus === 'completed';
+          const doc = change.doc;
+          const data = doc.data();
+          const docId = doc.id;
 
-        if (needsFCM) {
-          fcmProcessedIds.add(docId);
-          (async () => {
-            try {
-              await doc.ref.update({ fcmSent: true });
-            } catch (_) { /* non-fatal */ }
-            await sendFCMToAdmins(data);
-          })();
+          // Notify admin for any new order (cash or paid UPI)
+          const needsFCM =
+            !data.fcmSent &&
+            !fcmProcessedIds.has(docId) &&
+            data.orderStatus === 'completed';
+
+          if (needsFCM) {
+            fcmProcessedIds.add(docId);
+            (async () => {
+              try {
+                await doc.ref.update({ fcmSent: true });
+              } catch (_) { /* non-fatal */ }
+              await sendFCMToAdmins(data);
+            })();
+          }
+        });
+      },
+      (err) => {
+        if (isFirestoreUnauthenticatedError(err)) {
+          disableFirestoreIntegration(err.message);
+          return;
         }
-      });
-    } catch (err) {
-      if (isFirestoreUnauthenticatedError(err)) {
-        disableFirestoreIntegration(err.message);
-        return;
+        console.error('[Admin Watcher] Listener error:', err.message);
       }
-      console.error('[Admin Watcher] Polling error:', err.message);
-    }
-  };
-
-  scanForPendingNotifications();
-  firestoreWatcherInterval = setInterval(scanForPendingNotifications, 15000);
+    );
 
   console.log(
-    '[Admin Watcher] Polling Firestore for orders that need admin notifications...'
+    '[Admin Watcher] Watching Firestore in real time for orders that need admin notifications...'
   );
 }
 
