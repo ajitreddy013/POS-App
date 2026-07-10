@@ -103,3 +103,6 @@ app-debug.apk
 *.jks
 *.keystore
 android/keystore.properties
+
+# Local release-build convenience script
+build-release-apk.sh
