@@ -6,17 +6,13 @@ A comprehensive, production-ready business management solution built specificall
 
 ### 📱 Admin Application (POS & Management)
 
-| Sales Reports | Settings |
-|:---:|:---:|
-| <img src="screenshots/malabar-waffle/admin-inventory.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-reports.jpg" width="250"/> |
-
 | Dashboard & Overview | Live Order Tracking | Spendings & Expenses |
 |:---:|:---:|:---:|
 | <img src="screenshots/malabar-waffle/admin-dashboard.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-live-orders.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-spendings.jpg" width="250"/> |
 
-| Menu Management | In-Store POS System | Daily Operations |
+| Menu Management (Products) | Sales Reports | Settings |
 |:---:|:---:|:---:|
-| <img src="screenshots/malabar-waffle/admin-products.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-pos-1.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-kitchen.jpg" width="250"/> |
+| <img src="screenshots/malabar-waffle/admin-products.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-inventory.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-reports.jpg" width="250"/> |
 
 ### 🌐 Customer Web App (Online Ordering)
 
