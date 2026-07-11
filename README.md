@@ -16,7 +16,7 @@ A comprehensive, production-ready business management solution built specificall
 
 | Settings | App Navigation |
 |:---:|:---:|
-| <img src="screenshots/malabar-waffle/admin-settings.jpg?v=2" width="250"/> | <img src="screenshots/malabar-waffle/admin-hamburger-menu.jpg" width="250"/> |
+| <img src="screenshots/malabar-waffle/admin-settings-clean.jpg" width="250"/> | <img src="screenshots/malabar-waffle/admin-hamburger-menu.jpg" width="250"/> |
 
 ### 🌐 Customer Web App (Online Ordering)
 
