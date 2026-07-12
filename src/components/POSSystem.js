@@ -472,8 +472,11 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
                 name: item.name,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
+                costPrice: item.costPrice,
                 totalPrice: item.totalPrice,
               })),
+              total_cost_price: saleData.total_cost_price,
+              profit: saleData.profit,
             };
             await addDoc(collection(db, 'orders'), orderData);
           }
@@ -642,9 +645,12 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
             name: item.name,
             quantity: item.quantity,
             unitPrice: item.price,
+            costPrice: item.cost || 0,
             totalPrice: item.price * item.quantity,
           })),
+          total_cost_price: cart.reduce((sum, item) => sum + (item.cost || 0) * item.quantity, 0),
         };
+        orderData.profit = orderData.totalAmount - orderData.total_cost_price;
         const docRef = await addDoc(collection(db, 'orders'), orderData);
         cfOrderDocRefRef.current = docRef; // Store so completeCashfreePayment can update it
         cfUnsubRef.current = onSnapshot(docRef, (snap) => {
