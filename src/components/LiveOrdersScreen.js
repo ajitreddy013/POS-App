@@ -239,7 +239,7 @@ const LiveOrdersScreen = () => {
                 maxHeight: 'calc(100dvh - 180px)',
                 overflowY: 'auto',
                 paddingRight: '4px',
-                paddingBottom: '8px',
+                paddingBottom: 'calc(28px + env(safe-area-inset-bottom, 0px))',
               }}
             >
               {orders.map((order) => {
