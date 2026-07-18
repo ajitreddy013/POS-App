@@ -193,6 +193,45 @@ app.post('/order/reserve-number', reserveNumberRateLimit, async (req, res) => {
   }
 });
 
+// Lets the customer website poll whether a UPI order's temporary "T-..."
+// ticket has been flipped to its real W-N/A-N number yet (assigned by the
+// Cashfree webhook below once payment confirms). Uses the Admin SDK so
+// firestore.rules can keep the `orders` collection staff-only — this
+// endpoint deliberately returns only the order number, never the full order
+// document (customer PII, items, cost/profit).
+const ticketStatusRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60, // polled every ~3s for up to 2 min per order = ~40 requests max
+  message: { success: false, error: 'Too many requests.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.get('/order/ticket-status', ticketStatusRateLimit, async (req, res) => {
+  const { ticketId } = req.query;
+  if (typeof ticketId !== 'string' || !ticketId.startsWith('T-')) {
+    return res.status(400).json({ success: false, error: 'Invalid ticketId' });
+  }
+  if (!firebaseInitialized || !firestoreIntegrationEnabled) {
+    return res.status(503).json({ success: false, error: 'Firestore not available' });
+  }
+  try {
+    const db = getFirestore();
+    const snap = await db
+      .collection('orders')
+      .where('ticketId', '==', ticketId)
+      .limit(1)
+      .get();
+    if (snap.empty) {
+      return res.json({ success: true, orderNumber: null });
+    }
+    res.json({ success: true, orderNumber: snap.docs[0].data().orderNumber || null });
+  } catch (err) {
+    console.error('[ticket-status] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to fetch order status' });
+  }
+});
+
 // View Deployed Logs — protected by ADMIN_TOKEN env var
 app.get('/logs', (req, res) => {
   const adminToken = process.env.ADMIN_TOKEN;

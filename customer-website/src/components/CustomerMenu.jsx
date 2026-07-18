@@ -12,10 +12,7 @@ import {
   getDocs,
   addDoc,
   serverTimestamp,
-  onSnapshot,
   doc,
-  query,
-  where,
 } from 'firebase/firestore';
 import { APP_CONFIG } from '../config';
 import {
@@ -180,23 +177,46 @@ const CustomerMenu = () => {
   }, [searchParams, setSearchParams]);
 
   // While the payment webhook is still assigning the final W-N number, the
-  // success screen only has the temporary ticket — watch the order doc so it
-  // flips over live once the webhook writes the real orderNumber.
+  // success screen only has the temporary ticket — poll the relay (Admin SDK,
+  // orders collection is staff-only in firestore.rules) so it flips over
+  // once the webhook writes the real orderNumber.
   useEffect(() => {
-    if (!orderSuccess || !orderSuccess.startsWith('T-') || !db) return;
-    const ticketQuery = query(
-      collection(db, 'orders'),
-      where('ticketId', '==', orderSuccess)
-    );
-    const unsubscribe = onSnapshot(ticketQuery, (snap) => {
-      if (snap.empty) return;
-      const liveOrderNumber = snap.docs[0].data().orderNumber;
-      if (liveOrderNumber && !liveOrderNumber.startsWith('T-')) {
-        setOrderSuccess(liveOrderNumber);
+    if (!orderSuccess || !orderSuccess.startsWith('T-')) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(
+          `${APP_CONFIG.relayUrl}/order/ticket-status?ticketId=${encodeURIComponent(orderSuccess)}`
+        );
+        const data = await res.json();
+        if (
+          !cancelled &&
+          data.success &&
+          data.orderNumber &&
+          !data.orderNumber.startsWith('T-')
+        ) {
+          setOrderSuccess(data.orderNumber);
+        }
+      } catch (err) {
+        console.error('Failed to poll order ticket status:', err);
       }
-    });
-    return () => unsubscribe();
-  }, [orderSuccess, db]);
+    };
+
+    poll();
+    const interval = setInterval(poll, 3000);
+    // Safety net in case a webhook never arrives — stop polling after 2 min.
+    const timeout = setTimeout(() => {
+      cancelled = true;
+      clearInterval(interval);
+    }, 2 * 60 * 1000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [orderSuccess]);
 
   useEffect(() => {
     const tableParam = searchParams.get('table');

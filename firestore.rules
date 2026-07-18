@@ -16,12 +16,16 @@ service cloud.firestore {
       allow write: if isStaff();
     }
 
-    // Orders: Customers create orders with no login; POS (staff) updates
-    // status; nobody deletes. Read stays public — customer order tracking
-    // queries by ticketId, not by document ID.
+    // Orders: Customers create orders with no login; POS (staff) reads and
+    // updates status; nobody deletes. Reads are staff-only — public order
+    // tracking (flipping from a temp ticket to the real W-N/A-N number) goes
+    // through whatsapp-relay's /order/ticket-status endpoint (Admin SDK,
+    // returns only the order number) instead of a direct client read, so the
+    // full orders collection (customer PII, cost/profit) is never publicly
+    // enumerable.
     match /orders/{orderId} {
       allow create: if true;
-      allow read:   if true;
+      allow read:   if isStaff();
       allow update: if isStaff();
       allow delete: if false;
     }
