@@ -188,9 +188,9 @@ const LiveOrdersScreen = () => {
   return (
     <div
       style={{
-        padding: '16px 16px calc(96px + env(safe-area-inset-bottom, 0px))',
+        padding: '16px 16px 80px',
         background: '#f6f3ee',
-        minHeight: 'calc(100dvh - 60px)',
+        minHeight: '100vh',
         fontFamily: 'Outfit, sans-serif',
         boxSizing: 'border-box',
       }}
@@ -236,10 +236,7 @@ const LiveOrdersScreen = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '8px',
-                maxHeight: 'calc(100dvh - 180px)',
-                overflowY: 'auto',
                 paddingRight: '4px',
-                paddingBottom: 'calc(28px + env(safe-area-inset-bottom, 0px))',
               }}
             >
               {orders.map((order) => {
@@ -514,9 +511,6 @@ const LiveOrdersScreen = () => {
                 border: getOrderTypeTheme(selectedOrder.orderType).cardBorder,
                 padding: '16px',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
-                maxHeight: 'calc(100dvh - 140px)',
-                overflowY: 'auto',
-                paddingBottom: 'calc(28px + env(safe-area-inset-bottom, 0px))',
               }}
             >
               <div
