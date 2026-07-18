@@ -79,6 +79,31 @@ import { dbService } from "./services/dbService";
 import { playErrorFeedback } from "./utils/feedbackUtils";
 import { formatDateTimeToString } from "./utils/dateUtils";
 
+// onSnapshot listeners die permanently after any error (e.g. a permission-denied
+// blip from misconfigured/expired rules) — the Firestore SDK does not auto-reconnect,
+// so a transient outage otherwise leaves live sync silently dead until the app is
+// restarted. Wrap subscriptions so they retry instead of staying dead forever.
+function subscribeWithRetry(query, onNext, onError, retryMs = 15000) {
+  let unsubscribe = null;
+  let cancelled = false;
+  let retryTimeout = null;
+
+  const start = () => {
+    unsubscribe = onSnapshot(query, onNext, (error) => {
+      onError?.(error);
+      if (cancelled) return;
+      retryTimeout = setTimeout(start, retryMs);
+    });
+  };
+  start();
+
+  return () => {
+    cancelled = true;
+    if (retryTimeout) clearTimeout(retryTimeout);
+    if (unsubscribe) unsubscribe();
+  };
+}
+
 /**
  * APP CONTENT COMPONENT
  * 
@@ -239,7 +264,7 @@ function AppContent() {
       where('createdAt', '>=', startOfToday)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    return subscribeWithRetry(q, (snapshot) => {
       let hasNewOrder = false;
       let newOrderNumber = '';
       let newOrderType = '';
@@ -299,8 +324,6 @@ function AppContent() {
     }, (error) => {
       console.error('Global orders listener error:', error);
     });
-
-    return () => unsubscribe();
   }, [isAdminUnlocked]);
 
   // Real-time Firestore sync of active/completed orders to local Dexie database for dashboard/reports
@@ -318,7 +341,7 @@ function AppContent() {
       where('createdAt', '>=', startOfToday)
     );
 
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
+    return subscribeWithRetry(q, async (snapshot) => {
       let hasNewSale = false;
 
       for (const change of snapshot.docChanges()) {
@@ -386,8 +409,6 @@ function AppContent() {
     }, (error) => {
       console.error('Firestore to Dexie sync listener error:', error);
     });
-
-    return () => unsubscribe();
   }, [isAdminUnlocked]);
 
   // Fix any invalid UTC ISO dates in the local sales database on mount

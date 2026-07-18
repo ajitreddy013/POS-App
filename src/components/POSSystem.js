@@ -393,26 +393,36 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
       return `A-${allSales.length + 1}`;
     }
     const settingsRef = doc(db, 'settings', 'order_counters');
-    let orderNum = null;
-    try {
-      await runTransaction(db, async (transaction) => {
-        const settingsSnap = await transaction.get(settingsRef);
-        let currentCount = 0;
-        if (settingsSnap.exists()) {
-          currentCount = settingsSnap.data().totalOrders || 0;
-        }
-        currentCount += 1;
-        transaction.set(settingsRef, { totalOrders: currentCount }, { merge: true });
-        orderNum = `A-${currentCount}`;
-      });
-    } catch (err) {
-      console.error('Failed to generate sequential kiosk order number:', err);
+    const MAX_ATTEMPTS = 3;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        let orderNum = null;
+        await runTransaction(db, async (transaction) => {
+          const settingsSnap = await transaction.get(settingsRef);
+          let currentCount = 0;
+          if (settingsSnap.exists()) {
+            currentCount = settingsSnap.data().totalOrders || 0;
+          }
+          currentCount += 1;
+          transaction.set(settingsRef, { totalOrders: currentCount }, { merge: true });
+          orderNum = `A-${currentCount}`;
+        });
+        return orderNum;
+      } catch (err) {
+        console.error(`Failed to generate sequential kiosk order number (attempt ${attempt}/${MAX_ATTEMPTS}):`, err);
+        if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, 800));
+      }
     }
-    if (!orderNum) {
-      const allSales = (await dbService.getSales()) || [];
-      orderNum = `A-${allSales.length + 1}`;
-    }
-    return orderNum;
+
+    // Every retry failed — don't fall back to a local sale count. That number
+    // lives in a completely different space from the shared cloud sequence and
+    // can collide with a real past order (this is exactly how A-88/A-90 happened:
+    // two otherwise-normal orders landed with numbers far behind the real count).
+    // This path can be hit after payment is already captured (UPI webhook
+    // completion), so it must still return something rather than block — just
+    // never something that could pass for a real sequential number.
+    return `A-UNCONFIRMED-${Date.now()}`;
   };
 
   const executeSaleWrite = async (selectedMethod, precomputedSaleNumber = null, overrides = {}) => {
