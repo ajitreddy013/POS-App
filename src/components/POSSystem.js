@@ -652,6 +652,7 @@ const POSSystem = ({ isKiosk, onOpenUnlockModal }) => {
           paymentMethod: 'upi',
           createdAt: new Date(),
           items: cart.map((item) => ({
+            productId: item.id,
             name: item.name,
             quantity: item.quantity,
             unitPrice: item.price,
