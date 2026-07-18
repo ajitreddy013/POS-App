@@ -9,6 +9,8 @@ jobs:
   deploy-firebase:
     name: Build & Deploy Customer Website to Firebase Hosting
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
