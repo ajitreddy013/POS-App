@@ -232,10 +232,12 @@ app.get('/order/ticket-status', ticketStatusRateLimit, async (req, res) => {
   }
 });
 
-// View Deployed Logs — protected by ADMIN_TOKEN env var
+// View Deployed Logs — protected by ADMIN_TOKEN env var. Fails closed: if the
+// token isn't configured at all, deny rather than serve logs unauthenticated
+// (logs can contain customer names/order numbers/error detail).
 app.get('/logs', (req, res) => {
   const adminToken = process.env.ADMIN_TOKEN;
-  if (adminToken && req.query.token !== adminToken) {
+  if (!adminToken || req.query.token !== adminToken) {
     return res.status(401).send('Unauthorized');
   }
   res.setHeader('Content-Type', 'text/plain');
@@ -437,8 +439,16 @@ async function computeAuthoritativeOrderAmount(db, orderData) {
   return Math.max(Number(total.toFixed(2)), 0);
 }
 
+const paymentCreateRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20, // one checkout attempt (with a couple retries) per customer per minute
+  message: { success: false, error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Create Cashfree PG Order
-app.post('/payment/cashfree/create-order', async (req, res) => {
+app.post('/payment/cashfree/create-order', paymentCreateRateLimit, async (req, res) => {
   const { amount, orderId, phone, name, isKiosk } = req.body;
   const cfClientId = process.env.CASHFREE_CLIENT_ID;
   const cfClientSecret = process.env.CASHFREE_CLIENT_SECRET;
@@ -634,7 +644,7 @@ app.get('/payment-done', (req, res) => {
 
 // Kiosk hosted payment — creates Cashfree order, returns native Cashfree hosted page URL
 // App opens this URL in the external browser; webhook confirms payment via Firestore.
-app.post('/payment/cashfree/kiosk-order', async (req, res) => {
+app.post('/payment/cashfree/kiosk-order', paymentCreateRateLimit, async (req, res) => {
   const { amount, orderId, phone, name } = req.body;
   const cfClientId = process.env.CASHFREE_CLIENT_ID;
   const cfClientSecret = process.env.CASHFREE_CLIENT_SECRET;
@@ -723,8 +733,16 @@ app.post('/payment/cashfree/kiosk-order', async (req, res) => {
   }
 });
 
+const paymentPollRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60, // polled every ~3s during an active checkout
+  message: { success: false, error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Check Cashfree order payment status by CF order ID
-app.post('/payment/cashfree/order-status', async (req, res) => {
+app.post('/payment/cashfree/order-status', paymentPollRateLimit, async (req, res) => {
   const { cfOrderId } = req.body;
   if (!cfOrderId)
     return res
@@ -743,7 +761,7 @@ app.post('/payment/cashfree/order-status', async (req, res) => {
 
 // Cashfree UPI QR — create order + initiate UPI QR in one call
 // Returns a base64 QR image the app renders in-app; webhook fires when customer pays.
-app.post('/payment/cashfree/upi-qr', async (req, res) => {
+app.post('/payment/cashfree/upi-qr', paymentCreateRateLimit, async (req, res) => {
   const { amount, orderId, phone, name } = req.body;
   const cfClientId = process.env.CASHFREE_CLIENT_ID;
   const cfClientSecret = process.env.CASHFREE_CLIENT_SECRET;
@@ -1007,7 +1025,15 @@ app.post('/payment/cashfree/webhook', webhookRateLimit, async (req, res) => {
 // ─── Device License Verification ─────────────────────────────────────────────
 // Set ALLOWED_DEVICES env var in Render as a comma-separated list of Device IDs
 // e.g. ALLOWED_DEVICES=abc123,xyz789
-app.post('/device/verify', (req, res) => {
+const deviceVerifyRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10, // the app only needs this once per launch
+  message: { authorized: false, error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.post('/device/verify', deviceVerifyRateLimit, (req, res) => {
   const { deviceId } = req.body;
   if (!deviceId) {
     return res
